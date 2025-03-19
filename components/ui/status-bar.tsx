@@ -20,10 +20,15 @@ export function StatusBar({ value, type }: StatusBarProps) {
   }
   
   const getStatus = (value: number, type: string) => {
-    if (type === "food" && value > 100) return "Unhealthy"
-    if (value <= 20) return "Low"
-    if (value <= 60) return "Medium"
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    const labels = {
+      food: "Food",
+      happiness: "Mood",
+      cleanliness: "Clean",
+      energy: "Energy",
+      health: "Health"
+    };
+    
+    return labels[type as keyof typeof labels] || type.charAt(0).toUpperCase() + type.slice(1);
   }
   
   return (
