@@ -6,6 +6,7 @@ import { Utensils, BathIcon, Stethoscope, Gamepad } from "lucide-react"
 import { DeviceIndicators } from "./device-indicators"
 import { HappyCat, AlertCat, SadCat, TiredCat, HungryCat, DeadCat } from "./cat-emotions"
 import { DonutIcon, FishIcon, BallIcon } from "./ui/icons"
+import { v4 as uuidv4 } from "uuid"
 
 // Add interface for interaction tracking
 interface Interaction {
@@ -20,6 +21,10 @@ interface Interaction {
     health: number;
   };
   emotion: "happy" | "sad" | "tired" | "hungry" | "curious" | "dead";
+  blockchainStats: any;
+  tweet: string;
+  blockNumber: string;
+  transactionUrl: string;
 }
 
 // Expanded for all stats
@@ -278,7 +283,11 @@ export function KawaiiDevice() {
           energy: currentEnergy,
           health: currentHealth
         },
-        emotion
+        emotion,
+        blockchainStats: {},
+        tweet: `My pet just got ${["a check-up", "vitamins", "vaccinated", "surgery"][selectedDoctorItem || 0]}!`,
+        blockNumber: "",
+        transactionUrl: ""
       };
       
       setCurrentInteraction(newInteraction);
@@ -289,7 +298,7 @@ export function KawaiiDevice() {
         setShowInteraction(false);
       }, 3000);
     },
-    [isDead]
+    [isDead, selectedDoctorItem]
   );
   
   // Apply stat changes
@@ -555,6 +564,57 @@ export function KawaiiDevice() {
           setIsMenuActive(false);
         }
       }
+
+      if (menuStack[menuStack.length - 1] === "doctor") {
+        if (option === "a" && selectedDoctorItem !== null) {
+          setLastInteractionTime(Date.now());
+          setIsHealing(true);
+          setTimeout(() => setIsHealing(false), 1000);
+          
+          // Apply effects based on selected treatment
+          switch (selectedDoctorItem) {
+            case 0: // Check-up
+              setHealth(prev => Math.min(prev + 10, 100));
+              break;
+            case 1: // Vitamins
+              setHealth(prev => Math.min(prev + 15, 100));
+              setEnergy(prev => Math.min(prev + 10, 100));
+              break;
+            case 2: // Vaccine
+              setHealth(prev => Math.min(prev + 20, 100));
+              // No immunity stat, just improve health
+              break;
+            case 3: // Surgery
+              setHealth(prev => Math.min(prev + 30, 100));
+              setEnergy(prev => Math.max(prev - 20, 0)); // Surgery costs energy
+              break;
+          }
+          
+          // Trigger interaction animation
+          setShowInteraction(true);
+          setCurrentInteraction({
+            id: uuidv4(),
+            timestamp: new Date(),
+            type: "Doctor",
+            stats: {
+              food: food,
+              happiness: happiness,
+              cleanliness: cleanliness,
+              energy: energy,
+              health: health
+            },
+            emotion: "happy",
+            blockchainStats: {}, // Empty object instead of spread
+            tweet: `My pet just got ${["a check-up", "vitamins", "vaccinated", "surgery"][selectedDoctorItem]}!`,
+            blockNumber: "",
+            transactionUrl: ""
+          });
+          setTimeout(() => setShowInteraction(false), 3000);
+          
+          // Reset selection after healing
+          setSelectedDoctorItem(null);
+        }
+      }
     },
     [
       selectedMenuItem, 
@@ -609,20 +669,24 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "main") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2 gap-2">
+          <div className="flex justify-between w-full mb-2">
             <div className="flex-1">
-              <StatusBar value={happiness} type="happiness" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono text-black">⭐</span>
+                <span className="text-xs text-black">Points: {Math.round(points * 100) / 100}</span>
+              </div>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 ml-2">
               <StatusBar value={health} type="health" />
             </div>
           </div>
-          <div className="text-xs text-right mb-1">Points: {Math.floor(points)}</div>
-          <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex-grow flex items-center justify-center">
+            {getCatEmotion()}
+          </div>
+          <div className="flex justify-around w-full px-2 pt-2 border-t-2 border-gray-400">
             {["food", "clean", "doctor", "play"].map((icon, index) => (
               <PixelIcon
-                key={icon}
+                key={index}
                 icon={icon as "food" | "clean" | "doctor" | "play"}
                 isHighlighted={selectedMenuItem === index}
               />
@@ -709,13 +773,11 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "doctor") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <div className="flex-1">
-              <StatusBar value={health} type="health" />
-            </div>
-            <div className="flex-1">
-              <StatusBar value={happiness} type="happiness" />
-            </div>
+          <div className="grid grid-cols-2 gap-2 w-full mb-2">
+            <StatusBar value={food} type="food" />
+            <StatusBar value={energy} type="energy" />
+            <StatusBar value={happiness} type="happiness" />
+            <StatusBar value={cleanliness} type="cleanliness" />
           </div>
           <div className="text-xs mb-2">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
@@ -737,6 +799,10 @@ export function KawaiiDevice() {
     if (health > 40) return "Fair";
     if (health > 20) return "Poor";
     return "Critical";
+  };
+
+  const capStat = (value: number): number => {
+    return Math.min(Math.max(value, 0), 100);
   };
 
   return (
