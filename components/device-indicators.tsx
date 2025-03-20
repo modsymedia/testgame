@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 interface DeviceIndicatorsProps {
   status?: "idle" | "active" | "alert" | "dead"
@@ -9,15 +9,31 @@ interface DeviceIndicatorsProps {
 
 export function DeviceIndicators({ status = "idle" }: DeviceIndicatorsProps) {
   const [isBlinking, setIsBlinking] = useState(false)
+  // Use refs to track timeouts/intervals to prevent state update loops
+  const blinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const blinkInterval = setInterval(() => {
-      setIsBlinking(true)
-      setTimeout(() => setIsBlinking(false), 200) // Blink for 200ms
-    }, 5000) // Blink every 5 seconds
+    // Clear any existing timeout/interval when component mounts or unmounts
+    const clearTimeouts = () => {
+      if (blinkTimeoutRef.current) {
+        clearTimeout(blinkTimeoutRef.current);
+        blinkTimeoutRef.current = null;
+      }
+    };
 
-    return () => clearInterval(blinkInterval)
-  }, [])
+    const blinkInterval = setInterval(() => {
+      setIsBlinking(true);
+      // Store the timeout reference
+      blinkTimeoutRef.current = setTimeout(() => {
+        setIsBlinking(false);
+      }, 200); // Blink for 200ms
+    }, 5000); // Blink every 5 seconds
+
+    return () => {
+      clearInterval(blinkInterval);
+      clearTimeouts();
+    };
+  }, []); // Empty dependency array means this runs once on mount
 
   const getStatusColor = () => {
     switch (status) {

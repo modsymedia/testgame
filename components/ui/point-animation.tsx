@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
 interface PointAnimationProps {
@@ -11,16 +11,38 @@ interface PointAnimationProps {
 
 export function PointAnimation({ points, show, onComplete }: PointAnimationProps) {
   const [visible, setVisible] = useState(show)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  // Use a ref to track if we've already completed this animation
+  const hasCompletedRef = useRef(false)
   
   useEffect(() => {
+    // Reset state when show changes to true
     if (show) {
+      hasCompletedRef.current = false
       setVisible(true)
-      const timer = setTimeout(() => {
-        setVisible(false)
-        onComplete()
-      }, 1500)
       
-      return () => clearTimeout(timer)
+      // Clear any existing timer
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+      
+      // Set a new timer
+      timerRef.current = setTimeout(() => {
+        setVisible(false)
+        
+        // Only call onComplete if we haven't already
+        if (!hasCompletedRef.current) {
+          hasCompletedRef.current = true
+          onComplete()
+        }
+      }, 1500)
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
     }
   }, [show, onComplete])
   
