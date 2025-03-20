@@ -2,117 +2,163 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import type { PetStats } from "@/hooks/use-pet-interactions"
 
 interface AIPetAdvisorProps {
-  petStats: Omit<PetStats, 'points' | 'isDead'>
-  cooldowns: {
-    feed: number
-    play: number
-    clean: number
-    doctor: number
-  }
+  show: boolean
+  isDead: boolean
+  food: number
+  happiness: number
+  cleanliness: number
+  energy: number
+  health: number
+  aiAdvice?: string
+  aiPersonality?: any
 }
 
-export function AIPetAdvisor({ petStats, cooldowns }: AIPetAdvisorProps) {
-  const [showAdvice, setShowAdvice] = useState(false)
-  const [currentAdvice, setCurrentAdvice] = useState<string>("")
-
-  // Generate advice based on pet stats
-  useEffect(() => {
-    const { food, happiness, cleanliness, energy, health } = petStats
-    
-    // Find the most urgent need
-    const needs = [
-      { type: 'feed', value: food, threshold: 40, cooldown: cooldowns.feed },
-      { type: 'play', value: happiness, threshold: 40, cooldown: cooldowns.play },
-      { type: 'clean', value: cleanliness, threshold: 40, cooldown: cooldowns.clean },
-      { type: 'health', value: health, threshold: 50, cooldown: cooldowns.doctor }
-    ].sort((a, b) => {
-      // Sort by urgency but consider cooldowns
-      const aUrgency = a.threshold - a.value
-      const bUrgency = b.threshold - b.value
-      
-      // If both are urgent, prioritize the one that's not on cooldown
-      if (aUrgency > 0 && bUrgency > 0) {
-        if (a.cooldown === 0 && b.cooldown > 0) return -1
-        if (a.cooldown > 0 && b.cooldown === 0) return 1
-      }
-      
-      return bUrgency - aUrgency
-    })
-    
-    // Generate advice based on top need
-    const topNeed = needs[0]
-    
-    // Only give advice if there's an actual need
-    if (topNeed.threshold - topNeed.value > 0) {
-      let advice = ""
-      
-      if (topNeed.cooldown > 0) {
-        // If top need is on cooldown, suggest alternative
-        const alternativeNeed = needs.find(need => need.cooldown === 0 && need.threshold - need.value > 0)
-        if (alternativeNeed) {
-          advice = getAdviceForNeed(alternativeNeed.type)
-        } else {
-          advice = `I recommend waiting, all activities are on cooldown (${Math.ceil(topNeed.cooldown / 1000)}s)`
-        }
-      } else {
-        advice = getAdviceForNeed(topNeed.type)
-      }
-      
-      setCurrentAdvice(advice)
-      setShowAdvice(true)
-      
-      // Hide advice after 5 seconds
-      const timer = setTimeout(() => {
-        setShowAdvice(false)
-      }, 5000)
-      
-      return () => clearTimeout(timer)
-    } else {
-      // If all stats are above thresholds, show balanced status
-      if (needs.every(need => need.value >= need.threshold)) {
-        setCurrentAdvice("Your pet is doing great! Keep up the balanced care.")
-        setShowAdvice(true)
-        
-        // Hide advice after 5 seconds
-        const timer = setTimeout(() => {
-          setShowAdvice(false)
-        }, 5000)
-        
-        return () => clearTimeout(timer)
-      }
-    }
-  }, [petStats, cooldowns])
+export function AIPetAdvisor({
+  show,
+  isDead,
+  food,
+  happiness,
+  cleanliness,
+  energy,
+  health,
+  aiAdvice,
+  aiPersonality
+}: AIPetAdvisorProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [showFullStats, setShowFullStats] = useState(false)
   
-  const getAdviceForNeed = (needType: string): string => {
-    switch (needType) {
-      case 'feed':
-        return "Your pet is hungry! Feed it for bonus points."
-      case 'play':
-        return "Your pet is sad! Play with it for increased points."
-      case 'clean':
-        return "Your pet needs grooming! Clean it for extra points."
-      case 'health':
-        return "Your pet's health is low! Visit the doctor for max points."
-      default:
-        return "Monitor your pet's needs for bonus points."
+  useEffect(() => {
+    if (show) {
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
     }
-  }
+  }, [show])
+  
+  // Get personality traits to display
+  const getPersonalityTraits = () => {
+    if (!aiPersonality || !aiPersonality.personalityTraits) {
+      return ['Friendly', 'Playful']; // Default traits
+    }
+    
+    return aiPersonality.personalityTraits;
+  };
+  
+  // Get mood description
+  const getMoodDescription = () => {
+    if (!aiPersonality || !aiPersonality.moodDescription) {
+      return getDefaultMood();
+    }
+    
+    return aiPersonality.moodDescription;
+  };
+  
+  // Default mood based on stats
+  const getDefaultMood = () => {
+    if (isDead) return "Your pet has passed away.";
+    if (food < 20) return "Your pet is very hungry!";
+    if (happiness < 20) return "Your pet is feeling sad.";
+    if (cleanliness < 20) return "Your pet needs cleaning!";
+    if (energy < 20) return "Your pet is exhausted.";
+    if (health < 20) return "Your pet is sick!";
+    
+    const averageStats = (food + happiness + cleanliness + energy + health) / 5;
+    if (averageStats > 80) return "Your pet is thriving!";
+    if (averageStats > 60) return "Your pet is doing well.";
+    if (averageStats > 40) return "Your pet is okay, but could use some care.";
+    return "Your pet needs attention.";
+  };
+  
+  // Get personalized advice
+  const getAdvice = () => {
+    if (isDead) return "Press reset to start over.";
+    
+    if (aiAdvice) {
+      return aiAdvice;
+    }
+    
+    if (food < 20) return "Feed your pet soon!";
+    if (happiness < 20) return "Play with your pet to improve its mood.";
+    if (cleanliness < 20) return "Time for cleaning!";
+    if (energy < 20) return "Your pet needs to rest.";
+    if (health < 20) return "Visit the doctor!";
+    
+    return "Keep caring for your pet regularly.";
+  };
+  
+  // Get multiplier info if available
+  const getMultiplierInfo = () => {
+    if (!aiPersonality || !aiPersonality.multiplier) {
+      return null;
+    }
+    
+    const multiplier = aiPersonality.multiplier;
+    let message = "";
+    
+    if (multiplier > 1.3) {
+      message = "Excellent care! Earning bonus points!";
+    } else if (multiplier > 1.0) {
+      message = "Good care, earning extra points";
+    } else if (multiplier < 0.9) {
+      message = "Pet care needs improvement";
+    }
+    
+    return message ? (
+      <div className="text-xs mt-2 px-2 py-1 bg-indigo-100 rounded-full text-indigo-700 font-medium">
+        {message} (×{multiplier.toFixed(1)})
+      </div>
+    ) : null;
+  };
+
+  if (!show) return null
 
   return (
     <AnimatePresence>
-      {showAdvice && (
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className="bg-indigo-600 text-white px-4 py-2 text-sm rounded-md shadow-lg max-w-xs"
+          exit={{ opacity: 0, y: -10 }}
+          className="rounded-lg border bg-card text-card-foreground shadow-sm max-w-xs w-full"
         >
-          <div className="flex items-center">
-            <span className="mr-2 text-lg">🤖</span>
-            <p>{currentAdvice}</p>
+          <div className="flex flex-col space-y-1.5 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold leading-none">AI Pet Advisor</h3>
+              <button 
+                onClick={() => setShowFullStats(!showFullStats)}
+                className="text-xs bg-muted rounded px-2 py-1 hover:bg-muted/80"
+              >
+                {showFullStats ? "Hide Stats" : "Show Stats"}
+              </button>
+            </div>
+            {showFullStats && (
+              <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                <div>Food: {Math.floor(food)}%</div>
+                <div>Happiness: {Math.floor(happiness)}%</div>
+                <div>Cleanliness: {Math.floor(cleanliness)}%</div>
+                <div>Energy: {Math.floor(energy)}%</div>
+                <div>Health: {Math.floor(health)}%</div>
+              </div>
+            )}
+          </div>
+          <div className="p-4 pt-0">
+            <div className="mb-2">
+              <h4 className="text-xs font-semibold text-muted-foreground">Personality</h4>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {getPersonalityTraits().map((trait: string, index: number) => (
+                  <span key={index} className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                    {trait}
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            <div className="text-sm font-medium mb-1">{getMoodDescription()}</div>
+            <div className="text-xs text-muted-foreground">{getAdvice()}</div>
+            
+            {getMultiplierInfo()}
           </div>
         </motion.div>
       )}

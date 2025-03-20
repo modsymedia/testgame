@@ -96,21 +96,66 @@ export function WalletProvider({ children }: WalletProviderProps) {
         return false;
       }
       
-      const { publicKey } = await provider.connect();
-      const key = publicKey.toString();
-      setPublicKey(key);
-      setIsConnected(true);
+      // Check if the provider is responsive
+      let isProviderResponsive = false;
+      try {
+        // Attempt to check if the extension is responsive
+        if ((provider as any)['isPhantom']) {
+          isProviderResponsive = true;
+        }
+      } catch (error) {
+        console.warn('Phantom provider is not responsive:', error);
+        setError('Could not establish connection with Phantom wallet. Please refresh the page or restart your browser.');
+        return false;
+      }
       
-      // Get or initialize wallet data
-      const data = getWalletData(key);
-      setWalletData(data);
+      if (!isProviderResponsive) {
+        setError('Could not establish connection with Phantom wallet. Please refresh the page or restart your browser.');
+        return false;
+      }
       
-      // Update login time
-      data.lastLogin = Date.now();
-      saveWalletData(key, data);
+      // First try to disconnect
+      try {
+        if (provider.isConnected) {
+          await provider.disconnect();
+          
+          // Increased delay to ensure the UI updates and extension has time to process
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (e) {
+        console.warn('Error during pre-connect disconnect:', e);
+        // Continue anyway, but with a brief pause
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
-      return true;
+      // Now try to connect with the wallet
+      try {
+        // This will prompt the user to approve the connection
+        const resp = await provider.connect();
+        const key = resp.publicKey.toString();
+        
+        // Wait a moment before updating state
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setPublicKey(key);
+        setIsConnected(true);
+        
+        // Get or initialize wallet data
+        const data = getWalletData(key);
+        setWalletData(data);
+        
+        // Update login time
+        data.lastLogin = Date.now();
+        saveWalletData(key, data);
+        
+        return true;
+      } catch (connError) {
+        console.error('Connection error:', connError);
+        setError('Failed to connect wallet. Please try again or refresh the page.');
+        return false;
+      }
     } catch (error: any) {
+      console.error('Wallet connection failed:', error);
       setError(error?.message || 'Failed to connect wallet');
       return false;
     }
@@ -121,9 +166,21 @@ export function WalletProvider({ children }: WalletProviderProps) {
       const provider = getProvider();
       if (provider) {
         provider.disconnect();
+        
+        // Reset all state values
         setIsConnected(false);
         setPublicKey(null);
         setWalletData(null);
+        
+        // Clear any stored session data
+        if (typeof window !== 'undefined') {
+          // Remove the auto-connect session flag if it exists
+          sessionStorage.removeItem('phantom_connected');
+          localStorage.removeItem('phantom_last_connected');
+          
+          // Don't try to modify read-only solana property
+          // Just clear our own connection state
+        }
       }
     } catch (error: any) {
       setError(error?.message || 'Failed to disconnect wallet');

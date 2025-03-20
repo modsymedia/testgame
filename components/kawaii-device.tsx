@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import { StatusBar } from "@/components/ui/status-bar";
 import { PixelIcon } from "@/components/ui/pixel-icon";
@@ -14,10 +14,12 @@ import { AIPetAdvisor } from "@/components/ui/ai-pet-advisor";
 import { PointAnimation } from "@/components/ui/point-animation";
 import { useWallet } from "@/context/WalletContext";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 
 export function KawaiiDevice() {
   const router = useRouter();
-  const { isConnected, publicKey, walletData, updatePoints } = useWallet();
+  const { isConnected, publicKey, walletData, updatePoints, disconnect } = useWallet();
   
   // Redirect to landing if not connected
   useEffect(() => {
@@ -50,7 +52,12 @@ export function KawaiiDevice() {
     resetPet,
     cooldowns,
     isOnCooldown,
-    recentPointGain
+    recentPointGain,
+    aiAdvice,
+    aiPersonality,
+    aiPointMultiplier,
+    petMessage,
+    petReaction
   } = usePetInteractions();
 
   const {
@@ -129,6 +136,24 @@ export function KawaiiDevice() {
     return <HappyCat />;
   };
 
+  // Define handleInteraction before it's used in handleButtonClick
+  const handleInteraction = (type: string) => {
+    switch (type) {
+      case 'feed':
+        handleFeeding(); // No arguments needed
+        break;
+      case 'play':
+        handlePlaying(); // No arguments needed
+        break;
+      case 'clean':
+        handleCleaning(); // No arguments needed
+        break;
+      case 'doctor':
+        handleDoctor(); // No arguments needed
+        break;
+    }
+  };
+
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
     (option: "food" | "clean" | "doctor" | "play" | "previous" | "next" | "a" | "b") => {
@@ -155,39 +180,27 @@ export function KawaiiDevice() {
           handleButtonNavigation("a");
         } else if (menuStack[menuStack.length - 1] === "food") {
           // Handle food selection
-          const foodTypes = ["fish", "cookie", "catFood", "kibble"];
-          if (selectedFoodItem !== null && selectedFoodItem < foodTypes.length) {
-            const success = handleFeeding(foodTypes[selectedFoodItem], selectedFoodItem);
-            if (success) {
-              resetMenu();
-            }
+          if (selectedFoodItem !== null) {
+            handleInteraction('feed');
+            resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "play") {
           // Handle play selection
-          const playTypes = ["laser", "feather", "ball", "puzzle"];
-          if (selectedPlayItem !== null && selectedPlayItem < playTypes.length) {
-            const success = handlePlaying(playTypes[selectedPlayItem], selectedPlayItem);
-            if (success) {
-              resetMenu();
-            }
+          if (selectedPlayItem !== null) {
+            handleInteraction('play');
+            resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "clean") {
           // Handle clean selection
-          const cleanTypes = ["brush", "bath", "nails", "styling", "dental"];
-          if (selectedCleanItem !== null && selectedCleanItem < cleanTypes.length) {
-            const success = handleCleaning(cleanTypes[selectedCleanItem], selectedCleanItem);
-            if (success) {
-              resetMenu();
-            }
+          if (selectedCleanItem !== null) {
+            handleInteraction('clean');
+            resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "doctor") {
           // Handle doctor selection
-          const doctorTypes = ["checkup", "vitamins", "vaccine", "surgery"];
-          if (selectedDoctorItem !== null && selectedDoctorItem < doctorTypes.length) {
-            const success = handleDoctor(doctorTypes[selectedDoctorItem], selectedDoctorItem);
-            if (success) {
-              resetMenu();
-            }
+          if (selectedDoctorItem !== null) {
+            handleInteraction('doctor');
+            resetMenu();
           }
         }
       }
@@ -200,10 +213,7 @@ export function KawaiiDevice() {
       selectedCleanItem, 
       selectedDoctorItem,
       handleButtonNavigation,
-      handleFeeding, 
-      handlePlaying, 
-      handleCleaning, 
-      handleDoctor,
+      handleInteraction,
       resetPet,
       resetMenu,
     ]
@@ -366,8 +376,31 @@ export function KawaiiDevice() {
     }
   };
 
+  // Add a logout function that disconnects the wallet and redirects to landing page
+  const handleLogout = useCallback(() => {
+    disconnect();
+    router.push('/');
+  }, [disconnect, router]);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-pink-100 p-4">
+      {/* Navigation and Dev Tools */}
+      <div className="absolute top-4 right-4 flex space-x-2">
+        {isConnected && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleLogout}
+            className="text-xs"
+          >
+            Logout
+          </Button>
+        )}
+      </div>
+      
+      {/* GPT Logs Panel */}
+      <GPTLogsPanel />
+      
       {showInteraction && currentInteraction && (
         <motion.div 
           className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs"
@@ -376,22 +409,105 @@ export function KawaiiDevice() {
           exit={{ opacity: 0, y: -20 }}
         >
           <h3 className="font-bold">{currentInteraction.type}</h3>
-          <p>Food: {currentInteraction.stats.food.toFixed(1)}%</p>
-          <p>Happiness: {currentInteraction.stats.happiness.toFixed(1)}%</p>
-          <p>Cleanliness: {currentInteraction.stats.cleanliness.toFixed(1)}%</p>
-          <p>Energy: {currentInteraction.stats.energy.toFixed(1)}%</p>
-          <p>Health: {currentInteraction.stats.health.toFixed(1)}%</p>
-          <p>Pet is feeling {currentInteraction.emotion}</p>
+          {currentInteraction.stats && (
+            <>
+              <p>Food: {currentInteraction.stats.food.toFixed(1)}%</p>
+              <p>Happiness: {currentInteraction.stats.happiness.toFixed(1)}%</p>
+              <p>Cleanliness: {currentInteraction.stats.cleanliness.toFixed(1)}%</p>
+              <p>Energy: {currentInteraction.stats.energy.toFixed(1)}%</p>
+              <p>Health: {currentInteraction.stats.health.toFixed(1)}%</p>
+            </>
+          )}
+          {currentInteraction.emotion && <p>Pet is feeling {currentInteraction.emotion}</p>}
         </motion.div>
       )}
       
       {/* AI Advisor - moved above the device */}
       <div className="mb-4">
         <AIPetAdvisor 
-          petStats={{ food, happiness, cleanliness, energy, health }}
-          cooldowns={cooldowns}
+          show={true}
+          isDead={isDead}
+          food={food}
+          happiness={happiness}
+          cleanliness={cleanliness}
+          energy={energy}
+          health={health}
+          aiAdvice={aiAdvice}
+          aiPersonality={aiPersonality}
         />
       </div>
+      
+      {/* Display pet message in a cute speech bubble when available */}
+      <AnimatePresence>
+        {petMessage && (
+          <motion.div 
+            className={`relative bg-white p-3 rounded-lg shadow-md mb-2 max-w-[300px] text-center ${
+              petReaction === "happy" || petReaction === "excited" ? "border-green-300" :
+              petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "border-blue-300" :
+              petReaction === "angry" || petReaction === "sick" ? "border-red-300" :
+              petReaction === "clean" ? "border-cyan-300" :
+              petReaction === "dirty" ? "border-amber-300" :
+              "border-gray-200"
+            }`}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ 
+              opacity: 1, 
+              y: 0,
+              x: petReaction === "excited" ? [0, -5, 5, -5, 0] : 0,
+              rotate: petReaction === "happy" ? [0, -2, 2, -2, 0] : 0
+            }}
+            transition={{ 
+              duration: 0.5,
+              x: { duration: 0.5, repeat: petReaction === "excited" ? 2 : 0 },
+              rotate: { duration: 0.5, repeat: petReaction === "happy" ? 2 : 0 }
+            }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{ 
+              border: "2px solid",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+              zIndex: 100
+            }}
+          >
+            {/* Pet message content */}
+            <div className="text-sm font-medium text-gray-800">
+              {petMessage}
+            </div>
+            
+            {/* Reaction emoji */}
+            <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md">
+              {petReaction === "happy" && "😊"}
+              {petReaction === "sad" && "😢"}
+              {petReaction === "excited" && "🤩"}
+              {petReaction === "sleepy" && "😴"}
+              {petReaction === "hungry" && "🍽️"}
+              {petReaction === "angry" && "😠"}
+              {petReaction === "sick" && "🤒"}
+              {petReaction === "clean" && "✨"}
+              {petReaction === "dirty" && "🧹"}
+              {petReaction === "none" && "😐"}
+            </div>
+            
+            {/* Speech bubble tail */}
+            <div 
+              className={`absolute w-4 h-4 bg-white rotate-45 ${
+                petReaction === "happy" || petReaction === "excited" ? "bg-green-100" :
+                petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "bg-blue-100" :
+                petReaction === "angry" || petReaction === "sick" ? "bg-red-100" :
+                petReaction === "clean" ? "bg-cyan-100" :
+                petReaction === "dirty" ? "bg-amber-100" :
+                "bg-white"
+              }`}
+              style={{
+                bottom: "-8px",
+                left: "50%",
+                marginLeft: "-8px",
+                boxShadow: "2px 2px 0 0 #e9e9e9",
+                zIndex: -1
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <motion.div
         className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative overflow-hidden"
@@ -452,6 +568,7 @@ export function KawaiiDevice() {
             </div>
           ))}
         </div>
+        
       </motion.div>
     </div>
   );
