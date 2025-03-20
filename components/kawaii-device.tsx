@@ -19,7 +19,7 @@ import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 
 export function KawaiiDevice() {
   const router = useRouter();
-  const { isConnected, publicKey, walletData, updatePoints, disconnect } = useWallet();
+  const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
   
   // Redirect to landing if not connected
   useEffect(() => {
@@ -102,6 +102,8 @@ export function KawaiiDevice() {
       }
     }
   }, [points, isConnected, updatePoints]);
+
+  const [showReviveConfirm, setShowReviveConfirm] = useState(false);
 
   const getCatEmotion = () => {
     if (isDead) return <DeadCat />;
@@ -219,6 +221,24 @@ export function KawaiiDevice() {
     ]
   );
   
+  // Handle revive confirmation
+  const handleReviveRequest = () => {
+    setShowReviveConfirm(true);
+  };
+  
+  const handleReviveConfirm = () => {
+    // Burn 50% of points through the wallet context
+    burnPoints();
+    // Reset pet stats
+    resetPet();
+    // Hide confirmation dialog
+    setShowReviveConfirm(false);
+  };
+  
+  const handleReviveCancel = () => {
+    setShowReviveConfirm(false);
+  };
+
   const renderMenuContent = () => {
     if (isDead) {
       return (
@@ -230,9 +250,35 @@ export function KawaiiDevice() {
           <div className="flex-grow flex flex-col items-center justify-center">
             {getCatEmotion()}
             <p className="text-red-500 font-bold mt-4">Your pet has died!</p>
-            <button onClick={() => handleButtonClick("a")} className="mt-2 bg-green-500 text-white py-1 px-3 rounded-md">
-              Revive
-            </button>
+            <p className="text-sm mt-1 mb-2">Total tokens remaining: 100</p>
+            
+            {showReviveConfirm ? (
+              <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
+                <p className="text-sm mb-2">Revive your pet by burning 50% of your points?</p>
+                <p className="text-xs mb-3">Current points: {formatPoints(points)}</p>
+                <div className="flex space-x-2 justify-center">
+                  <button 
+                    onClick={handleReviveConfirm} 
+                    className="bg-green-500 text-white py-1 px-3 rounded-md text-sm"
+                  >
+                    Confirm
+                  </button>
+                  <button 
+                    onClick={handleReviveCancel} 
+                    className="bg-red-500 text-white py-1 px-3 rounded-md text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={handleReviveRequest} 
+                className="mt-2 bg-green-500 text-white py-1 px-3 rounded-md"
+              >
+                Revive
+              </button>
+            )}
           </div>
         </>
       );

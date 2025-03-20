@@ -37,7 +37,23 @@ interface WalletContextState {
 export const getProvider = (): PhantomProvider | undefined => {
   if (typeof window !== 'undefined') {
     try {
+      console.log('Checking for Phantom provider...');
+      
+      // Check if window.solana exists first
+      if (!(window as any)['solana']) {
+        console.warn('window.solana is undefined - Phantom extension may not be installed');
+        return undefined;
+      }
+      
       const provider = (window as any)?.solana;
+      
+      // Log some debug info about the provider
+      console.log('Provider found:', provider ? 'Yes' : 'No');
+      if (provider) {
+        console.log('isPhantom:', provider.isPhantom ? 'Yes' : 'No');
+        console.log('isConnected:', provider.isConnected ? 'Yes' : 'No');
+        console.log('publicKey:', provider.publicKey ? 'Available' : 'Not available');
+      }
       
       // Make sure provider and isPhantom property both exist
       if (provider && provider?.isPhantom) {
