@@ -949,7 +949,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy(30)
     setHealth(30)
     setIsDead(false)
-    setPoints(0)
+    // Don't reset points - they're handled by the wallet context
     setCooldowns({
       feed: 0,
       play: 0,

@@ -41,16 +41,56 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [walletData, setWalletData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Safe connect wrapper
+  const safeConnect = async (provider: any): Promise<any> => {
+    if (!provider) return null;
+    
+    // Make sure provider.connect exists and is a function
+    if (typeof provider.connect !== 'function') {
+      console.error('Provider.connect is not a function');
+      throw new Error('Wallet provider is missing connect method');
+    }
+    
+    try {
+      return await provider.connect();
+    } catch (error) {
+      console.error('Error in safeConnect:', error);
+      throw error; // Re-throw the error for the caller to handle
+    }
+  };
+
+  // Safe disconnect wrapper
+  const safeDisconnect = async (provider: any): Promise<void> => {
+    if (!provider) return;
+    
+    // Make sure provider.disconnect exists and is a function
+    if (typeof provider.disconnect !== 'function') {
+      console.error('Provider.disconnect is not a function');
+      return; // Just return instead of throwing
+    }
+    
+    try {
+      await provider.disconnect();
+    } catch (error) {
+      console.error('Error in safeDisconnect:', error);
+      // Swallow the error but log it
+    }
+  };
+
   useEffect(() => {
     // Check if wallet was previously connected
     const checkConnection = async () => {
-      const provider = getProvider();
-      if (provider?.isConnected && provider.publicKey) {
-        setIsConnected(true);
-        const key = provider.publicKey.toString();
-        setPublicKey(key);
-        const data = getWalletData(key);
-        setWalletData(data);
+      try {
+        const provider = getProvider();
+        if (provider && provider.isConnected && provider.publicKey) {
+          setIsConnected(true);
+          const key = provider.publicKey.toString();
+          setPublicKey(key);
+          const data = getWalletData(key);
+          setWalletData(data);
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
       }
     };
 
@@ -58,27 +98,39 @@ export function WalletProvider({ children }: WalletProviderProps) {
     
     // Set up event listeners for wallet connection changes
     const handleConnect = () => {
-      const provider = getProvider();
-      if (provider?.publicKey) {
-        setIsConnected(true);
-        const key = provider.publicKey.toString();
-        setPublicKey(key);
-        const data = getWalletData(key);
-        setWalletData(data);
+      try {
+        const provider = getProvider();
+        if (provider && provider.publicKey) {
+          setIsConnected(true);
+          const key = provider.publicKey.toString();
+          setPublicKey(key);
+          const data = getWalletData(key);
+          setWalletData(data);
+        }
+      } catch (error) {
+        console.error('Error in connect handler:', error);
       }
     };
     
     const handleDisconnect = () => {
-      setIsConnected(false);
-      setPublicKey(null);
-      setWalletData(null);
+      try {
+        setIsConnected(false);
+        setPublicKey(null);
+        setWalletData(null);
+      } catch (error) {
+        console.error('Error in disconnect handler:', error);
+      }
     };
     
     // Add event listeners
-    const provider = getProvider();
-    if (provider) {
-      provider.on('connect', handleConnect);
-      provider.on('disconnect', handleDisconnect);
+    try {
+      const provider = getProvider();
+      if (provider) {
+        provider.on('connect', handleConnect);
+        provider.on('disconnect', handleDisconnect);
+      }
+    } catch (error) {
+      console.error('Error setting up wallet event listeners:', error);
     }
     
     // No cleanup for now since we can't reliably remove listeners
@@ -89,6 +141,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
   }, []);
   
   const connect = async (): Promise<boolean> => {
+    setError(null); // Clear previous errors
+    
     try {
       const provider = getProvider();
       if (!provider) {
@@ -114,10 +168,10 @@ export function WalletProvider({ children }: WalletProviderProps) {
         return false;
       }
       
-      // First try to disconnect
+      // First try to disconnect safely
       try {
         if (provider.isConnected) {
-          await provider.disconnect();
+          await safeDisconnect(provider);
           
           // Increased delay to ensure the UI updates and extension has time to process
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -131,7 +185,31 @@ export function WalletProvider({ children }: WalletProviderProps) {
       // Now try to connect with the wallet
       try {
         // This will prompt the user to approve the connection
-        const resp = await provider.connect();
+        let resp;
+        try {
+          resp = await safeConnect(provider);
+          if (!resp) {
+            setError('Connection attempt returned null response');
+            return false;
+          }
+        } catch (connectError: any) {
+          console.error('Detailed connection error:', connectError);
+          
+          // Try to provide a more helpful error message
+          if (connectError.message && connectError.message.includes('User rejected')) {
+            setError('Connection rejected by user. Please try again.');
+          } else {
+            setError(`Wallet connection failed: ${connectError.message || 'Unknown error'}`);
+          }
+          return false;
+        }
+        
+        // Make sure resp.publicKey exists
+        if (!resp.publicKey) {
+          setError('Connected but no public key was returned');
+          return false;
+        }
+        
         const key = resp.publicKey.toString();
         
         // Wait a moment before updating state
@@ -165,7 +243,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     try {
       const provider = getProvider();
       if (provider) {
-        provider.disconnect();
+        safeDisconnect(provider);
         
         // Reset all state values
         setIsConnected(false);
