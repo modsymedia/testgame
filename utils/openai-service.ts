@@ -1,12 +1,10 @@
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
-// Initialize OpenAI with API key from environment variables
 let openai: OpenAI;
 
-// Log storage for OpenAI interactions
 export interface GPTLogEntry {
   timestamp: Date;
-  type: 'petBehavior' | 'petMessage';
+  type: "petBehavior" | "petMessage";
   prompt: string;
   response?: any;
   error?: string;
@@ -14,27 +12,23 @@ export interface GPTLogEntry {
 
 export const gptLogs: GPTLogEntry[] = [];
 
-// Maximum number of logs to keep in memory
 const MAX_LOGS = 100;
 
-// Helper function to add a log entry
 function addLogEntry(entry: GPTLogEntry) {
-  gptLogs.unshift(entry); // Add to beginning of array
-  if (gptLogs.length > MAX_LOGS) {
-    gptLogs.pop(); // Remove oldest entry if we exceed max
-  }
+  gptLogs.unshift(entry);
+  if (gptLogs.length > MAX_LOGS) gptLogs.pop();
+
   console.log(`GPT Log [${entry.type}]: ${new Date().toISOString()}`);
 }
 
-// Initialize OpenAI only on the client side
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   try {
     openai = new OpenAI({
       apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
-      dangerouslyAllowBrowser: true // Allow API key to be used in browser (handle with care)
+      dangerouslyAllowBrowser: true,
     });
   } catch (error) {
-    console.error('Failed to initialize OpenAI:', error);
+    console.error("Failed to initialize OpenAI:", error);
   }
 }
 
@@ -80,25 +74,24 @@ export interface PetBehaviorResult {
   multiplier: number;
 }
 
-// Default values if API fails
 const DEFAULT_BEHAVIOR: PetBehaviorResult = {
   decayRates: {
     food: 0.5,
     happiness: 0.4,
     cleanliness: 0.3,
     energy: 0.4,
-    health: 0.2
+    health: 0.2,
   },
   cooldowns: {
     feed: 30000,
     play: 45000,
     clean: 60000,
-    doctor: 120000
+    doctor: 120000,
   },
   personalityTraits: ["friendly", "playful"],
   moodDescription: "Your pet is feeling normal today.",
   advice: "Make sure to feed and play with your pet regularly!",
-  multiplier: 1.0
+  multiplier: 1.0,
 };
 
 /**
@@ -106,7 +99,7 @@ const DEFAULT_BEHAVIOR: PetBehaviorResult = {
  */
 export async function getPetBehavior(data: PetBehaviorData): Promise<PetBehaviorResult> {
   if (!openai) {
-    console.warn('OpenAI not initialized, using default behavior');
+    console.warn("OpenAI not initialized, using default behavior");
     return DEFAULT_BEHAVIOR;
   }
 
@@ -144,11 +137,10 @@ Based on this data, please provide:
 Output in JSON format only. No explanations or additional text.
 `;
 
-    // Create log entry before the API call
     const logEntry: GPTLogEntry = {
       timestamp: new Date(),
-      type: 'petBehavior',
-      prompt
+      type: "petBehavior",
+      prompt,
     };
 
     try {
@@ -156,62 +148,60 @@ Output in JSON format only. No explanations or additional text.
         model: "gpt-4-turbo",
         messages: [
           { role: "system", content: "You analyze pet game data and output JSON only." },
-          { role: "user", content: prompt }
+          { role: "user", content: prompt },
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0].message.content;
       if (!content) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error("Empty response from OpenAI");
       }
 
-      // Log the successful response
       logEntry.response = content;
       addLogEntry(logEntry);
 
       try {
         const parsedResponse = JSON.parse(content);
-        
-        // Validate and ensure all fields exist
+
         return {
           decayRates: {
             food: parsedResponse.decayRates?.food || DEFAULT_BEHAVIOR.decayRates.food,
             happiness: parsedResponse.decayRates?.happiness || DEFAULT_BEHAVIOR.decayRates.happiness,
             cleanliness: parsedResponse.decayRates?.cleanliness || DEFAULT_BEHAVIOR.decayRates.cleanliness,
             energy: parsedResponse.decayRates?.energy || DEFAULT_BEHAVIOR.decayRates.energy,
-            health: parsedResponse.decayRates?.health || DEFAULT_BEHAVIOR.decayRates.health
+            health: parsedResponse.decayRates?.health || DEFAULT_BEHAVIOR.decayRates.health,
           },
           cooldowns: {
             feed: parsedResponse.cooldowns?.feed || DEFAULT_BEHAVIOR.cooldowns.feed,
             play: parsedResponse.cooldowns?.play || DEFAULT_BEHAVIOR.cooldowns.play,
             clean: parsedResponse.cooldowns?.clean || DEFAULT_BEHAVIOR.cooldowns.clean,
-            doctor: parsedResponse.cooldowns?.doctor || DEFAULT_BEHAVIOR.cooldowns.doctor
+            doctor: parsedResponse.cooldowns?.doctor || DEFAULT_BEHAVIOR.cooldowns.doctor,
           },
           personalityTraits: parsedResponse.personalityTraits || DEFAULT_BEHAVIOR.personalityTraits,
           moodDescription: parsedResponse.moodDescription || DEFAULT_BEHAVIOR.moodDescription,
           advice: parsedResponse.advice || DEFAULT_BEHAVIOR.advice,
-          multiplier: parsedResponse.multiplier || DEFAULT_BEHAVIOR.multiplier
+          multiplier: parsedResponse.multiplier || DEFAULT_BEHAVIOR.multiplier,
         };
       } catch (error) {
-        console.error('Failed to parse OpenAI response:', error, content);
-        logEntry.error = 'Failed to parse response: ' + error;
+        console.error("Failed to parse OpenAI response:", error, content);
+        logEntry.error = "Failed to parse response: " + error;
         addLogEntry(logEntry);
         return DEFAULT_BEHAVIOR;
       }
     } catch (error) {
-      console.error('Error calling OpenAI API:', error);
-      logEntry.error = 'API Error: ' + error;
+      console.error("Error calling OpenAI API:", error);
+      logEntry.error = "API Error: " + error;
       addLogEntry(logEntry);
       return DEFAULT_BEHAVIOR;
     }
   } catch (error) {
-    console.error('Error preparing OpenAI request:', error);
+    console.error("Error preparing OpenAI request:", error);
     addLogEntry({
       timestamp: new Date(),
-      type: 'petBehavior',
-      prompt: 'Error preparing request',
-      error: String(error)
+      type: "petBehavior",
+      prompt: "Error preparing request",
+      error: String(error),
     });
     return DEFAULT_BEHAVIOR;
   }
@@ -234,8 +224,8 @@ export interface PetMessage {
  * Generate a message from pet's perspective after an interaction
  */
 export async function getPetMessage(
-  petName: string, 
-  interactionType: 'feed' | 'play' | 'clean' | 'doctor' | 'idle',
+  petName: string,
+  interactionType: "feed" | "play" | "clean" | "doctor" | "idle",
   currentStats: {
     food: number;
     happiness: number;
@@ -245,7 +235,7 @@ export async function getPetMessage(
   }
 ): Promise<PetMessage> {
   if (!openai) {
-    console.warn('OpenAI not initialized, using default message');
+    console.warn("OpenAI not initialized, using default message");
     return getDefaultPetMessage(petName, interactionType, currentStats);
   }
 
@@ -263,7 +253,7 @@ Your current stats are:
 - Energy: ${currentStats.energy}/100
 - Health: ${currentStats.health}/100
 
-The user has just: ${interactionType === 'idle' ? 'not interacted with you for a while' : interactionType + 'ed you'}.
+The user has just: ${interactionType === "idle" ? "not interacted with you for a while" : interactionType + "ed you"}.
 
 IMPORTANT: always reply in a valid JSON format. No character before or after. The format is:
 {"reply": "your reply", "reaction": "the reaction", "happiness": x, "hunger": x, "cleanliness": x, "energy": x, "health": x, "reward": amount },
@@ -281,11 +271,10 @@ Medical treatment might make you temporarily uncomfortable but improves health.
 Your response should use the reaction that best matches your current emotional state based on your stats and the interaction type.
 `;
 
-    // Create log entry before the API call
     const logEntry: GPTLogEntry = {
       timestamp: new Date(),
-      type: 'petMessage',
-      prompt
+      type: "petMessage",
+      prompt,
     };
 
     try {
@@ -293,32 +282,30 @@ Your response should use the reaction that best matches your current emotional s
         model: "gpt-4-turbo",
         messages: [
           { role: "system", content: "You are a cute virtual pet that speaks in first person. Respond in JSON format." },
-          { role: "user", content: prompt }
+          { role: "user", content: prompt },
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0].message.content;
       if (!content) {
-        throw new Error('Empty response from OpenAI');
+        throw new Error("Empty response from OpenAI");
       }
 
-      // Log the successful response
       logEntry.response = content;
       addLogEntry(logEntry);
 
       try {
         const parsedResponse = JSON.parse(content);
-        
-        // Calculate stat changes based on AI response vs current stats
+
         const statChanges = {
           food: parsedResponse.hunger !== undefined ? parsedResponse.hunger - currentStats.food : 0,
           happiness: parsedResponse.happiness !== undefined ? parsedResponse.happiness - currentStats.happiness : 0,
           cleanliness: parsedResponse.cleanliness !== undefined ? parsedResponse.cleanliness - currentStats.cleanliness : 0,
           energy: parsedResponse.energy !== undefined ? parsedResponse.energy - currentStats.energy : 0,
-          health: parsedResponse.health !== undefined ? parsedResponse.health - currentStats.health : 0
+          health: parsedResponse.health !== undefined ? parsedResponse.health - currentStats.health : 0,
         };
-        
+
         return {
           message: parsedResponse.reply || getDefaultPetMessage(petName, interactionType, currentStats).message,
           reaction: parsedResponse.reaction || "none",
@@ -328,28 +315,28 @@ Your response should use the reaction that best matches your current emotional s
             happiness: statChanges.happiness !== 0 ? currentStats.happiness + statChanges.happiness : undefined,
             cleanliness: statChanges.cleanliness !== 0 ? currentStats.cleanliness + statChanges.cleanliness : undefined,
             energy: statChanges.energy !== 0 ? currentStats.energy + statChanges.energy : undefined,
-            health: statChanges.health !== 0 ? currentStats.health + statChanges.health : undefined
-          }
+            health: statChanges.health !== 0 ? currentStats.health + statChanges.health : undefined,
+          },
         };
       } catch (error) {
-        console.error('Failed to parse OpenAI response:', error, content);
-        logEntry.error = 'Failed to parse response: ' + error;
+        console.error("Failed to parse OpenAI response:", error, content);
+        logEntry.error = "Failed to parse response: " + error;
         addLogEntry(logEntry);
         return getDefaultPetMessage(petName, interactionType, currentStats);
       }
     } catch (error) {
-      console.error('Error calling OpenAI API:', error);
-      logEntry.error = 'API Error: ' + error;
+      console.error("Error calling OpenAI API:", error);
+      logEntry.error = "API Error: " + error;
       addLogEntry(logEntry);
       return getDefaultPetMessage(petName, interactionType, currentStats);
     }
   } catch (error) {
-    console.error('Error preparing OpenAI request:', error);
+    console.error("Error preparing OpenAI request:", error);
     addLogEntry({
       timestamp: new Date(),
-      type: 'petMessage',
-      prompt: 'Error preparing request',
-      error: String(error)
+      type: "petMessage",
+      prompt: "Error preparing request",
+      error: String(error),
     });
     return getDefaultPetMessage(petName, interactionType, currentStats);
   }
@@ -359,8 +346,8 @@ Your response should use the reaction that best matches your current emotional s
  * Get default pet message if API fails
  */
 function getDefaultPetMessage(
-  petName: string, 
-  interactionType: 'feed' | 'play' | 'clean' | 'doctor' | 'idle',
+  petName: string,
+  interactionType: "feed" | "play" | "clean" | "doctor" | "idle",
   stats: {
     food: number;
     happiness: number;
@@ -372,9 +359,9 @@ function getDefaultPetMessage(
   let message = "";
   let reaction = "none";
   let reward = 0;
-  
+
   switch (interactionType) {
-    case 'feed':
+    case "feed":
       if (stats.food > 80) {
         message = `I'm so full! *burp* Maybe we could play instead?`;
         reaction = "happy";
@@ -383,24 +370,24 @@ function getDefaultPetMessage(
         reaction = stats.food < 30 ? "hungry" : "happy";
       }
       break;
-    case 'play':
-      message = `Wheee! That was fun! I ${stats.happiness > 70 ? 'love playing with you!' : 'needed that playtime!'}`;
+    case "play":
+      message = `Wheee! That was fun! I ${stats.happiness > 70 ? "love playing with you!" : "needed that playtime!"}`;
       reaction = "excited";
       break;
-    case 'clean':
+    case "clean":
       if (stats.cleanliness > 90) {
         message = `I'm already super clean! Too much cleaning makes me itchy!`;
         reaction = "angry";
       } else {
-        message = `Ahh, I feel ${stats.cleanliness < 30 ? 'so much better now that I\'m clean!' : 'fresh and sparkly!'}`;
+        message = `Ahh, I feel ${stats.cleanliness < 30 ? "so much better now that I'm clean!" : "fresh and sparkly!"}`;
         reaction = "clean";
       }
       break;
-    case 'doctor':
-      message = `${stats.health < 30 ? 'Thank you for taking care of me! I feel better already.' : 'I appreciate the checkup! Health is important!'}`;
+    case "doctor":
+      message = `${stats.health < 30 ? "Thank you for taking care of me! I feel better already." : "I appreciate the checkup! Health is important!"}`;
       reaction = stats.health < 50 ? "sick" : "happy";
       break;
-    case 'idle':
+    case "idle":
       if (stats.food < 30) {
         message = "My tummy is rumbling... could I have a snack please?";
         reaction = "hungry";
@@ -422,15 +409,14 @@ function getDefaultPetMessage(
       }
       break;
   }
-  
-  // Calculate potential reward for very good care
+
   if (stats.food > 70 && stats.happiness > 70 && stats.cleanliness > 70 && stats.health > 70) {
-    reward = Math.round(Math.random() * 10); // Small random reward for good care
+    reward = Math.round(Math.random() * 10);
   }
-  
-  return { 
+
+  return {
     message,
     reaction,
-    reward
+    reward,
   };
-} 
+}
