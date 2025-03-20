@@ -36,10 +36,22 @@ interface WalletContextState {
 // Check if Phantom is available
 export const getProvider = (): PhantomProvider | undefined => {
   if (typeof window !== 'undefined') {
-    const provider = (window as any)?.solana;
-    
-    if (provider?.isPhantom) {
-      return provider as PhantomProvider;
+    try {
+      const provider = (window as any)?.solana;
+      
+      // Make sure provider and isPhantom property both exist
+      if (provider && provider?.isPhantom) {
+        return provider as PhantomProvider;
+      }
+      
+      // If no provider found yet, give a warning
+      if (!provider) {
+        console.warn('No Solana provider found. Phantom wallet may not be installed or is disabled.');
+      } else if (!provider.isPhantom) {
+        console.warn('Solana provider found but it is not Phantom.');
+      }
+    } catch (e) {
+      console.error('Error checking Phantom provider:', e);
     }
   }
   

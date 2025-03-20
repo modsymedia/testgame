@@ -4,6 +4,7 @@ import type { Interaction } from "@/types/interaction"
 import { capStat } from "@/utils/stats-helpers"
 import { useWallet } from "@/context/WalletContext"
 import { saveWalletData } from "@/utils/wallet"
+import { usePetAI } from "@/hooks/use-pet-ai"
 
 export interface PetStats {
   food: number
@@ -45,6 +46,17 @@ const DEFAULT_COOLDOWNS = {
 
 export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   const { isConnected, publicKey, walletData } = useWallet();
+  
+  // Get AI-driven behavior
+  const { 
+    aiPersonality, 
+    aiAdvice, 
+    logActivity, 
+    updateCurrentStats,
+    getPetMessageForInteraction,
+    petMessage,
+    petReaction
+  } = usePetAI();
   
   // Initialize stats from wallet data if available
   const initialWalletStats = isConnected && walletData?.petStats 
@@ -104,36 +116,22 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   // Point gain tracking
   const [recentPointGain, setRecentPointGain] = useState<PointGain | null>(null)
   
-  // AI point system - determines current pet state and best actions
+  // Update AI with current stats whenever they change
+  useEffect(() => {
+    updateCurrentStats({
+      food,
+      happiness,
+      cleanliness,
+      energy,
+      health
+    });
+  }, [food, happiness, cleanliness, energy, health, updateCurrentStats]);
+  
+  // Get AI point system - use the AI-recommended multiplier
   const aiPointSystem = useCallback(() => {
-    // Analyze current pet state
-    const needsFood = food < 40
-    const needsPlay = happiness < 40
-    const needsCleaning = cleanliness < 40
-    const needsRest = energy < 40
-    const needsHealing = health < 50
-    
-    // Determine priority actions based on needs
-    const priorities = [
-      { action: 'feed', urgency: needsFood ? (40 - food) : 0 },
-      { action: 'play', urgency: needsPlay ? (40 - happiness) : 0 },
-      { action: 'clean', urgency: needsCleaning ? (40 - cleanliness) : 0 },
-      { action: 'doctor', urgency: needsHealing ? (50 - health) : 0 }
-    ].sort((a, b) => b.urgency - a.urgency)
-    
-    // Calculate point bonuses for balanced care
-    const balanceScore = 100 - Math.abs(food - happiness) - Math.abs(happiness - cleanliness) - 
-                         Math.abs(cleanliness - energy) - Math.abs(energy - health)
-    
-    // Calculate streak bonuses for consecutive appropriate actions
-    const streakBonus = priorities[0].urgency > 20 ? 1.5 : 1 // 50% bonus for addressing urgent needs
-    
-    // Consistency check - regular care vs sporadic care
-    const consistencyScore = Math.min(20, Math.floor((Date.now() - lastInteractionTime) / 3600000)) // Up to 20 points for hourly interaction
-    
-    // Return the combined point modifier 
-    return Math.max(0.5, Math.min(3.0, (balanceScore / 100) * streakBonus * (1 - consistencyScore / 100)))
-  }, [food, happiness, cleanliness, energy, health, lastInteractionTime])
+    // If AI personality exists, use its multiplier, otherwise use default (1.0)
+    return aiPersonality?.multiplier || 1.0;
+  }, [aiPersonality]);
   
   // Calculate health based on stats
   const updateHealth = useCallback(() => {
@@ -195,6 +193,109 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     }, 2000)
   }, [])
   
+  // Apply decay rates from AI or use defaults
+  useEffect(() => {
+    if (isDead) return;
+    
+    const decayInterval = setInterval(() => {
+      const timeElapsed = (Date.now() - lastInteractionTime) / (1000 * 60); // in minutes
+      
+      // Use AI decay rates if available, or default rates
+      const decayRates = aiPersonality?.decayRates || {
+        food: 0.5,
+        happiness: 0.4,
+        cleanliness: 0.3,
+        energy: 0.4,
+        health: 0.2
+      };
+      
+      // Apply decay based on AI-driven rates or defaults
+      const foodDecay = decayRates.food * (timeElapsed / 60);
+      const happinessDecay = decayRates.happiness * (timeElapsed / 60);
+      const cleanlinessDecay = decayRates.cleanliness * (timeElapsed / 60);
+      const energyDecay = decayRates.energy * (timeElapsed / 60);
+      
+      setFood((prev: number) => Math.max(prev - foodDecay, 0));
+      setHappiness((prev: number) => Math.max(prev - happinessDecay, 0));
+      setCleanliness((prev: number) => Math.max(prev - cleanlinessDecay, 0));
+      setEnergy((prev: number) => Math.max(prev - energyDecay, 0));
+      
+      // Use AI system to award points based on pet state
+      const pointMultiplier = aiPointSystem()
+      const averageStats = (food + happiness + cleanliness + energy) / 4
+      
+      // Award points based on average health and AI multiplier
+      let passivePoints = 0
+      if (averageStats > 80) {
+        passivePoints = Math.round((150/60) * pointMultiplier) // 150 points per hour with multiplier
+      } else if (averageStats > 60) {
+        passivePoints = Math.round((100/60) * pointMultiplier) // 100 points per hour with multiplier
+      } else if (averageStats > 40) {
+        passivePoints = Math.round((60/60) * pointMultiplier) // 60 points per hour with multiplier
+      } else if (averageStats > 20) {
+        passivePoints = Math.round((30/60) * pointMultiplier) // 30 points per hour with multiplier
+      } else {
+        passivePoints = Math.round((10/60) * pointMultiplier) // 10 points per hour with multiplier
+      }
+      
+      if (passivePoints > 0) {
+        awardPoints(passivePoints)
+      }
+    }, 60000);
+    
+    return () => clearInterval(decayInterval);
+  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints, aiPersonality]);
+  
+  // Apply cooldowns from AI
+  const applyCooldown = useCallback((actionType: keyof ActionCooldowns) => {
+    // Use AI-driven cooldowns if available, otherwise use defaults
+    const aiCooldowns = aiPersonality?.cooldowns;
+    const cooldownTime = aiCooldowns ? 
+      aiCooldowns[actionType] : 
+      DEFAULT_COOLDOWNS[actionType];
+    
+    setCooldowns((prev: ActionCooldowns) => ({
+      ...prev,
+      [actionType]: cooldownTime
+    }));
+    
+    setIsOnCooldown((prev: {[key: string]: boolean}) => ({
+      ...prev,
+      [actionType]: true
+    }));
+  }, [aiPersonality]);
+  
+  // Add the missing interact function
+  const interact = useCallback((
+    statsChange: PetStatsUpdate,
+    interactionType: keyof ActionCooldowns
+  ): boolean => {
+    // Apply cooldown for the interaction type
+    applyCooldown(interactionType);
+    
+    // Update the last interaction time
+    setLastInteractionTime(Date.now());
+    
+    // Apply stat changes with capping
+    if (statsChange.food !== undefined) {
+      setFood((prev: number) => capStat(prev + statsChange.food!));
+    }
+    if (statsChange.happiness !== undefined) {
+      setHappiness((prev: number) => capStat(prev + statsChange.happiness!));
+    }
+    if (statsChange.cleanliness !== undefined) {
+      setCleanliness((prev: number) => capStat(prev + statsChange.cleanliness!));
+    }
+    if (statsChange.energy !== undefined) {
+      setEnergy((prev: number) => capStat(prev + statsChange.energy!));
+    }
+    if (statsChange.health !== undefined) {
+      setHealth((prev: number) => capStat(prev + statsChange.health!));
+    }
+    
+    return true;
+  }, [applyCooldown, setLastInteractionTime]);
+  
   // Interaction tracking
   const addInteraction = useCallback(
     (type: "Feed" | "Play" | "Clean" | "Doctor", selectedItemIndex: number = 0) => {
@@ -247,9 +348,9 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         },
         emotion,
         blockchainStats: {},
+        blockNumber: "0",
+        transactionUrl: "",
         tweet,
-        blockNumber: "",
-        transactionUrl: ""
       }
       
       setCurrentInteraction(newInteraction)
@@ -263,204 +364,470 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     [isDead]
   )
   
-  // Apply action cooldown
-  const applyCooldown = useCallback((actionType: keyof ActionCooldowns) => {
-    setCooldowns((prev: ActionCooldowns) => ({
-      ...prev,
-      [actionType]: DEFAULT_COOLDOWNS[actionType]
-    }))
+  // Handle feeding the pet
+  const handleFeeding = useCallback(async () => {
+    if (isDead || isOnCooldown.feed) return false
     
-    setIsOnCooldown((prev: {[key: string]: boolean}) => ({
-      ...prev,
-      [actionType]: true
-    }))
-  }, [])
-  
-  // Apply stat changes
-  const interact = useCallback((updates: PetStatsUpdate, actionType: keyof ActionCooldowns) => {
-    if (isDead) return false
-    if (isOnCooldown[actionType]) return false
+    // Log the feeding activity for AI analysis
+    logActivity('feed')
     
-    // Apply the updates with capping to prevent values over 100
-    if (updates.food !== undefined) {
-      setFood((prev: number) => Math.min(Math.max(prev + updates.food! * 0.3, 0), 100))
+    // Apply the interaction
+    const success = interact({ 
+      food: 30, 
+      happiness: 10,
+    }, 'feed')
+    
+    if (success) {
+      setIsFeeding(true)
+      setCurrentInteraction({
+        id: uuidv4(),
+        type: "Feed",
+        timestamp: new Date(),
+        stats: {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        },
+        emotion: "happy",
+        blockchainStats: {},
+        blockNumber: "0",
+        transactionUrl: "",
+        tweet: "My pet just had some food!"
+      })
+      setShowInteraction(true)
+      
+      setTimeout(() => {
+        setIsFeeding(false)
+      }, 2000)
+      
+      setTimeout(() => {
+        setShowInteraction(false)
+      }, 1500)
+      
+      // Get message from the pet's perspective
+      const petResponse = await getPetMessageForInteraction('feed', {
+        food: foodRef.current,
+        happiness: happinessRef.current,
+        cleanliness: cleanlinessRef.current,
+        energy: energyRef.current,
+        health: healthRef.current
+      })
+      
+      // Apply any stat updates from AI
+      if (petResponse?.updatedStats) {
+        if (petResponse.updatedStats.food !== undefined) {
+          setFood(Math.max(0, Math.min(100, petResponse.updatedStats.food)));
+        }
+        if (petResponse.updatedStats.happiness !== undefined) {
+          setHappiness(Math.max(0, Math.min(100, petResponse.updatedStats.happiness)));
+        }
+        if (petResponse.updatedStats.cleanliness !== undefined) {
+          setCleanliness(Math.max(0, Math.min(100, petResponse.updatedStats.cleanliness)));
+        }
+        if (petResponse.updatedStats.energy !== undefined) {
+          setEnergy(Math.max(0, Math.min(100, petResponse.updatedStats.energy)));
+        }
+        if (petResponse.updatedStats.health !== undefined) {
+          setHealth(Math.max(0, Math.min(100, petResponse.updatedStats.health)));
+        }
+      }
+      
+      // Award points based on AI system and any bonus from AI
+      const pointMultiplier = aiPointSystem()
+      const basePoints = 50; // Base points for feeding
+      const aiBonus = petResponse?.reward || 0; // Additional points from AI
+      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
+      awardPoints(totalPoints)
+      
+      // Save stats to wallet if connected
+      if (isConnected) {
+        saveWalletData(publicKey!, {
+          ...walletData!,
+          petStats: {
+            food: foodRef.current,
+            happiness: happinessRef.current,
+            cleanliness: cleanlinessRef.current,
+            energy: energyRef.current,
+            health: healthRef.current,
+            isDead,
+            points
+          }
+        })
+      }
     }
-    if (updates.happiness !== undefined) {
-      setHappiness((prev: number) => capStat(prev + updates.happiness! * 0.3))
-    }
-    if (updates.cleanliness !== undefined) {
-      setCleanliness((prev: number) => capStat(prev + updates.cleanliness! * 0.3))
-    }
-    if (updates.energy !== undefined) {
-      setEnergy((prev: number) => capStat(prev + updates.energy! * 0.3))
-    }
-    if (updates.health !== undefined) {
-      setHealth((prev: number) => capStat(prev + updates.health! * 0.3))
-    }
     
-    // Apply cooldown for this action
-    applyCooldown(actionType)
-    
-    setLastInteractionTime(Date.now())
-    return true
-  }, [isDead, isOnCooldown, applyCooldown])
+    return success
+  }, [
+    isDead, 
+    isOnCooldown.feed, 
+    interact, 
+    setIsFeeding, 
+    setCurrentInteraction, 
+    setShowInteraction, 
+    logActivity, 
+    isConnected, 
+    publicKey, 
+    walletData,
+    aiPointSystem,
+    awardPoints,
+    getPetMessageForInteraction,
+    setFood,
+    setHappiness,
+    setCleanliness,
+    setEnergy,
+    setHealth
+  ])
   
-  // Update the handleFeeding function
-  const handleFeeding = useCallback((foodType: string, selectedIndex: number) => {
-    if (isOnCooldown.feed) return false
+  // Handle playing with the pet
+  const handlePlaying = useCallback(async () => {
+    if (isDead || isOnCooldown.play) return false
     
-    setIsFeeding(true)
+    // Log the playing activity for AI analysis
+    logActivity('play')
     
-    setTimeout(() => {
-      setIsFeeding(false)
+    // Apply the interaction
+    const success = interact({
+      happiness: 35,
+      energy: -20,
+    }, 'play')
+    
+    if (success) {
+      setIsPlaying(true)
+      setCurrentInteraction({
+        id: uuidv4(),
+        type: "Play",
+        timestamp: new Date(),
+        stats: {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        },
+        emotion: "happy",
+        blockchainStats: {},
+        blockNumber: "0",
+        transactionUrl: "",
+        tweet: "My pet just played a fun game!"
+      })
+      setShowInteraction(true)
       
-      let success = false
-      switch(foodType) {
-        case "fish":
-          success = interact({ food: 12, energy: 6 }, "feed")
-          break
-        case "cookie":
-          success = interact({ food: 10, energy: 12, health: -0.45 }, "feed")
-          break
-        case "catFood":
-          success = interact({ food: 25, energy: 16 }, "feed")
-          break
-        case "kibble":
-          success = interact({ food: 30, energy: 20 }, "feed")
-          break
+      setTimeout(() => {
+        setIsPlaying(false)
+      }, 2000)
+      
+      setTimeout(() => {
+        setShowInteraction(false)
+      }, 1500)
+      
+      // Get message from the pet's perspective
+      const petResponse = await getPetMessageForInteraction('play', {
+        food: foodRef.current,
+        happiness: happinessRef.current,
+        cleanliness: cleanlinessRef.current,
+        energy: energyRef.current,
+        health: healthRef.current
+      })
+      
+      // Apply any stat updates from AI
+      if (petResponse?.updatedStats) {
+        if (petResponse.updatedStats.food !== undefined) {
+          setFood(Math.max(0, Math.min(100, petResponse.updatedStats.food)));
+        }
+        if (petResponse.updatedStats.happiness !== undefined) {
+          setHappiness(Math.max(0, Math.min(100, petResponse.updatedStats.happiness)));
+        }
+        if (petResponse.updatedStats.cleanliness !== undefined) {
+          setCleanliness(Math.max(0, Math.min(100, petResponse.updatedStats.cleanliness)));
+        }
+        if (petResponse.updatedStats.energy !== undefined) {
+          setEnergy(Math.max(0, Math.min(100, petResponse.updatedStats.energy)));
+        }
+        if (petResponse.updatedStats.health !== undefined) {
+          setHealth(Math.max(0, Math.min(100, petResponse.updatedStats.health)));
+        }
       }
       
-      if (success) {
-        // Award bonus points based on AI system
-        const pointMultiplier = aiPointSystem()
-        const bonusPoints = Math.round(10 * pointMultiplier)
-        awardPoints(bonusPoints)
-        
-        addInteraction("Feed", selectedIndex)
+      // Award points based on AI system and any bonus from AI
+      const pointMultiplier = aiPointSystem()
+      const basePoints = 60; // Base points for playing
+      const aiBonus = petResponse?.reward || 0; // Additional points from AI
+      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
+      awardPoints(totalPoints)
+      
+      // Save stats to wallet if connected
+      if (isConnected) {
+        saveWalletData(publicKey!, {
+          ...walletData!,
+          petStats: {
+            food: foodRef.current,
+            happiness: happinessRef.current,
+            cleanliness: cleanlinessRef.current,
+            energy: energyRef.current,
+            health: healthRef.current,
+            isDead,
+            points
+          }
+        })
       }
-    }, 1000)
+    }
     
-    return true
-  }, [interact, addInteraction, isOnCooldown, aiPointSystem, awardPoints])
+    return success
+  }, [
+    isDead, 
+    isOnCooldown.play, 
+    interact, 
+    setIsPlaying, 
+    setCurrentInteraction, 
+    setShowInteraction, 
+    logActivity, 
+    isConnected, 
+    publicKey, 
+    walletData,
+    aiPointSystem,
+    awardPoints,
+    getPetMessageForInteraction,
+    setFood,
+    setHappiness,
+    setCleanliness,
+    setEnergy,
+    setHealth
+  ])
   
-  // Update the handlePlaying function
-  const handlePlaying = useCallback((playType: string, selectedIndex: number) => {
-    if (isOnCooldown.play) return false
+  // Handle cleaning the pet
+  const handleCleaning = useCallback(async () => {
+    if (isDead || isOnCooldown.clean) return false
     
-    setIsPlaying(true)
+    // Log the cleaning activity for AI analysis
+    logActivity('clean')
     
-    setTimeout(() => {
-      setIsPlaying(false)
+    // Apply the interaction
+    const success = interact({
+      cleanliness: 40,
+      happiness: 5,
+    }, 'clean')
+    
+    if (success) {
+      setIsCleaning(true)
+      setCurrentInteraction({
+        id: uuidv4(),
+        type: "Clean",
+        timestamp: new Date(),
+        stats: {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        },
+        emotion: "happy",
+        blockchainStats: {},
+        blockNumber: "0",
+        transactionUrl: "",
+        tweet: "My pet just got cleaned up!"
+      })
+      setShowInteraction(true)
       
-      let success = false
-      switch(playType) {
-        case "laser":
-          success = interact({ happiness: 16, energy: -7, food: -2.5 }, "play")
-          break
-        case "feather":
-          success = interact({ happiness: 15, energy: -5, food: -2 }, "play")
-          break
-        case "ball":
-          success = interact({ happiness: 20, energy: -15, food: -3 }, "play")
-          break
-        case "puzzle":
-          success = interact({ happiness: 25, energy: -5, food: -4 }, "play")
-          break
+      setTimeout(() => {
+        setIsCleaning(false)
+      }, 2000)
+      
+      setTimeout(() => {
+        setShowInteraction(false)
+      }, 1500)
+      
+      // Get message from the pet's perspective
+      const petResponse = await getPetMessageForInteraction('clean', {
+        food: foodRef.current,
+        happiness: happinessRef.current,
+        cleanliness: cleanlinessRef.current,
+        energy: energyRef.current,
+        health: healthRef.current
+      })
+      
+      // Apply any stat updates from AI
+      if (petResponse?.updatedStats) {
+        if (petResponse.updatedStats.food !== undefined) {
+          setFood(Math.max(0, Math.min(100, petResponse.updatedStats.food)));
+        }
+        if (petResponse.updatedStats.happiness !== undefined) {
+          setHappiness(Math.max(0, Math.min(100, petResponse.updatedStats.happiness)));
+        }
+        if (petResponse.updatedStats.cleanliness !== undefined) {
+          setCleanliness(Math.max(0, Math.min(100, petResponse.updatedStats.cleanliness)));
+        }
+        if (petResponse.updatedStats.energy !== undefined) {
+          setEnergy(Math.max(0, Math.min(100, petResponse.updatedStats.energy)));
+        }
+        if (petResponse.updatedStats.health !== undefined) {
+          setHealth(Math.max(0, Math.min(100, petResponse.updatedStats.health)));
+        }
       }
       
-      if (success) {
-        // Award bonus points based on AI system
-        const pointMultiplier = aiPointSystem()
-        const bonusPoints = Math.round(15 * pointMultiplier)
-        awardPoints(bonusPoints)
-        
-        addInteraction("Play", selectedIndex)
+      // Award points based on AI system and any bonus from AI
+      const pointMultiplier = aiPointSystem()
+      const basePoints = 40; // Base points for cleaning
+      const aiBonus = petResponse?.reward || 0; // Additional points from AI
+      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
+      awardPoints(totalPoints)
+      
+      // Save stats to wallet if connected
+      if (isConnected) {
+        saveWalletData(publicKey!, {
+          ...walletData!,
+          petStats: {
+            food: foodRef.current,
+            happiness: happinessRef.current,
+            cleanliness: cleanlinessRef.current,
+            energy: energyRef.current,
+            health: healthRef.current,
+            isDead,
+            points
+          }
+        })
       }
-    }, 1000)
+    }
     
-    return true
-  }, [interact, addInteraction, isOnCooldown, aiPointSystem, awardPoints])
+    return success
+  }, [
+    isDead, 
+    isOnCooldown.clean, 
+    interact, 
+    setIsCleaning, 
+    setCurrentInteraction, 
+    setShowInteraction, 
+    logActivity,
+    isConnected, 
+    publicKey, 
+    walletData,
+    aiPointSystem,
+    awardPoints,
+    getPetMessageForInteraction,
+    setFood,
+    setHappiness,
+    setCleanliness,
+    setEnergy,
+    setHealth
+  ])
   
-  // Update the handleCleaning function
-  const handleCleaning = useCallback((cleanType: string, selectedIndex: number) => {
-    if (isOnCooldown.clean) return false
+  // Handle giving medicine to the pet
+  const handleDoctor = useCallback(async () => {
+    if (isDead || isOnCooldown.doctor) return false
     
-    setIsCleaning(true)
+    // Log the healing activity for AI analysis
+    logActivity('heal')
     
-    setTimeout(() => {
-      setIsCleaning(false)
+    // Apply the interaction
+    const success = interact({
+      health: 50,
+      energy: 20,
+      happiness: -5,
+    }, 'doctor')
+    
+    if (success) {
+      setIsHealing(true)
+      setCurrentInteraction({
+        id: uuidv4(),
+        type: "Doctor",
+        timestamp: new Date(),
+        stats: {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        },
+        emotion: "happy",
+        blockchainStats: {},
+        blockNumber: "0",
+        transactionUrl: "",
+        tweet: "My pet just got a health checkup!"
+      })
+      setShowInteraction(true)
       
-      let success = false
-      switch(cleanType) {
-        case "brush":
-          success = interact({ cleanliness: 25, happiness: 10 }, "clean")
-          break
-        case "bath":
-          success = interact({ cleanliness: 50 }, "clean")
-          break
-        case "nails":
-          success = interact({ cleanliness: 10, happiness: -5 }, "clean")
-          break
-        case "styling":
-          success = interact({ cleanliness: 15, happiness: 20 }, "clean")
-          break
-        case "dental":
-          success = interact({ cleanliness: 15, health: 10 }, "clean")
-          break
+      setTimeout(() => {
+        setIsHealing(false)
+      }, 2000)
+      
+      setTimeout(() => {
+        setShowInteraction(false)
+      }, 1500)
+      
+      // Get message from the pet's perspective
+      const petResponse = await getPetMessageForInteraction('doctor', {
+        food: foodRef.current,
+        happiness: happinessRef.current,
+        cleanliness: cleanlinessRef.current,
+        energy: energyRef.current,
+        health: healthRef.current
+      })
+      
+      // Apply any stat updates from AI
+      if (petResponse?.updatedStats) {
+        if (petResponse.updatedStats.food !== undefined) {
+          setFood(Math.max(0, Math.min(100, petResponse.updatedStats.food)));
+        }
+        if (petResponse.updatedStats.happiness !== undefined) {
+          setHappiness(Math.max(0, Math.min(100, petResponse.updatedStats.happiness)));
+        }
+        if (petResponse.updatedStats.cleanliness !== undefined) {
+          setCleanliness(Math.max(0, Math.min(100, petResponse.updatedStats.cleanliness)));
+        }
+        if (petResponse.updatedStats.energy !== undefined) {
+          setEnergy(Math.max(0, Math.min(100, petResponse.updatedStats.energy)));
+        }
+        if (petResponse.updatedStats.health !== undefined) {
+          setHealth(Math.max(0, Math.min(100, petResponse.updatedStats.health)));
+        }
       }
       
-      if (success) {
-        // Award bonus points based on AI system
-        const pointMultiplier = aiPointSystem()
-        const bonusPoints = Math.round(12 * pointMultiplier)
-        awardPoints(bonusPoints)
-        
-        addInteraction("Clean", selectedIndex)
-      }
-    }, 1000)
-    
-    return true
-  }, [interact, addInteraction, isOnCooldown, aiPointSystem, awardPoints])
-  
-  // Update the handleDoctor function
-  const handleDoctor = useCallback((treatmentType: string, selectedIndex: number) => {
-    if (isOnCooldown.doctor) return false
-    
-    setIsHealing(true)
-    
-    setTimeout(() => {
-      setIsHealing(false)
+      // Award points based on AI system and any bonus from AI
+      const pointMultiplier = aiPointSystem()
+      const basePoints = 70; // Base points for doctor treatment
+      const aiBonus = petResponse?.reward || 0; // Additional points from AI
+      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
+      awardPoints(totalPoints)
       
-      let success = false
-      switch(treatmentType) {
-        case 'checkup':
-          success = interact({ health: 10, happiness: -5 }, "doctor")
-          break
-        case 'vitamins':
-          success = interact({ health: 20, happiness: -10 }, "doctor")
-          break
-        case 'vaccine':
-          success = interact({ health: 15, energy: 10, happiness: -15 }, "doctor")
-          break
-        case 'surgery':
-          success = interact({ health: 40, energy: -20, happiness: -20 }, "doctor")
-          break
-        default:
-          success = interact({ health: 30, happiness: -10 }, "doctor")
+      // Save stats to wallet if connected
+      if (isConnected) {
+        saveWalletData(publicKey!, {
+          ...walletData!,
+          petStats: {
+            food: foodRef.current,
+            happiness: happinessRef.current,
+            cleanliness: cleanlinessRef.current,
+            energy: energyRef.current,
+            health: healthRef.current,
+            isDead,
+            points
+          }
+        })
       }
-      
-      if (success) {
-        // Award bonus points based on AI system
-        const pointMultiplier = aiPointSystem()
-        const bonusPoints = Math.round(20 * pointMultiplier)
-        awardPoints(bonusPoints)
-        
-        addInteraction("Doctor", selectedIndex)
-      }
-    }, 1000)
+    }
     
-    return true
-  }, [interact, addInteraction, isOnCooldown, aiPointSystem, awardPoints])
+    return success
+  }, [
+    isDead, 
+    isOnCooldown.doctor, 
+    interact, 
+    setIsHealing, 
+    setCurrentInteraction, 
+    setShowInteraction, 
+    logActivity,
+    isConnected, 
+    publicKey, 
+    walletData,
+    aiPointSystem,
+    awardPoints,
+    getPetMessageForInteraction,
+    setFood,
+    setHappiness,
+    setCleanliness,
+    setEnergy,
+    setHealth
+  ])
   
   // Update Stat decay over time to use awardPoints
   useEffect(() => {
@@ -554,6 +921,27 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     }
   }, [food, happiness, cleanliness, energy, health, isDead, points, isConnected, publicKey, walletData]);
   
+  // Check for idle pet message
+  useEffect(() => {
+    // Show an idle message if no interaction for 2 minutes
+    const idleCheckInterval = setInterval(async () => {
+      const timeSinceLastInteraction = Date.now() - lastInteractionTime;
+      
+      // Show idle message after 2 minutes of no interaction
+      if (timeSinceLastInteraction > 2 * 60 * 1000 && !isDead && !petMessage) {
+        await getPetMessageForInteraction('idle', {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        });
+      }
+    }, 2 * 60 * 1000); // Check every 2 minutes
+    
+    return () => clearInterval(idleCheckInterval);
+  }, [lastInteractionTime, isDead, getPetMessageForInteraction, petMessage]);
+  
   const resetPet = useCallback(() => {
     setFood(50)
     setHappiness(40)
@@ -618,5 +1006,14 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setCleanliness,
     setEnergy,
     setHealth,
+    
+    // AI-related return values
+    aiAdvice,
+    aiPersonality,
+    aiPointMultiplier: aiPointSystem(),
+    
+    // Pet message and reaction
+    petMessage,
+    petReaction,
   }
 } 

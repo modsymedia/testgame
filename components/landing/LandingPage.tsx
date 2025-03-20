@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/button';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { connect, isConnected } = useWallet();
+  const { connect, disconnect, isConnected, walletData } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check if already connected when page loads
+  useEffect(() => {
+    if (isConnected && walletData) {
+      router.push('/game');
+    }
+  }, [isConnected, walletData, router]);
 
   const handleStart = async () => {
     setIsLoading(true);
@@ -18,13 +25,17 @@ export default function LandingPage() {
       const connected = await connect();
       
       if (connected) {
-        // If connection successful, redirect to game
+        // Redirect immediately without delay
         router.push('/game');
       }
     } catch (err) {
       console.error('Wallet connection error:', err);
+      setIsLoading(false);
     }
-    
+  };
+
+  const handleLogout = () => {
+    disconnect();
     setIsLoading(false);
   };
 
