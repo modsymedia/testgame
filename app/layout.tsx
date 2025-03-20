@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { WalletProvider } from '@/context/WalletContext'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Crypto Pet',
+  description: 'Virtual pet game with Phantom wallet integration',
   generator: 'v0.dev',
 }
 
@@ -14,7 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <WalletProvider>
+          {children}
+        </WalletProvider>
+      </body>
     </html>
   )
 }

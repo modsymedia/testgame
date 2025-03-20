@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import { StatusBar } from "@/components/ui/status-bar";
@@ -12,8 +12,20 @@ import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { formatPoints } from "@/utils/stats-helpers";
 import { AIPetAdvisor } from "@/components/ui/ai-pet-advisor";
 import { PointAnimation } from "@/components/ui/point-animation";
+import { useWallet } from "@/context/WalletContext";
+import { useRouter } from "next/navigation";
 
 export function KawaiiDevice() {
+  const router = useRouter();
+  const { isConnected, publicKey, walletData, updatePoints } = useWallet();
+  
+  // Redirect to landing if not connected
+  useEffect(() => {
+    if (!isConnected) {
+      router.push('/');
+    }
+  }, [isConnected, router]);
+
   // Use our custom hooks
   const {
     food,
@@ -70,6 +82,20 @@ export function KawaiiDevice() {
     }
   }, [recentPointGain])
 
+  // Keep track of last updated points to prevent loops
+  const lastUpdatedPointsRef = useRef(0);
+
+  // Update wallet points whenever game points change
+  useEffect(() => {
+    if (isConnected && points > 0 && points !== lastUpdatedPointsRef.current) {
+      // Only update if points have actually changed significantly
+      if (Math.abs(points - lastUpdatedPointsRef.current) >= 5) {
+        updatePoints(points);
+        lastUpdatedPointsRef.current = points;
+      }
+    }
+  }, [points, isConnected, updatePoints]);
+
   const getCatEmotion = () => {
     if (isDead) return <DeadCat />;
     if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} />;
@@ -106,7 +132,9 @@ export function KawaiiDevice() {
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
     (option: "food" | "clean" | "doctor" | "play" | "previous" | "next" | "a" | "b") => {
-      setLastInteractionTime(Date.now());
+      // This call is causing an infinite update loop
+      // Only set the last interaction time when really needed
+      // setLastInteractionTime(Date.now());
       
       if (isDead) {
         if (option === "a") {
@@ -178,7 +206,6 @@ export function KawaiiDevice() {
       handleDoctor,
       resetPet,
       resetMenu,
-      setLastInteractionTime,
     ]
   );
   
@@ -340,7 +367,7 @@ export function KawaiiDevice() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-pink-100 p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-pink-100 p-4">
       {showInteraction && currentInteraction && (
         <motion.div 
           className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs"
@@ -358,8 +385,8 @@ export function KawaiiDevice() {
         </motion.div>
       )}
       
-      {/* AI Advisor - moved outside the device */}
-      <div className="absolute top-4 left-4 z-20">
+      {/* AI Advisor - moved above the device */}
+      <div className="mb-4">
         <AIPetAdvisor 
           petStats={{ food, happiness, cleanliness, energy, health }}
           cooldowns={cooldowns}

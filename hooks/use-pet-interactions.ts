@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { v4 as uuidv4 } from "uuid"
 import type { Interaction } from "@/types/interaction"
 import { capStat } from "@/utils/stats-helpers"
+import { useWallet } from "@/context/WalletContext"
+import { saveWalletData } from "@/utils/wallet"
 
 export interface PetStats {
   food: number
@@ -42,14 +44,21 @@ const DEFAULT_COOLDOWNS = {
 }
 
 export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
+  const { isConnected, publicKey, walletData } = useWallet();
+  
+  // Initialize stats from wallet data if available
+  const initialWalletStats = isConnected && walletData?.petStats 
+    ? walletData.petStats 
+    : initialStats;
+  
   // Core stats
-  const [food, setFood] = useState(initialStats.food ?? 50)
-  const [happiness, setHappiness] = useState(initialStats.happiness ?? 40)
-  const [cleanliness, setCleanliness] = useState(initialStats.cleanliness ?? 40)
-  const [energy, setEnergy] = useState(initialStats.energy ?? 30)
-  const [health, setHealth] = useState(initialStats.health ?? 30)
-  const [isDead, setIsDead] = useState(initialStats.isDead ?? false)
-  const [points, setPoints] = useState(initialStats.points ?? 0)
+  const [food, setFood] = useState(initialWalletStats.food ?? 50)
+  const [happiness, setHappiness] = useState(initialWalletStats.happiness ?? 40)
+  const [cleanliness, setCleanliness] = useState(initialWalletStats.cleanliness ?? 40)
+  const [energy, setEnergy] = useState(initialWalletStats.energy ?? 30)
+  const [health, setHealth] = useState(initialWalletStats.health ?? 30)
+  const [isDead, setIsDead] = useState(initialWalletStats.isDead ?? false)
+  const [points, setPoints] = useState(initialWalletStats.points ?? 0)
   
   // Cooldown tracking
   const [cooldowns, setCooldowns] = useState<ActionCooldowns>({
@@ -154,7 +163,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     const cooldownInterval = setInterval(() => {
       const currentTime = Date.now()
       
-      setCooldowns(prev => ({
+      setCooldowns((prev: ActionCooldowns) => ({
         feed: Math.max(0, prev.feed - 1000),
         play: Math.max(0, prev.play - 1000),
         clean: Math.max(0, prev.clean - 1000),
@@ -174,7 +183,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   
   // Add this helper function to award points
   const awardPoints = useCallback((amount: number) => {
-    setPoints(prev => prev + amount)
+    setPoints((prev: number) => prev + amount)
     setRecentPointGain({
       amount,
       timestamp: Date.now()
@@ -256,12 +265,12 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   
   // Apply action cooldown
   const applyCooldown = useCallback((actionType: keyof ActionCooldowns) => {
-    setCooldowns(prev => ({
+    setCooldowns((prev: ActionCooldowns) => ({
       ...prev,
       [actionType]: DEFAULT_COOLDOWNS[actionType]
     }))
     
-    setIsOnCooldown(prev => ({
+    setIsOnCooldown((prev: {[key: string]: boolean}) => ({
       ...prev,
       [actionType]: true
     }))
@@ -274,19 +283,19 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     
     // Apply the updates with capping to prevent values over 100
     if (updates.food !== undefined) {
-      setFood(prev => updates.food! > 0 ? Math.min(Math.max(prev + updates.food! * 0.3, 0), 100) : Math.max(prev + updates.food! * 0.3, 0))
+      setFood((prev: number) => Math.min(Math.max(prev + updates.food! * 0.3, 0), 100))
     }
     if (updates.happiness !== undefined) {
-      setHappiness(prev => capStat(prev + updates.happiness! * 0.3))
+      setHappiness((prev: number) => capStat(prev + updates.happiness! * 0.3))
     }
     if (updates.cleanliness !== undefined) {
-      setCleanliness(prev => capStat(prev + updates.cleanliness! * 0.3))
+      setCleanliness((prev: number) => capStat(prev + updates.cleanliness! * 0.3))
     }
     if (updates.energy !== undefined) {
-      setEnergy(prev => capStat(prev + updates.energy! * 0.3))
+      setEnergy((prev: number) => capStat(prev + updates.energy! * 0.3))
     }
     if (updates.health !== undefined) {
-      setHealth(prev => capStat(prev + updates.health! * 0.3))
+      setHealth((prev: number) => capStat(prev + updates.health! * 0.3))
     }
     
     // Apply cooldown for this action
@@ -462,10 +471,10 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Using accelerated decay for testing (32 points/hour = 0.53 points/minute)
       const decayRate = 0.53 * (timeElapsed / 60)
       
-      setFood(prev => Math.max(prev - decayRate, 0))
-      setHappiness(prev => Math.max(prev - decayRate, 0))
-      setCleanliness(prev => Math.max(prev - decayRate, 0))
-      setEnergy(prev => Math.max(prev - decayRate, 0))
+      setFood((prev: number) => Math.max(prev - decayRate, 0))
+      setHappiness((prev: number) => Math.max(prev - decayRate, 0))
+      setCleanliness((prev: number) => Math.max(prev - decayRate, 0))
+      setEnergy((prev: number) => Math.max(prev - decayRate, 0))
       
       // Use AI system to award points based on pet state
       const pointMultiplier = aiPointSystem()
@@ -492,6 +501,58 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     
     return () => clearInterval(decayInterval)
   }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints])
+  
+  // Add a ref to track the last saved state to prevent infinite updates
+  const lastSavedStatsRef = useRef({
+    food: initialWalletStats.food ?? 50,
+    happiness: initialWalletStats.happiness ?? 40,
+    cleanliness: initialWalletStats.cleanliness ?? 40,
+    energy: initialWalletStats.energy ?? 30,
+    health: initialWalletStats.health ?? 30,
+    isDead: initialWalletStats.isDead ?? false,
+    points: initialWalletStats.points ?? 0,
+  });
+
+  // Save pet stats to wallet data whenever they change
+  useEffect(() => {
+    if (isConnected && publicKey) {
+      const currentStats = {
+        food,
+        happiness,
+        cleanliness,
+        energy,
+        health,
+        isDead,
+        points
+      };
+      
+      // Update wallet data with current pet stats
+      if (walletData) {
+        // Only save if values have actually changed significantly to prevent infinite loops
+        const lastSaved = lastSavedStatsRef.current;
+        const hasSignificantChange = 
+          Math.abs(lastSaved.food - food) > 1 || 
+          Math.abs(lastSaved.happiness - happiness) > 1 ||
+          Math.abs(lastSaved.cleanliness - cleanliness) > 1 ||
+          Math.abs(lastSaved.energy - energy) > 1 ||
+          Math.abs(lastSaved.health - health) > 1 ||
+          lastSaved.isDead !== isDead ||
+          Math.abs(lastSaved.points - points) > 5;
+          
+        if (hasSignificantChange) {
+          const updatedWalletData = {
+            ...walletData,
+            petStats: currentStats
+          };
+          
+          saveWalletData(publicKey, updatedWalletData);
+          
+          // Update the ref
+          lastSavedStatsRef.current = currentStats;
+        }
+      }
+    }
+  }, [food, happiness, cleanliness, energy, health, isDead, points, isConnected, publicKey, walletData]);
   
   const resetPet = useCallback(() => {
     setFood(50)
