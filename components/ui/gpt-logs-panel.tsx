@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { gptLogs, GPTLogEntry } from '@/utils/openai-service';
+import { getGPTLogs, GPTLogEntry } from '@/utils/openai-service';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './button';
+
+// No longer need a local log entry interface as we import it from openai-service
 
 export const GPTLogsPanel = () => {
   const [logs, setLogs] = useState<GPTLogEntry[]>([]);
@@ -12,20 +14,45 @@ export const GPTLogsPanel = () => {
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
   const [showCount, setShowCount] = useState(5);
 
-  // Update logs every 3 seconds
+  // Function to get filtered logs based on current settings
+  const getFilteredLogs = (allLogs: GPTLogEntry[]) => {
+    if (activeFilter === 'all') {
+      return allLogs.slice(0, showCount);
+    } else {
+      return allLogs
+        .filter((log) => log.type === activeFilter)
+        .slice(0, showCount);
+    }
+  };
+
+  // Load logs from client storage
+  const loadLogs = () => {
+    if (!isExpanded) return;
+    
+    // Get logs directly from client storage
+    const allLogs = getGPTLogs();
+    setLogs(getFilteredLogs(allLogs));
+  };
+
+  // Initial load and setup event listener for real-time updates
   useEffect(() => {
-    const updateLogs = () => {
-      if (activeFilter === 'all') {
-        setLogs([...gptLogs].slice(0, showCount));
-      } else {
-        setLogs([...gptLogs].filter(log => log.type === activeFilter).slice(0, showCount));
-      }
-    };
+    if (isExpanded) {
+      loadLogs();
+      
+      // Set up event listener for real-time log updates
+      const handleLogUpdate = () => loadLogs();
+      window.addEventListener('gptLogUpdated', handleLogUpdate);
+      
+      // Clean up when component unmounts or collapses
+      return () => {
+        window.removeEventListener('gptLogUpdated', handleLogUpdate);
+      };
+    }
+  }, [isExpanded, activeFilter, showCount]);
 
-    updateLogs();
-    const interval = setInterval(updateLogs, 3000);
-
-    return () => clearInterval(interval);
+  // Update filtered logs when filter or count changes
+  useEffect(() => {
+    loadLogs();
   }, [activeFilter, showCount]);
 
   const toggleExpand = () => {
@@ -86,37 +113,41 @@ export const GPTLogsPanel = () => {
 
         {isExpanded && (
           <div className="p-2">
-            <div className="flex space-x-1 mb-2">
-              <Button 
-                variant={activeFilter === 'all' ? "default" : "outline"} 
-                size="sm" 
-                className="text-xs h-6 flex-1"
-                onClick={() => setActiveFilter('all')}
-              >
-                All
-              </Button>
-              <Button 
-                variant={activeFilter === 'petBehavior' ? "default" : "outline"} 
-                size="sm" 
-                className="text-xs h-6 flex-1"
-                onClick={() => setActiveFilter('petBehavior')}
-              >
-                Behavior
-              </Button>
-              <Button 
-                variant={activeFilter === 'petMessage' ? "default" : "outline"} 
-                size="sm" 
-                className="text-xs h-6 flex-1"
-                onClick={() => setActiveFilter('petMessage')}
-              >
-                Msgs
-              </Button>
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex space-x-1 flex-1">
+                <Button 
+                  variant={activeFilter === 'all' ? "default" : "outline"} 
+                  size="sm" 
+                  className="text-xs h-6 flex-1"
+                  onClick={() => setActiveFilter('all')}
+                >
+                  All
+                </Button>
+                <Button 
+                  variant={activeFilter === 'petBehavior' ? "default" : "outline"} 
+                  size="sm" 
+                  className="text-xs h-6 flex-1"
+                  onClick={() => setActiveFilter('petBehavior')}
+                >
+                  Behavior
+                </Button>
+                <Button 
+                  variant={activeFilter === 'petMessage' ? "default" : "outline"} 
+                  size="sm" 
+                  className="text-xs h-6 flex-1"
+                  onClick={() => setActiveFilter('petMessage')}
+                >
+                  Msgs
+                </Button>
+              </div>
             </div>
 
             <ScrollArea className="h-[450px]">
               <div className="space-y-2">
                 {logs.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-xs">No logs yet</div>
+                  <div className="text-center py-4 text-gray-500 text-xs">
+                    No logs available yet
+                  </div>
                 ) : (
                   <>
                     {logs.map((log, index) => (
@@ -193,7 +224,7 @@ export const GPTLogsPanel = () => {
                       </Card>
                     ))}
                     
-                    {gptLogs.length > logs.length && (
+                    {logs.length >= showCount && (
                       <div className="flex justify-center mt-2">
                         <Button
                           variant="outline"

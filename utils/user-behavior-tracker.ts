@@ -1,8 +1,11 @@
 import { PetBehaviorData } from "./openai-service";
 
+// Export activity type for consistent use across the app
+export type UserActivity = 'login' | 'logout' | 'feed' | 'play' | 'clean' | 'heal';
+
 interface ActivityLog {
   timestamp: number;
-  type: 'login' | 'logout' | 'feed' | 'play' | 'clean' | 'heal';
+  type: UserActivity;
   duration?: number; // For login/logout pairs
 }
 
@@ -25,7 +28,7 @@ interface UserBehaviorStore {
 const STORAGE_KEY_PREFIX = 'pet_behavior_';
 
 // Create or update user behavior data
-export function logUserActivity(userId: string, petName: string, activityType: ActivityLog['type'], duration?: number): void {
+export function logUserActivity(userId: string, petName: string, activityType: UserActivity, duration?: number): void {
   if (typeof window === 'undefined') return; // Only run on client
 
   const storageKey = `${STORAGE_KEY_PREFIX}${userId}`;
@@ -112,58 +115,121 @@ export function logUserActivity(userId: string, petName: string, activityType: A
   localStorage.setItem(storageKey, JSON.stringify(behaviorData));
 }
 
-// Get behavior data for AI processing
-export function getBehaviorData(userId: string, currentStats: PetBehaviorData['currentStats']): PetBehaviorData | null {
-  if (typeof window === 'undefined') return null; // Only run on client
-  
+/**
+ * Gets behavior data for AI processing
+ */
+export function getBehaviorData(userId: string, petName: string, currentStats: PetBehaviorData['currentStats']): PetBehaviorData {
+  // Only run on client side
+  if (typeof window === 'undefined') {
+    return {
+      petName,
+      loginCount: 1,
+      consecutiveLoginDays: 1,
+      loginsPerDay: 1,
+      timeSpent: 0,
+      activityCounts: {
+        feed: 0,
+        play: 0,
+        clean: 0,
+        heal: 0
+      },
+      currentStats,
+      timeOfDay: getTimeOfDay(),
+      dayOfWeek: getDayOfWeek()
+    };
+  }
+
   const storageKey = `${STORAGE_KEY_PREFIX}${userId}`;
+  const storedData = localStorage.getItem(storageKey);
+  
+  if (!storedData) {
+    return {
+      petName,
+      loginCount: 1,
+      consecutiveLoginDays: 1,
+      loginsPerDay: 1,
+      timeSpent: 0,
+      activityCounts: {
+        feed: 0,
+        play: 0,
+        clean: 0,
+        heal: 0
+      },
+      currentStats,
+      timeOfDay: getTimeOfDay(),
+      dayOfWeek: getDayOfWeek()
+    };
+  }
   
   try {
-    const storedData = localStorage.getItem(storageKey);
-    if (!storedData) return null;
-    
     const behaviorData: UserBehaviorStore = JSON.parse(storedData);
     const now = Date.now();
     
-    // Calculate metrics for AI
-    const daysSinceFirst = Math.max(1, daysBetween(behaviorData.firstLogin, now));
-    const loginsPerDay = behaviorData.loginDays.length / daysSinceFirst;
+    // Calculate metrics
+    const loginDays = behaviorData.loginDays?.length || 1;
+    const totalLogins = behaviorData.sessionLogs?.length || 1;
+    const loginsPerDay = totalLogins / loginDays;
     
-    // Calculate consecutive days
-    let consecutiveDays = 0;
-    const sortedDays = [...behaviorData.loginDays].sort();
-    if (sortedDays.length > 0) {
-      consecutiveDays = 1;
-      let prevDate = new Date(sortedDays[sortedDays.length - 1]);
-      
-      for (let i = sortedDays.length - 2; i >= 0; i--) {
-        const currDate = new Date(sortedDays[i]);
-        const diffDays = daysBetween(currDate.getTime(), prevDate.getTime());
-        
-        if (diffDays === 1) {
+    // Calculate consecutive login days
+    let consecutiveDays = 1;
+    const sortedDates = [...(behaviorData.loginDays || [])]
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    
+    if (sortedDates.length > 1) {
+      let currentDate = new Date(sortedDates[0]);
+      for (let i = 1; i < sortedDates.length; i++) {
+        const previousDate = new Date(sortedDates[i]);
+        const dayDiff = daysBetween(previousDate.getTime(), currentDate.getTime());
+        if (dayDiff === 1) {
           consecutiveDays++;
-          prevDate = currDate;
+          currentDate = previousDate;
         } else {
           break;
         }
       }
     }
     
-    // Build pet behavior data object
+    // Calculate time spent (based on login/logout pairs)
+    const timeSpent = Math.floor(behaviorData.totalTimeSpent || 0);
+    
+    // Map activity counts from storage format to API format
+    const activityCounts = {
+      feed: behaviorData.activityCounts?.feeding || 0,
+      play: behaviorData.activityCounts?.playing || 0,
+      clean: behaviorData.activityCounts?.cleaning || 0,
+      heal: behaviorData.activityCounts?.healing || 0
+    };
+    
     return {
-      petName: behaviorData.petName,
+      petName: behaviorData.petName || petName,
+      loginCount: totalLogins,
+      consecutiveLoginDays: consecutiveDays,
       loginsPerDay,
-      timeSpentMinutes: behaviorData.totalTimeSpent / daysSinceFirst,
-      activities: behaviorData.activityCounts,
+      timeSpent,
+      activityCounts,
       currentStats,
       timeOfDay: getTimeOfDay(),
-      dayOfWeek: getDayOfWeek(),
-      consecutiveDays
+      dayOfWeek: getDayOfWeek()
     };
     
   } catch (error) {
     console.error('Error getting behavior data:', error);
-    return null;
+    return {
+      petName,
+      loginCount: 1,
+      consecutiveLoginDays: 1,
+      loginsPerDay: 1,
+      timeSpent: 0,
+      activityCounts: {
+        feed: 0,
+        play: 0,
+        clean: 0,
+        heal: 0
+      },
+      currentStats,
+      timeOfDay: getTimeOfDay(),
+      dayOfWeek: getDayOfWeek()
+    };
   }
 }
 

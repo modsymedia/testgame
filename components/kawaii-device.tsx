@@ -57,7 +57,8 @@ export function KawaiiDevice() {
     aiPersonality,
     aiPointMultiplier,
     petMessage,
-    petReaction
+    petReaction,
+    cooldownTimers
   } = usePetInteractions();
 
   const {

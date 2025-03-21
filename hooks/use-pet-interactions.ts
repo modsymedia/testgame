@@ -28,7 +28,7 @@ interface ActionCooldowns {
   feed: number
   play: number
   clean: number
-  doctor: number
+  heal: number
 }
 
 export interface PointGain {
@@ -38,25 +38,36 @@ export interface PointGain {
 
 // Default cooldown times in milliseconds
 const DEFAULT_COOLDOWNS = {
-  feed: 30000,    // 30 seconds
-  play: 45000,    // 45 seconds
-  clean: 60000,   // 1 minute
-  doctor: 120000, // 2 minutes
+  feed: 10000,    // 10 seconds
+  play: 15000,    // 15 seconds
+  clean: 20000,   // 20 seconds
+  heal: 30000,    // 30 seconds
+}
+
+// Time remaining strings for cooldown display
+export interface CooldownTimers {
+  feed: string;
+  play: string;
+  clean: string;
+  heal: string;
 }
 
 export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   const { isConnected, publicKey, walletData } = useWallet();
+  const petName = walletData?.petName || 'Pet';
   
   // Get AI-driven behavior
   const { 
     aiPersonality, 
-    aiAdvice, 
+    aiAdvice,
+    aiPointMultiplier,
+    decayRates,
+    cooldowns: aiCooldowns,
     logActivity, 
-    updateCurrentStats,
     getPetMessageForInteraction,
     petMessage,
     petReaction
-  } = usePetAI();
+  } = usePetAI(petName, publicKey || '', initialStats);
   
   // Initialize stats from wallet data if available
   const initialWalletStats = isConnected && walletData?.petStats 
@@ -77,13 +88,21 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     feed: 0,
     play: 0,
     clean: 0,
-    doctor: 0
+    heal: 0
   })
   const [isOnCooldown, setIsOnCooldown] = useState<{[key: string]: boolean}>({
     feed: false,
     play: false,
     clean: false,
-    doctor: false
+    heal: false
+  })
+  
+  // Add cooldown timers for display
+  const [cooldownTimers, setCooldownTimers] = useState<CooldownTimers>({
+    feed: '',
+    play: '',
+    clean: '',
+    heal: ''
   })
   
   // Interaction tracking
@@ -116,22 +135,11 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   // Point gain tracking
   const [recentPointGain, setRecentPointGain] = useState<PointGain | null>(null)
   
-  // Update AI with current stats whenever they change
-  useEffect(() => {
-    updateCurrentStats({
-      food,
-      happiness,
-      cleanliness,
-      energy,
-      health
-    });
-  }, [food, happiness, cleanliness, energy, health, updateCurrentStats]);
-  
   // Get AI point system - use the AI-recommended multiplier
   const aiPointSystem = useCallback(() => {
-    // If AI personality exists, use its multiplier, otherwise use default (1.0)
-    return aiPersonality?.multiplier || 1.0;
-  }, [aiPersonality]);
+    // If AI multiplier exists, use it, otherwise use default (1.0)
+    return aiPointMultiplier || 1.0;
+  }, [aiPointMultiplier]);
   
   // Calculate health based on stats
   const updateHealth = useCallback(() => {
@@ -156,28 +164,43 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     updateHealth()
   }, [food, happiness, cleanliness, energy, updateHealth])
   
-  // Update cooldowns
+  // Update cooldowns with countdown display
   useEffect(() => {
     const cooldownInterval = setInterval(() => {
-      const currentTime = Date.now()
-      
       setCooldowns((prev: ActionCooldowns) => ({
         feed: Math.max(0, prev.feed - 1000),
         play: Math.max(0, prev.play - 1000),
         clean: Math.max(0, prev.clean - 1000),
-        doctor: Math.max(0, prev.doctor - 1000)
+        heal: Math.max(0, prev.heal - 1000)
       }))
+      
+      // Update visual cooldown timers
+      setCooldownTimers({
+        feed: formatCooldownTime(cooldowns.feed),
+        play: formatCooldownTime(cooldowns.play),
+        clean: formatCooldownTime(cooldowns.clean),
+        heal: formatCooldownTime(cooldowns.heal)
+      })
       
       setIsOnCooldown({
         feed: cooldowns.feed > 0,
         play: cooldowns.play > 0,
         clean: cooldowns.clean > 0,
-        doctor: cooldowns.doctor > 0
+        heal: cooldowns.heal > 0
       })
     }, 1000)
     
     return () => clearInterval(cooldownInterval)
   }, [cooldowns])
+  
+  // Format cooldown time for display (e.g., "0:30")
+  const formatCooldownTime = useCallback((milliseconds: number): string => {
+    if (milliseconds <= 0) return '';
+    const seconds = Math.ceil(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }, []);
   
   // Add this helper function to award points
   const awardPoints = useCallback((amount: number) => {
@@ -201,7 +224,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       const timeElapsed = (Date.now() - lastInteractionTime) / (1000 * 60); // in minutes
       
       // Use AI decay rates if available, or default rates
-      const decayRates = aiPersonality?.decayRates || {
+      const aiDecayRates = decayRates || {
         food: 0.5,
         happiness: 0.4,
         cleanliness: 0.3,
@@ -210,10 +233,10 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       };
       
       // Apply decay based on AI-driven rates or defaults
-      const foodDecay = decayRates.food * (timeElapsed / 60);
-      const happinessDecay = decayRates.happiness * (timeElapsed / 60);
-      const cleanlinessDecay = decayRates.cleanliness * (timeElapsed / 60);
-      const energyDecay = decayRates.energy * (timeElapsed / 60);
+      const foodDecay = aiDecayRates.food * (timeElapsed / 60);
+      const happinessDecay = aiDecayRates.happiness * (timeElapsed / 60);
+      const cleanlinessDecay = aiDecayRates.cleanliness * (timeElapsed / 60);
+      const energyDecay = aiDecayRates.energy * (timeElapsed / 60);
       
       setFood((prev: number) => Math.max(prev - foodDecay, 0));
       setHappiness((prev: number) => Math.max(prev - happinessDecay, 0));
@@ -244,15 +267,31 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     }, 60000);
     
     return () => clearInterval(decayInterval);
-  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints, aiPersonality]);
+  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints, decayRates]);
   
   // Apply cooldowns from AI
   const applyCooldown = useCallback((actionType: keyof ActionCooldowns) => {
     // Use AI-driven cooldowns if available, otherwise use defaults
-    const aiCooldowns = aiPersonality?.cooldowns;
-    const cooldownTime = aiCooldowns ? 
-      aiCooldowns[actionType] : 
-      DEFAULT_COOLDOWNS[actionType];
+    let cooldownTime = DEFAULT_COOLDOWNS[actionType]; // Default in milliseconds
+    
+    if (aiCooldowns && aiCooldowns[actionType]) {
+      // Convert from seconds (API) to milliseconds (internal)
+      cooldownTime = aiCooldowns[actionType] * 1000;
+      
+      // Debug the API cooldown value
+      console.log(`API cooldown for ${actionType}: ${aiCooldowns[actionType]} seconds`);
+    }
+    
+    // Set to nearest second to avoid odd display
+    cooldownTime = Math.ceil(cooldownTime / 1000) * 1000;
+    
+    // Enforce minimum and maximum cooldown time
+    const minimumCooldown = 5000; // 5 seconds minimum
+    const maximumCooldown = 30000; // 30 seconds maximum
+    
+    cooldownTime = Math.max(Math.min(cooldownTime, maximumCooldown), minimumCooldown);
+    
+    console.log(`Setting ${actionType} cooldown to ${cooldownTime / 1000} seconds`);
     
     setCooldowns((prev: ActionCooldowns) => ({
       ...prev,
@@ -263,7 +302,13 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       ...prev,
       [actionType]: true
     }));
-  }, [aiPersonality]);
+    
+    // Update timer display immediately
+    setCooldownTimers((prev: CooldownTimers) => ({
+      ...prev,
+      [actionType]: formatCooldownTime(cooldownTime)
+    }));
+  }, [aiCooldowns, formatCooldownTime]);
   
   // Add the missing interact function
   const interact = useCallback((
@@ -714,7 +759,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   
   // Handle giving medicine to the pet
   const handleDoctor = useCallback(async () => {
-    if (isDead || isOnCooldown.doctor) return false
+    if (isDead || isOnCooldown.heal) return false
     
     // Log the healing activity for AI analysis
     logActivity('heal')
@@ -724,7 +769,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       health: 50,
       energy: 20,
       happiness: -5,
-    }, 'doctor')
+    }, 'heal')
     
     if (success) {
       setIsHealing(true)
@@ -756,7 +801,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       }, 1500)
       
       // Get message from the pet's perspective
-      const petResponse = await getPetMessageForInteraction('doctor', {
+      const petResponse = await getPetMessageForInteraction('heal', {
         food: foodRef.current,
         happiness: happinessRef.current,
         cleanliness: cleanlinessRef.current,
@@ -810,7 +855,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     return success
   }, [
     isDead, 
-    isOnCooldown.doctor, 
+    isOnCooldown.heal, 
     interact, 
     setIsHealing, 
     setCurrentInteraction, 
@@ -954,13 +999,13 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       feed: 0,
       play: 0,
       clean: 0,
-      doctor: 0
+      heal: 0
     })
     setIsOnCooldown({
       feed: false,
       play: false,
       clean: false,
-      doctor: false
+      heal: false
     })
   }, [])
   
@@ -979,6 +1024,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     
     // Cooldowns
     cooldowns,
+    cooldownTimers,
     isOnCooldown,
     
     // Animation states
