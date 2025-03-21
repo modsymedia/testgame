@@ -1,46 +1,15 @@
-import OpenAI from "openai";
-
-let openai: OpenAI;
-
-export interface GPTLogEntry {
-  timestamp: Date;
-  type: "petBehavior" | "petMessage";
-  prompt: string;
-  response?: any;
-  error?: string;
-}
-
-export const gptLogs: GPTLogEntry[] = [];
-
-const MAX_LOGS = 100;
-
-function addLogEntry(entry: GPTLogEntry) {
-  gptLogs.unshift(entry);
-  if (gptLogs.length > MAX_LOGS) gptLogs.pop();
-
-  console.log(`GPT Log [${entry.type}]: ${new Date().toISOString()}`);
-}
-
-if (typeof window !== "undefined") {
-  try {
-    openai = new OpenAI({
-      apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY as string,
-      dangerouslyAllowBrowser: true,
-    });
-  } catch (error) {
-    console.error("Failed to initialize OpenAI:", error);
-  }
-}
-
+// Interfaces for OpenAI interactions - server-side API only
 export interface PetBehaviorData {
   petName: string;
+  loginCount: number;
+  consecutiveLoginDays: number;
   loginsPerDay: number;
-  timeSpentMinutes: number;
-  activities: {
-    feeding: number;
-    playing: number;
-    cleaning: number;
-    healing: number;
+  timeSpent: number;
+  activityCounts: {
+    feed: number;
+    play: number;
+    clean: number;
+    heal: number;
   };
   currentStats: {
     food: number;
@@ -51,7 +20,6 @@ export interface PetBehaviorData {
   };
   timeOfDay: string;
   dayOfWeek: string;
-  consecutiveDays: number;
 }
 
 export interface PetBehaviorResult {
@@ -66,149 +34,18 @@ export interface PetBehaviorResult {
     feed: number;
     play: number;
     clean: number;
-    doctor: number;
+    heal: number;
   };
-  personalityTraits: string[];
+  personality: string[];
   moodDescription: string;
   advice: string;
-  multiplier: number;
-}
-
-const DEFAULT_BEHAVIOR: PetBehaviorResult = {
-  decayRates: {
-    food: 0.5,
-    happiness: 0.4,
-    cleanliness: 0.3,
-    energy: 0.4,
-    health: 0.2,
-  },
-  cooldowns: {
-    feed: 30000,
-    play: 45000,
-    clean: 60000,
-    doctor: 120000,
-  },
-  personalityTraits: ["friendly", "playful"],
-  moodDescription: "Your pet is feeling normal today.",
-  advice: "Make sure to feed and play with your pet regularly!",
-  multiplier: 1.0,
-};
-
-/**
- * Get customized pet behavior based on user interaction history
- */
-export async function getPetBehavior(data: PetBehaviorData): Promise<PetBehaviorResult> {
-  if (!openai) {
-    console.warn("OpenAI not initialized, using default behavior");
-    return DEFAULT_BEHAVIOR;
-  }
-
-  try {
-    const prompt = `
-You are an AI that analyzes pet virtual game data and customizes pet behavior to make each pet unique.
-Based on the following user data, determine how the virtual pet should behave:
-
-Pet name: ${data.petName}
-Average logins per day: ${data.loginsPerDay.toFixed(1)}
-Average time spent (minutes): ${data.timeSpentMinutes.toFixed(1)}
-Activity frequency:
-- Feeding: ${data.activities.feeding} times
-- Playing: ${data.activities.playing} times
-- Cleaning: ${data.activities.cleaning} times
-- Healing: ${data.activities.healing} times
-Current stats:
-- Food: ${data.currentStats.food}/100
-- Happiness: ${data.currentStats.happiness}/100
-- Cleanliness: ${data.currentStats.cleanliness}/100
-- Energy: ${data.currentStats.energy}/100
-- Health: ${data.currentStats.health}/100
-Time of day: ${data.timeOfDay}
-Day of week: ${data.dayOfWeek}
-Consecutive days active: ${data.consecutiveDays}
-
-Based on this data, please provide:
-1. Customized decay rates for each stat (0.1 to 1.0 where higher means faster decay)
-2. Cooldown times in milliseconds for each activity (between 15000 and 180000)
-3. 2-3 personality traits that fit this pet's pattern
-4. A mood description based on current stats and patterns
-5. Brief advice for the user
-6. A point multiplier between 0.8 and 1.5 based on care quality
-
-Output in JSON format only. No explanations or additional text.
-`;
-
-    const logEntry: GPTLogEntry = {
-      timestamp: new Date(),
-      type: "petBehavior",
-      prompt,
-    };
-
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo",
-        messages: [
-          { role: "system", content: "You analyze pet game data and output JSON only." },
-          { role: "user", content: prompt },
-        ],
-        response_format: { type: "json_object" },
-      });
-
-      const content = response.choices[0].message.content;
-      if (!content) {
-        throw new Error("Empty response from OpenAI");
-      }
-
-      logEntry.response = content;
-      addLogEntry(logEntry);
-
-      try {
-        const parsedResponse = JSON.parse(content);
-
-        return {
-          decayRates: {
-            food: parsedResponse.decayRates?.food || DEFAULT_BEHAVIOR.decayRates.food,
-            happiness: parsedResponse.decayRates?.happiness || DEFAULT_BEHAVIOR.decayRates.happiness,
-            cleanliness: parsedResponse.decayRates?.cleanliness || DEFAULT_BEHAVIOR.decayRates.cleanliness,
-            energy: parsedResponse.decayRates?.energy || DEFAULT_BEHAVIOR.decayRates.energy,
-            health: parsedResponse.decayRates?.health || DEFAULT_BEHAVIOR.decayRates.health,
-          },
-          cooldowns: {
-            feed: parsedResponse.cooldowns?.feed || DEFAULT_BEHAVIOR.cooldowns.feed,
-            play: parsedResponse.cooldowns?.play || DEFAULT_BEHAVIOR.cooldowns.play,
-            clean: parsedResponse.cooldowns?.clean || DEFAULT_BEHAVIOR.cooldowns.clean,
-            doctor: parsedResponse.cooldowns?.doctor || DEFAULT_BEHAVIOR.cooldowns.doctor,
-          },
-          personalityTraits: parsedResponse.personalityTraits || DEFAULT_BEHAVIOR.personalityTraits,
-          moodDescription: parsedResponse.moodDescription || DEFAULT_BEHAVIOR.moodDescription,
-          advice: parsedResponse.advice || DEFAULT_BEHAVIOR.advice,
-          multiplier: parsedResponse.multiplier || DEFAULT_BEHAVIOR.multiplier,
-        };
-      } catch (error) {
-        console.error("Failed to parse OpenAI response:", error, content);
-        logEntry.error = "Failed to parse response: " + error;
-        addLogEntry(logEntry);
-        return DEFAULT_BEHAVIOR;
-      }
-    } catch (error) {
-      console.error("Error calling OpenAI API:", error);
-      logEntry.error = "API Error: " + error;
-      addLogEntry(logEntry);
-      return DEFAULT_BEHAVIOR;
-    }
-  } catch (error) {
-    console.error("Error preparing OpenAI request:", error);
-    addLogEntry({
-      timestamp: new Date(),
-      type: "petBehavior",
-      prompt: "Error preparing request",
-      error: String(error),
-    });
-    return DEFAULT_BEHAVIOR;
-  }
+  pointMultiplier: number;
 }
 
 export interface PetMessage {
   message: string;
+  reaction: "none" | "happy" | "sad" | "excited" | "sleepy" | "hungry" | "angry" | "sick" | "clean" | "dirty" | string;
+  reward: number;
   updatedStats?: {
     food?: number;
     happiness?: number;
@@ -216,17 +53,157 @@ export interface PetMessage {
     energy?: number;
     health?: number;
   };
-  reaction: string;
-  reward: number;
+}
+
+// Default values if API fails
+export const DEFAULT_BEHAVIOR: PetBehaviorResult = {
+  decayRates: {
+    food: 2,
+    happiness: 1,
+    cleanliness: 1.5,
+    energy: 0.5,
+    health: 0.2,
+  },
+  cooldowns: {
+    feed: 60,
+    play: 45,
+    clean: 90,
+    heal: 120,
+  },
+  personality: ["friendly", "playful", "energetic"],
+  moodDescription: "Your pet seems content with their life.",
+  advice: "Try to maintain a balanced routine of feeding, playing, and cleaning.",
+  pointMultiplier: 1.0,
+};
+
+// Define the log entry interface for client-side logging
+export interface GPTLogEntry {
+  timestamp: Date;
+  type: 'petBehavior' | 'petMessage';
+  prompt: string;
+  response?: any;
+  error?: string;
+}
+
+// Local storage key for logs
+const LOGS_STORAGE_KEY = 'gpt_logs_cache';
+
+// Maximum number of logs to keep
+const MAX_LOGS = 100;
+
+// Function to add a log entry to client-side storage
+export function addClientLogEntry(entry: GPTLogEntry): void {
+  if (typeof window === 'undefined') return; // Only run on client side
+  
+  try {
+    // Get existing logs
+    const logsJson = localStorage.getItem(LOGS_STORAGE_KEY);
+    let logs: GPTLogEntry[] = logsJson ? JSON.parse(logsJson) : [];
+    
+    // Add new log at the beginning
+    logs.unshift(entry);
+    
+    // Trim to maximum size
+    if (logs.length > MAX_LOGS) {
+      logs = logs.slice(0, MAX_LOGS);
+    }
+    
+    // Save back to local storage
+    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
+    
+    // Dispatch a custom event so components can listen for log updates
+    window.dispatchEvent(new CustomEvent('gptLogUpdated'));
+  } catch (error) {
+    console.error('Error adding client log entry:', error);
+  }
 }
 
 /**
- * Generate a message from pet's perspective after an interaction
+ * Get GPT logs from client-side storage
+ * @returns Array of GPT log entries
+ */
+export function getGPTLogs(): GPTLogEntry[] {
+  if (typeof window === 'undefined') return []; // Only run on client side
+  
+  try {
+    const logsJson = localStorage.getItem(LOGS_STORAGE_KEY);
+    return logsJson ? JSON.parse(logsJson) : [];
+  } catch (error) {
+    console.error('Error getting GPT logs:', error);
+    return [];
+  }
+}
+
+/**
+ * Add a client log entry from API response that contains _logInfo
+ * @param response API response with _logInfo property
+ */
+export function processApiResponseLogs(response: any): void {
+  if (!response || !response._logInfo) return;
+  
+  const logInfo = response._logInfo;
+  
+  const logEntry: GPTLogEntry = {
+    timestamp: new Date(logInfo.timestamp),
+    type: logInfo.type,
+    prompt: logInfo.prompt,
+    response: logInfo.response ? logInfo.response : response,
+    error: logInfo.error
+  };
+  
+  addClientLogEntry(logEntry);
+  
+  // Remove _logInfo from response to keep it clean
+  if (typeof response === 'object') {
+    delete response._logInfo;
+  }
+}
+
+/**
+ * Gets behavior data for pet based on OpenAI's recommendation
+ */
+export async function getPetBehavior(petData: PetBehaviorData): Promise<PetBehaviorResult> {
+  try {
+    const response = await fetch("/api/pet-behavior", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(petData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Process logs from API response
+    processApiResponseLogs(data);
+    
+    return data.fallback ? data.fallback : data;
+  } catch (error) {
+    console.error("Error fetching pet behavior:", error);
+    
+    // Log client-side error
+    addClientLogEntry({
+      timestamp: new Date(),
+      type: "petBehavior",
+      prompt: JSON.stringify(petData),
+      error: error instanceof Error ? error.message : String(error)
+    });
+    
+    return DEFAULT_BEHAVIOR;
+  }
+}
+
+/**
+ * Get pet message from server API
  */
 export async function getPetMessage(
-  petName: string,
-  interactionType: "feed" | "play" | "clean" | "doctor" | "idle",
-  currentStats: {
+  petName: string, 
+  interactionType: "feed" | "play" | "clean" | "heal" | "idle", 
+  petStats: {
     food: number;
     happiness: number;
     cleanliness: number;
@@ -234,111 +211,72 @@ export async function getPetMessage(
     health: number;
   }
 ): Promise<PetMessage> {
-  if (!openai) {
-    console.warn("OpenAI not initialized, using default message");
-    return getDefaultPetMessage(petName, interactionType, currentStats);
-  }
-
   try {
-    const prompt = `
-You are a cute virtual pet called ${petName}. 
-Users can interact with you through feeding, cleaning, playing, and medical treatments.
-Your responses should reflect your current state (happiness, hunger, cleanliness, energy, health).
-Always provide cute, concise, and playful answers with personality.
-
-Your current stats are:
-- Food (hunger): ${currentStats.food}/100
-- Happiness: ${currentStats.happiness}/100
-- Cleanliness: ${currentStats.cleanliness}/100
-- Energy: ${currentStats.energy}/100
-- Health: ${currentStats.health}/100
-
-The user has just: ${interactionType === "idle" ? "not interacted with you for a while" : interactionType + "ed you"}.
-
-IMPORTANT: always reply in a valid JSON format. No character before or after. The format is:
-{"reply": "your reply", "reaction": "the reaction", "happiness": x, "hunger": x, "cleanliness": x, "energy": x, "health": x, "reward": amount },
-where reward is the number of points you want to give (based on good care, between 0 and 100).
-
-Reaction is an enum with values: "none", "happy", "sad", "excited", "sleepy", "hungry", "angry", "sick", "clean", "dirty".
-Reaction should accurately reflect your current state.
-
-Most of the time set reward to 0. Only give rewards for consistent good care.
-If you're full (food > 80), refuse more food with a funny response.
-If you're very clean (cleanliness > 90), cleaning will make you less happy.
-Playing increases happiness but slightly increases hunger and might decrease cleanliness.
-Medical treatment might make you temporarily uncomfortable but improves health.
-
-Your response should use the reaction that best matches your current emotional state based on your stats and the interaction type.
-`;
-
-    const logEntry: GPTLogEntry = {
-      timestamp: new Date(),
-      type: "petMessage",
-      prompt,
-    };
-
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo",
-        messages: [
-          { role: "system", content: "You are a cute virtual pet that speaks in first person. Respond in JSON format." },
-          { role: "user", content: prompt },
-        ],
-        response_format: { type: "json_object" },
-      });
-
-      const content = response.choices[0].message.content;
-      if (!content) {
-        throw new Error("Empty response from OpenAI");
-      }
-
-      logEntry.response = content;
-      addLogEntry(logEntry);
-
-      try {
-        const parsedResponse = JSON.parse(content);
-
-        const statChanges = {
-          food: parsedResponse.hunger !== undefined ? parsedResponse.hunger - currentStats.food : 0,
-          happiness: parsedResponse.happiness !== undefined ? parsedResponse.happiness - currentStats.happiness : 0,
-          cleanliness: parsedResponse.cleanliness !== undefined ? parsedResponse.cleanliness - currentStats.cleanliness : 0,
-          energy: parsedResponse.energy !== undefined ? parsedResponse.energy - currentStats.energy : 0,
-          health: parsedResponse.health !== undefined ? parsedResponse.health - currentStats.health : 0,
-        };
-
-        return {
-          message: parsedResponse.reply || getDefaultPetMessage(petName, interactionType, currentStats).message,
-          reaction: parsedResponse.reaction || "none",
-          reward: parsedResponse.reward || 0,
-          updatedStats: {
-            food: statChanges.food !== 0 ? currentStats.food + statChanges.food : undefined,
-            happiness: statChanges.happiness !== 0 ? currentStats.happiness + statChanges.happiness : undefined,
-            cleanliness: statChanges.cleanliness !== 0 ? currentStats.cleanliness + statChanges.cleanliness : undefined,
-            energy: statChanges.energy !== 0 ? currentStats.energy + statChanges.energy : undefined,
-            health: statChanges.health !== 0 ? currentStats.health + statChanges.health : undefined,
-          },
-        };
-      } catch (error) {
-        console.error("Failed to parse OpenAI response:", error, content);
-        logEntry.error = "Failed to parse response: " + error;
-        addLogEntry(logEntry);
-        return getDefaultPetMessage(petName, interactionType, currentStats);
-      }
-    } catch (error) {
-      console.error("Error calling OpenAI API:", error);
-      logEntry.error = "API Error: " + error;
-      addLogEntry(logEntry);
-      return getDefaultPetMessage(petName, interactionType, currentStats);
-    }
-  } catch (error) {
-    console.error("Error preparing OpenAI request:", error);
-    addLogEntry({
-      timestamp: new Date(),
-      type: "petMessage",
-      prompt: "Error preparing request",
-      error: String(error),
+    const response = await fetch("/api/pet-message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ petName, interactionType, petStats }),
     });
-    return getDefaultPetMessage(petName, interactionType, currentStats);
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Process logs from API response
+    processApiResponseLogs(data);
+    
+    return data;
+  } catch (error) {
+    console.error("Error fetching pet message:", error);
+    
+    // Log client-side error
+    addClientLogEntry({
+      timestamp: new Date(),
+      type: "petMessage",
+      prompt: JSON.stringify({ petName, interactionType, petStats }),
+      error: error instanceof Error ? error.message : String(error)
+    });
+    
+    // Fall back to default message generator
+    return getDefaultPetMessage(petName, interactionType, petStats);
+  }
+}
+
+/**
+ * Determine reaction based on interaction and stats
+ */
+function determineReaction(
+  interactionType: "feed" | "play" | "clean" | "heal" | "idle",
+  stats: {
+    food: number;
+    happiness: number;
+    cleanliness: number;
+    energy: number;
+    health: number;
+  }
+): string {
+  switch (interactionType) {
+    case "feed":
+      return stats.food > 80 ? "happy" : stats.food < 30 ? "hungry" : "happy";
+    case "play":
+      return "excited";
+    case "clean":
+      return stats.cleanliness > 90 ? "angry" : "clean";
+    case "heal":
+      return stats.health < 50 ? "sick" : "happy";
+    case "idle":
+      if (stats.food < 30) return "hungry";
+      if (stats.happiness < 30) return "sad";
+      if (stats.cleanliness < 30) return "dirty";
+      if (stats.health < 30) return "sick";
+      if (stats.energy < 30) return "sleepy";
+      return "happy";
+    default:
+      return "none";
   }
 }
 
@@ -347,7 +285,7 @@ Your response should use the reaction that best matches your current emotional s
  */
 function getDefaultPetMessage(
   petName: string,
-  interactionType: "feed" | "play" | "clean" | "doctor" | "idle",
+  interactionType: "feed" | "play" | "clean" | "heal" | "idle",
   stats: {
     food: number;
     happiness: number;
@@ -383,7 +321,7 @@ function getDefaultPetMessage(
         reaction = "clean";
       }
       break;
-    case "doctor":
+    case "heal":
       message = `${stats.health < 30 ? "Thank you for taking care of me! I feel better already." : "I appreciate the checkup! Health is important!"}`;
       reaction = stats.health < 50 ? "sick" : "happy";
       break;
