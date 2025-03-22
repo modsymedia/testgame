@@ -63,24 +63,24 @@ const BlinkingEyes = () => (
   <>
     <motion.svg width="20" height="10" viewBox="0 0 7 4" className="mx-0.5">
       <motion.path
-        d={blinkAnimation.open.d}
+        d={blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2"}
         fill="none"
         stroke="currentColor"
         strokeWidth="0.4"
         strokeLinecap="round"
-        animate={{ d: [blinkAnimation.open.d, blinkAnimation.closed.d, blinkAnimation.open.d] }}
+        animate={{ d: [blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2", blinkAnimation.closed.d || "M 2 2 Q 3.5 4 5 2", blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2"] }}
         transition={{ repeat: Infinity, repeatDelay: 2.5, duration: 0.15 }}
       />
     </motion.svg>
     <span>.</span>
     <motion.svg width="20" height="10" viewBox="0 0 7 4" className="mx-0.5">
       <motion.path
-        d={blinkAnimation.open.d}
+        d={blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2"}
         fill="none"
         stroke="currentColor"
         strokeWidth="0.4"
         strokeLinecap="round"
-        animate={{ d: [blinkAnimation.open.d, blinkAnimation.closed.d, blinkAnimation.open.d] }}
+        animate={{ d: [blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2", blinkAnimation.closed.d || "M 2 2 Q 3.5 4 5 2", blinkAnimation.open.d || "M 2 2 Q 3.5 0 5 2"] }}
         transition={{ repeat: Infinity, repeatDelay: 2.5, duration: 0.15 }}
       />
     </motion.svg>

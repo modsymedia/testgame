@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import LeaderboardDisplay from './LeaderboardDisplay';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -58,9 +59,9 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-indigo-500 to-purple-700">
-      <div className="text-center mb-10">
-        <h1 className="text-5xl font-bold text-white mb-6">Gochi Landing Page</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-indigo-500 to-purple-700 py-12">
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-bold text-white mb-4">Gochi Landing Page</h1>
       </div>
       
       {error && (
@@ -72,10 +73,15 @@ export default function LandingPage() {
       <Button 
         onClick={handleStart}
         disabled={isLoading}
-        className="py-6 px-12 text-xl bg-white text-indigo-700 hover:bg-indigo-100 font-bold rounded-xl shadow-lg transition-all hover:shadow-xl hover:-translate-y-1"
+        className="py-6 px-12 text-xl bg-white text-indigo-700 hover:bg-indigo-100 font-bold rounded-xl shadow-lg transition-all hover:shadow-xl hover:-translate-y-1 mb-12"
       >
         {isLoading ? 'Connecting...' : 'Start'}
       </Button>
+
+      {/* Leaderboard section */}
+      <div className="w-full max-w-4xl px-4">
+        <LeaderboardDisplay />
+      </div>
     </div>
   );
 } 

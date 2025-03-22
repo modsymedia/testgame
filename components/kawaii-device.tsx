@@ -16,6 +16,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
+import { updateUserScore } from "@/utils/leaderboard";
 
 export function KawaiiDevice() {
   const router = useRouter();
@@ -100,9 +101,22 @@ export function KawaiiDevice() {
       if (Math.abs(points - lastUpdatedPointsRef.current) >= 5) {
         updatePoints(points);
         lastUpdatedPointsRef.current = points;
+        
+        // Update leaderboard with the user's current score
+        if (publicKey) {
+          updateUserScore(publicKey, points);
+        }
       }
     }
-  }, [points, isConnected, updatePoints]);
+  }, [points, isConnected, updatePoints, publicKey]);
+
+  // Update leaderboard when pet dies
+  useEffect(() => {
+    if (isDead && isConnected && publicKey && points > 0) {
+      // Save final score to leaderboard
+      updateUserScore(publicKey, points);
+    }
+  }, [isDead, isConnected, publicKey, points]);
 
   const [showReviveConfirm, setShowReviveConfirm] = useState(false);
 
@@ -234,6 +248,11 @@ export function KawaiiDevice() {
     resetPet();
     // Hide confirmation dialog
     setShowReviveConfirm(false);
+    
+    // Update leaderboard with the new score after revival
+    if (publicKey) {
+      updateUserScore(publicKey, Math.floor(points / 2));
+    }
   };
   
   const handleReviveCancel = () => {
