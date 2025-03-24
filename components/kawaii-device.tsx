@@ -311,8 +311,8 @@ export function KawaiiDevice() {
           <div className="flex justify-between w-full mb-2">
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-black">⭐</span>
-                <span className="text-xs text-black">Points: {formatPoints(points)}</span>
+                <span className="text-xs font-mono text-[#4b6130]">⭐</span>
+                <span className="text-xs text-[#4b6130]">Points: {formatPoints(points)}</span>
               </div>
             </div>
             <div className="flex-1 ml-2">
@@ -585,9 +585,12 @@ export function KawaiiDevice() {
         <div className="absolute top-2 left-0 right-0 flex justify-center">
           <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
         </div>
-        <div className="bg-[#c3cfa1] rounded-lg p-2 mb-4 relative">
-          <div className="relative bg-[#7b8d4c] rounded-md p-3 flex flex-col items-center justify-between h-[320px] border-4 border-[#5a6b2f] shadow-inner">
-            <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,#00000010_1px,transparent_2px)] opacity-50" />
+        <div className="bg-[#c3cfa1]  rounded-[1.5rem] p-2 mb-4 relative">
+          <div className="relative  p-3 flex flex-col items-center justify-between h-[320px]">
+            <div className="absolute inset-0  opacity-50" />
+            
+            {/* Game Boy-like color filter */}
+            <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
             
             {/* Point animation */}
             {recentPointGain && !pointAnimationComplete && (
