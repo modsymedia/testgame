@@ -585,9 +585,8 @@ export function KawaiiDevice() {
         <div className="absolute top-2 left-0 right-0 flex justify-center">
           <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
         </div>
-        <div className="bg-[#c3cfa1]  rounded-[1.5rem] p-2 mb-4 relative">
+        <div className="bg-[#eff8cb]  rounded-[1.5rem] p-2 mb-4 relative">
           <div className="relative  p-3 flex flex-col items-center justify-between h-[320px]">
-            <div className="absolute inset-0  opacity-50" />
             
             {/* Game Boy-like color filter */}
             <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />

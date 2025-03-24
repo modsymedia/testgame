@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 
 interface StatusBarProps {
   value: number
@@ -9,14 +10,20 @@ interface StatusBarProps {
 
 export function StatusBar({ value, type }: StatusBarProps) {
   const getIcon = () => {
-    if (type === "food") return "[~]"
-    if (type === "happiness" && value > 66) return "(•ω•)"
-    if (type === "happiness" && value > 33) return "(•д•)"
-    if (type === "happiness") return "(•A•)"
-    if (type === "cleanliness") return "🛁"
-    if (type === "energy") return "⚡"
-    if (type === "health") return "❤️"
-    return "(?)"
+    switch (type) {
+      case "food":
+        return <Image src="/assets/icons/foods/foods.png" alt="Food" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      case "happiness":
+        return <Image src="/assets/icons/status/statusbar-heal(heart).png" alt="Happiness" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      case "cleanliness":
+        return <Image src="/assets/icons/hygiene/hygienes.png" alt="Cleanliness" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      case "energy":
+        return <Image src="/assets/icons/status/statusbar-coins(points).png" alt="Energy" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      case "health":
+        return <Image src="/assets/icons/status/statusbar-heal(heart).png" alt="Health" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      default:
+        return "(?)";
+    }
   }
   
   const getStatus = (value: number, type: string) => {
@@ -34,7 +41,9 @@ export function StatusBar({ value, type }: StatusBarProps) {
   return (
     <div className="flex flex-col space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-black">{getIcon()}</span>
+        <div className="flex items-center">
+          {getIcon()}
+        </div>
         <span className="text-xs text-black">{getStatus(value, type)}</span>
       </div>
       <div className="w-full h-2 bg-gray-300 rounded-full overflow-hidden">

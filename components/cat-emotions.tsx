@@ -25,13 +25,27 @@ interface CatEmotionProps {
 // Modified CatBase to use an image instead of text characters
 const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression }) => (
   <div className="relative flex justify-center items-center">
+    {/* Shadow image */}
     <Image 
-      src="/assets/character/main.png" 
-      alt="Pet character" 
-      width={162} 
-      height={162}
+      src="/assets/character/shadow.png" 
+      alt="Shadow"
+      width={120} 
+      height={32}
       unoptimized={true}
-      className="object-contain"
+      className="absolute top-[95px] object-contain opacity-50"
+      style={{
+        imageRendering: 'pixelated'
+      }}
+    />
+    
+    {/* Character image */}
+    <Image 
+      src="/assets/character/character-default.png" 
+      alt="Pet character" 
+      width={122} 
+      height={122}
+      unoptimized={true}
+      className="object-contain relative"
       style={{
         imageRendering: 'pixelated'
       }}
@@ -64,7 +78,7 @@ const BlinkingEyes = () => (
 export const HappyCat = () => <CatBase />
 
 interface AlertCatProps {
-  selectedMenuItem: number | null;
+  selectedMenuItem?: number | null;
 }
 
 // Pass the selectedMenuItem to CatBase to potentially change the image based on menu selection
@@ -81,13 +95,27 @@ export const HungryCat = () => <CatBase />
 export function DeadCat() {
   return (
     <div className="relative opacity-70">
+      {/* Shadow image */}
       <Image 
-        src="/assets/character/main.png" 
+        src="/assets/character/shadow.png" 
+        alt="Shadow"
+        width={120} 
+        height={32}
+        unoptimized={true}
+        className="absolute top-[95px] object-contain opacity-50"
+        style={{
+          imageRendering: 'pixelated'
+        }}
+      />
+      
+      {/* Character image */}
+      <Image 
+        src="/assets/character/character-default.png" 
         alt="Dead pet character" 
         width={162} 
         height={162}
         unoptimized={true}
-        className="object-contain grayscale"
+        className="object-contain relative grayscale"
         style={{
           imageRendering: 'pixelated'
         }}
