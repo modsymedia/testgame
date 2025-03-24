@@ -1,10 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
 import { LeaderboardEntry, PointsLeaderboard } from '@/lib/models';
-import { MOCK_LEADERBOARD } from '@/lib/mock-data';
 
 // Default leaderboard size
 const DEFAULT_LIMIT = 10;
+
+// Helper function to create empty leaderboard structure
+const createEmptyLeaderboard = (): PointsLeaderboard => ({
+  allTime: [],
+  weekly: [],
+  daily: [],
+  referrals: []
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -28,29 +35,10 @@ export default async function handler(
   try {
     // Check if MongoDB is configured
     if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      // Use mock data for development or if MongoDB is not configured
-      const mockPointsLeaderboard: PointsLeaderboard = {
-        allTime: MOCK_LEADERBOARD.map((entry, index) => ({
-          ...entry,
-          points: 10000 - (index * 500),
-        })),
-        weekly: MOCK_LEADERBOARD.map((entry, index) => ({
-          ...entry,
-          points: 2000 - (index * 100),
-        })),
-        daily: MOCK_LEADERBOARD.map((entry, index) => ({
-          ...entry,
-          points: 500 - (index * 25),
-        })),
-        referrals: MOCK_LEADERBOARD.map((entry, index) => ({
-          ...entry,
-          points: 2500 - (index * 150),
-        })),
-      };
-      
+      // Return empty data if MongoDB is not configured
       return res.status(200).json({ 
-        leaderboard: mockPointsLeaderboard, 
-        source: 'mock'
+        leaderboard: createEmptyLeaderboard(), 
+        source: 'no-db'
       });
     }
     
@@ -59,7 +47,7 @@ export default async function handler(
     
     // Connect to MongoDB
     const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+    const db = client.db('Cluster0');
     const collection = db.collection('users');
     
     // Get current date information for daily and weekly queries
@@ -153,29 +141,9 @@ export default async function handler(
   } catch (error) {
     console.error('Points leaderboard API error:', error);
     
-    // Return mock data in case of error
-    const mockPointsLeaderboard: PointsLeaderboard = {
-      allTime: MOCK_LEADERBOARD.map((entry, index) => ({
-        ...entry,
-        points: 10000 - (index * 500),
-      })),
-      weekly: MOCK_LEADERBOARD.map((entry, index) => ({
-        ...entry,
-        points: 2000 - (index * 100),
-      })),
-      daily: MOCK_LEADERBOARD.map((entry, index) => ({
-        ...entry,
-        points: 500 - (index * 25),
-      })),
-      referrals: MOCK_LEADERBOARD.map((entry, index) => ({
-        ...entry,
-        points: 2500 - (index * 150),
-      })),
-    };
-    
-    return res.status(200).json({ 
-      leaderboard: mockPointsLeaderboard,
-      source: 'mock-error',
+    // Return empty data in case of error
+    return res.status(503).json({ 
+      leaderboard: createEmptyLeaderboard(),
       error: error instanceof Error ? error.message : String(error)
     });
   }

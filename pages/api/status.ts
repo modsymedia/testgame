@@ -74,7 +74,7 @@ export default async function handler(
 
     try {
       const client = await clientPromise;
-      const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+      const db = client.db('Cluster0');
       const collections = await db.listCollections().toArray();
       
       status.mongodb.status = 'connected';

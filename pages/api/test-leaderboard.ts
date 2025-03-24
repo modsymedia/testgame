@@ -1,9 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { MOCK_LEADERBOARD } from '@/lib/mock-data';
 
 /**
- * This is a test endpoint to verify the leaderboard functionality
- * It always returns mock data regardless of database configuration
+ * This endpoint returns an empty leaderboard for testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
@@ -24,18 +22,18 @@ export default async function handler(
   }
 
   try {
-    // Always return a successful response with mock data
+    // Return an empty leaderboard
     return res.status(200).json({
-      leaderboard: MOCK_LEADERBOARD,
+      leaderboard: [],
       source: 'test-endpoint',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Test leaderboard error:', error);
     
-    // Still return mock data even on error
-    return res.status(200).json({
-      leaderboard: MOCK_LEADERBOARD,
+    // Return empty array with error
+    return res.status(500).json({
+      leaderboard: [],
       source: 'test-endpoint-error',
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()

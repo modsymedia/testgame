@@ -143,7 +143,7 @@ async function seedDatabase() {
   }
 
   const uri = process.env.MONGODB_URI;
-  const dbName = process.env.MONGODB_DB || 'gochi-game';
+  const dbName = 'Cluster0';
   
   console.log(`Connecting to MongoDB database: ${dbName}`);
   

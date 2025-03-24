@@ -8,9 +8,9 @@ let clientPromise: Promise<MongoClient>;
 
 // If MongoDB URI is not configured or is using the placeholder
 if (!uri || uri.includes('username:password')) {
-  console.warn('MongoDB not properly configured - using mock client');
+  console.warn('MongoDB not properly configured');
   
-  // More comprehensive mock client that mimics the real MongoDB client
+  // Simple mock client that returns empty data
   const mockClient = {
     db: () => ({
       collection: () => ({

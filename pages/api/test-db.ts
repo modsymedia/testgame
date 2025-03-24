@@ -21,7 +21,7 @@ export default async function handler(
     }
     
     const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+    const db = client.db('Cluster0');
     
     // Test connection by checking the collections
     const collections = await db.listCollections().toArray();
@@ -29,7 +29,7 @@ export default async function handler(
     
     return res.status(200).json({ 
       status: 'connected',
-      database: process.env.MONGODB_DB || 'gochi-game',
+      database: 'Cluster0',
       collections: collectionNames,
       message: 'Database connection successful!',
       connectionString: process.env.MONGODB_URI.replace(/mongodb\+srv:\/\/([^:]+):[^@]+@/, 'mongodb+srv://$1:****@')

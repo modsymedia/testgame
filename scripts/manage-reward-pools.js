@@ -59,7 +59,7 @@ function calculateUserSolReward(userWeightedPoints, totalWeightedPoints, hourlyP
 
 // Create a new daily reward pool
 async function createDailyPool(client) {
-  const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+  const db = client.db('Cluster0');
   const rewardPoolsCollection = db.collection('rewardPools');
   const reserveFundCollection = db.collection('reserveFund');
   
@@ -127,7 +127,7 @@ async function createDailyPool(client) {
 
 // Distribute rewards for the current hour
 async function distributeHourlyRewards(client) {
-  const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+  const db = client.db('Cluster0');
   const rewardPoolsCollection = db.collection('rewardPools');
   const userRewardsCollection = db.collection('userRewards');
   
@@ -239,7 +239,7 @@ async function distributeHourlyRewards(client) {
 
 // Check the status of the reward pools
 async function checkPoolStatus(client) {
-  const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+  const db = client.db('Cluster0');
   const rewardPoolsCollection = db.collection('rewardPools');
   const reserveFundCollection = db.collection('reserveFund');
   const userRewardsCollection = db.collection('userRewards');

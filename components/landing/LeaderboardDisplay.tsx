@@ -80,9 +80,6 @@ export default function LeaderboardDisplay() {
         ) : error ? (
           <div className="text-center p-6">
             <p className="text-red-500 mb-3">{error}</p>
-            {leaderboard.length > 0 && (
-              <p className="text-gray-500 text-sm mb-4">Showing cached data</p>
-            )}
             <Button onClick={handleRefresh} variant="outline" size="sm">
               Try Again
             </Button>

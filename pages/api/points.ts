@@ -39,7 +39,7 @@ export default async function handler(
     }
     
     const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+    const db = client.db('Cluster0');
     const collection = db.collection('users');
     
     // GET: Retrieve user's points

@@ -111,11 +111,11 @@ async function testLeaderboard() {
       const client = new MongoClient(process.env.MONGODB_URI);
       await client.connect();
       
-      const db = client.db(process.env.MONGODB_DB || 'gochi-game');
+      const db = client.db('Cluster0');
       const count = await db.collection('users').countDocuments();
       
       console.log('✅ MongoDB connection works!');
-      console.log(`   Database: ${process.env.MONGODB_DB || 'gochi-game'}`);
+      console.log(`   Database: ${'Cluster0'}`);
       console.log(`   Users collection count: ${count}`);
       
       if (count === 0) {

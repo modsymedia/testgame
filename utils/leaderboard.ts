@@ -1,5 +1,4 @@
 import { LeaderboardEntry } from '@/lib/models';
-import { MOCK_LEADERBOARD } from '@/lib/mock-data';
 
 /**
  * Fetch the leaderboard data
@@ -25,13 +24,13 @@ export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> 
       return data.leaderboard;
     }
     
-    // Otherwise use fallback data
-    console.warn('No valid leaderboard data in response, using fallback');
-    return MOCK_LEADERBOARD.slice(0, limit);
+    // Return empty array if no data available
+    console.warn('No valid leaderboard data in response');
+    return [];
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
-    // Return fallback data on any error
-    return MOCK_LEADERBOARD.slice(0, limit);
+    // Return empty array on error
+    return [];
   }
 }
 
