@@ -17,6 +17,8 @@ interface WalletContextType {
   updatePoints: (points: number) => Promise<number | undefined>;
   burnPoints: () => Promise<number | undefined>;
   error: string | null;
+  isNewUser: boolean;
+  setPetName: (name: string) => Promise<boolean>;
 }
 
 const defaultContext: WalletContextType = {
@@ -27,7 +29,9 @@ const defaultContext: WalletContextType = {
   disconnect: () => {},
   updatePoints: async () => undefined,
   burnPoints: async () => undefined,
-  error: null
+  error: null,
+  isNewUser: false,
+  setPetName: async () => false
 };
 
 const WalletContext = createContext<WalletContextType>(defaultContext);
@@ -46,6 +50,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [walletData, setWalletData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   // Safe connect wrapper
   const safeConnect = async (provider: any): Promise<any> => {
@@ -393,7 +398,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
     disconnect,
     updatePoints,
     burnPoints,
-    error
+    error,
+    isNewUser: false,
+    setPetName: async () => false
   };
   
   return (
