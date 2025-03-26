@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getProvider, getWalletData, saveWalletData, calculateMultiplier } from '@/utils/wallet';
+import { getProvider, getWalletData, saveWalletData, calculateMultiplier, burnPoints as burnWalletPoints, updatePoints as updateWalletPoints } from '@/utils/wallet';
 
 interface WalletContextType {
   isConnected: boolean;
@@ -9,8 +9,8 @@ interface WalletContextType {
   walletData: any;
   connect: () => Promise<boolean>;
   disconnect: () => void;
-  updatePoints: (points: number) => void;
-  burnPoints: () => number;
+  updatePoints: (points: number) => Promise<void>;
+  burnPoints: () => Promise<number>;
   error: string | null;
 }
 
@@ -20,8 +20,8 @@ const defaultContext: WalletContextType = {
   walletData: null,
   connect: async () => false,
   disconnect: () => {},
-  updatePoints: () => {},
-  burnPoints: () => 0,
+  updatePoints: async () => {},
+  burnPoints: async () => 0,
   error: null
 };
 
@@ -86,8 +86,15 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setIsConnected(true);
           const key = provider.publicKey.toString();
           setPublicKey(key);
-          const data = getWalletData(key);
-          setWalletData(data);
+          
+          try {
+            // Fetch wallet data asynchronously
+            const data = await getWalletData(key);
+            setWalletData(data);
+          } catch (err) {
+            console.error('Error loading wallet data:', err);
+            // Continue with connection even if data load fails
+          }
         }
       } catch (error) {
         console.error('Error checking wallet connection:', error);
@@ -97,15 +104,21 @@ export function WalletProvider({ children }: WalletProviderProps) {
     checkConnection();
     
     // Set up event listeners for wallet connection changes
-    const handleConnect = () => {
+    const handleConnect = async () => {
       try {
         const provider = getProvider();
         if (provider && provider.publicKey) {
           setIsConnected(true);
           const key = provider.publicKey.toString();
           setPublicKey(key);
-          const data = getWalletData(key);
-          setWalletData(data);
+          
+          try {
+            const data = await getWalletData(key);
+            setWalletData(data);
+          } catch (dataErr) {
+            console.error('Error loading wallet data after connect:', dataErr);
+            // Continue with default data if needed
+          }
         }
       } catch (error) {
         console.error('Error in connect handler:', error);
@@ -219,14 +232,30 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsConnected(true);
         
         // Get or initialize wallet data
-        const data = getWalletData(key);
-        setWalletData(data);
-        
-        // Update login time
-        data.lastLogin = Date.now();
-        saveWalletData(key, data);
-        
-        return true;
+        try {
+          console.log('Loading wallet data for', key.substring(0, 8) + '...');
+          const data = await getWalletData(key);
+          
+          // Update wallet state
+          setWalletData(data);
+          
+          // Update login time
+          const updatedData = { 
+            ...data,
+            lastLogin: Date.now()
+          };
+          
+          // Save the updated data
+          await saveWalletData(key, updatedData);
+          
+          return true;
+        } catch (dataError) {
+          console.error('Error loading or saving wallet data:', dataError);
+          // Still return true since connection succeeded
+          setPublicKey(key);
+          setIsConnected(true);
+          return true;
+        }
       } catch (connError) {
         console.error('Connection error:', connError);
         setError('Failed to connect wallet. Please try again or refresh the page.');
@@ -265,25 +294,43 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
   };
   
-  const updatePoints = (points: number) => {
+  const updatePoints = async (points: number) => {
     if (!publicKey || !walletData) return;
     
-    const updatedData = { ...walletData };
-    updatedData.points += points * (walletData.multiplier || 1);
-    setWalletData(updatedData);
-    saveWalletData(publicKey, updatedData);
+    try {
+      // Calculate the new points with multiplier
+      const pointsToAdd = points * (walletData.multiplier || 1);
+      const newTotalPoints = walletData.points + pointsToAdd;
+      
+      // Update points in the database via API
+      const success = await updateWalletPoints(publicKey, newTotalPoints);
+      
+      if (success) {
+        // Update local state if the API call was successful
+        const updatedData = { ...walletData, points: newTotalPoints };
+        setWalletData(updatedData);
+      }
+    } catch (error) {
+      console.error('Error updating points:', error);
+    }
   };
   
-  const burnPoints = (): number => {
+  const burnPoints = async (): Promise<number> => {
     if (!publicKey || !walletData) return 0;
     
-    const updatedData = { ...walletData };
-    const burnAmount = Math.floor(updatedData.points * 0.5);
-    updatedData.points -= burnAmount;
-    setWalletData(updatedData);
-    saveWalletData(publicKey, updatedData);
-    
-    return updatedData.points;
+    try {
+      // Burn points via API
+      const remainingPoints = await burnWalletPoints(publicKey);
+      
+      // Update local state
+      const updatedData = { ...walletData, points: remainingPoints };
+      setWalletData(updatedData);
+      
+      return remainingPoints;
+    } catch (error) {
+      console.error('Error burning points:', error);
+      return walletData.points; // Return current points if error
+    }
   };
   
   const value = {

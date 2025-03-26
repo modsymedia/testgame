@@ -15,6 +15,25 @@ const DB_PATH = path.join(DATA_DIR, 'game.db');
 // Singleton DB connection
 let _db: Database | null = null;
 
+// Add this after the imports
+interface Migration {
+  version: number;
+  up: (db: Database) => Promise<void>;
+  down: (db: Database) => Promise<void>;
+}
+
+// Add this after the Migration interface
+async function columnExists(db: Database, table: string, column: string): Promise<boolean> {
+  try {
+    // Query the table info to check if the column exists
+    const tableInfo = await db.all(`PRAGMA table_info(${table})`);
+    return tableInfo.some(col => col.name === column);
+  } catch (error) {
+    console.error(`Error checking if column ${column} exists in ${table}:`, error);
+    return false;
+  }
+}
+
 /**
  * Get a database connection, creating/initializing it if needed
  */
@@ -36,11 +55,131 @@ async function getDb(): Promise<Database> {
   return _db;
 }
 
+// Modify the migrations to use this helper
+async function runMigrations(db: Database): Promise<void> {
+  // Create migrations table if it doesn't exist
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    )
+  `);
+
+  // Get current version
+  const currentVersion = await db.get('SELECT MAX(version) as version FROM migrations');
+  const currentVersionNumber = currentVersion?.version || 0;
+
+  // Define migrations
+  const migrations: Migration[] = [
+    {
+      version: 1,
+      up: async (db) => {
+        // Check if multiplier column exists before adding it
+        const hasMultiplier = await columnExists(db, 'users', 'multiplier');
+        if (!hasMultiplier) {
+          console.log('Adding multiplier column to users table...');
+          await db.exec(`
+            ALTER TABLE users ADD COLUMN multiplier REAL DEFAULT 1.0;
+          `);
+        } else {
+          console.log('Multiplier column already exists, skipping...');
+        }
+      },
+      down: async (db) => {
+        // We'll leave this as is for now
+        await db.exec(`
+          ALTER TABLE users DROP COLUMN multiplier;
+        `);
+      }
+    },
+    {
+      version: 2,
+      up: async (db) => {
+        // Add interaction tracking columns to users table
+        const columns = [
+          { name: 'lastInteractionTime', type: 'TEXT' },
+          { name: 'cooldowns', type: 'TEXT' },
+          { name: 'recentPointGain', type: 'INTEGER DEFAULT 0' },
+          { name: 'lastPointGainTime', type: 'TEXT' }
+        ];
+        
+        for (const col of columns) {
+          const exists = await columnExists(db, 'users', col.name);
+          if (!exists) {
+            console.log(`Adding ${col.name} column to users table...`);
+            await db.exec(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type};`);
+          } else {
+            console.log(`Column ${col.name} already exists, skipping...`);
+          }
+        }
+      },
+      down: async (db) => {
+        // We'll leave this as is for now
+        await db.exec(`
+          ALTER TABLE users DROP COLUMN lastInteractionTime;
+          ALTER TABLE users DROP COLUMN cooldowns;
+          ALTER TABLE users DROP COLUMN recentPointGain;
+          ALTER TABLE users DROP COLUMN lastPointGainTime;
+        `);
+      }
+    },
+    {
+      version: 3,
+      up: async (db) => {
+        // Add new columns to pet_states table
+        const columns = [
+          { name: 'lastMessage', type: 'TEXT' },
+          { name: 'lastReaction', type: 'TEXT' },
+          { name: 'isDead', type: 'BOOLEAN DEFAULT 0' },
+          { name: 'lastInteractionTime', type: 'TEXT' }
+        ];
+        
+        for (const col of columns) {
+          const exists = await columnExists(db, 'pet_states', col.name);
+          if (!exists) {
+            console.log(`Adding ${col.name} column to pet_states table...`);
+            await db.exec(`ALTER TABLE pet_states ADD COLUMN ${col.name} ${col.type};`);
+          } else {
+            console.log(`Column ${col.name} already exists, skipping...`);
+          }
+        }
+      },
+      down: async (db) => {
+        // We'll leave this as is for now
+        await db.exec(`
+          ALTER TABLE pet_states DROP COLUMN lastMessage;
+          ALTER TABLE pet_states DROP COLUMN lastReaction;
+          ALTER TABLE pet_states DROP COLUMN isDead;
+          ALTER TABLE pet_states DROP COLUMN lastInteractionTime;
+        `);
+      }
+    }
+  ];
+
+  // Run pending migrations with improved error handling
+  for (const migration of migrations) {
+    if (migration.version > currentVersionNumber) {
+      console.log(`Running migration ${migration.version}...`);
+      try {
+        await migration.up(db);
+        await db.run(
+          'INSERT INTO migrations (version, applied_at) VALUES (?, ?)',
+          [migration.version, new Date().toISOString()]
+        );
+        console.log(`Migration ${migration.version} completed successfully`);
+      } catch (error) {
+        console.error(`Error in migration ${migration.version}:`, error);
+        // Don't throw, just log and continue with next migration
+      }
+    }
+  }
+}
+
 /**
  * Initialize the database schema
  */
 async function initDb(db: Database): Promise<void> {
-  // Users table
+  // Create tables if they don't exist
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +202,6 @@ async function initDb(db: Database): Promise<void> {
     )
   `);
   
-  // Pet states table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS pet_states (
       walletAddress TEXT PRIMARY KEY,
@@ -71,6 +209,7 @@ async function initDb(db: Database): Promise<void> {
       happiness INTEGER DEFAULT 100,
       hunger INTEGER DEFAULT 100,
       cleanliness INTEGER DEFAULT 100,
+      energy INTEGER DEFAULT 100,
       lastStateUpdate TEXT,
       qualityScore INTEGER DEFAULT 0,
       FOREIGN KEY (walletAddress) REFERENCES users (walletAddress) ON DELETE CASCADE
@@ -130,6 +269,9 @@ async function initDb(db: Database): Promise<void> {
       FOREIGN KEY (walletAddress) REFERENCES users (walletAddress) ON DELETE CASCADE
     )
   `);
+
+  // Run migrations after creating base tables
+  await runMigrations(db);
 }
 
 /**
@@ -152,7 +294,12 @@ function rowToUser(row: any): User {
     referredBy: row.referredBy,
     referralCount: row.referralCount,
     referralPoints: row.referralPoints,
-    tokenBalance: row.tokenBalance
+    tokenBalance: row.tokenBalance,
+    multiplier: row.multiplier || 1.0,
+    lastInteractionTime: row.lastInteractionTime ? new Date(row.lastInteractionTime) : new Date(),
+    cooldowns: row.cooldowns ? JSON.parse(row.cooldowns) : {},
+    recentPointGain: row.recentPointGain || 0,
+    lastPointGainTime: row.lastPointGainTime ? new Date(row.lastPointGainTime) : new Date()
   };
 }
 
@@ -181,6 +328,7 @@ const users = {
         happiness: petState.happiness,
         hunger: petState.hunger,
         cleanliness: petState.cleanliness,
+        energy: petState.energy,
         lastStateUpdate: new Date(petState.lastStateUpdate),
         qualityScore: petState.qualityScore
       };
@@ -208,18 +356,25 @@ const users = {
       referredBy: doc.referredBy,
       referralCount: doc.referralCount || 0,
       referralPoints: doc.referralPoints || 0,
-      tokenBalance: doc.tokenBalance || 0
+      tokenBalance: doc.tokenBalance || 0,
+      multiplier: doc.multiplier || 1.0,
+      lastInteractionTime: doc.lastInteractionTime ? doc.lastInteractionTime.toISOString() : new Date().toISOString(),
+      cooldowns: doc.cooldowns ? JSON.stringify(doc.cooldowns) : '{}',
+      recentPointGain: doc.recentPointGain || 0,
+      lastPointGainTime: doc.lastPointGainTime ? doc.lastPointGainTime.toISOString() : new Date().toISOString()
     };
     
     const result = await db.run(`
       INSERT INTO users (
         walletAddress, username, score, gamesPlayed, lastPlayed, createdAt,
         points, dailyPoints, lastPointsUpdate, daysActive, consecutiveDays,
-        referralCode, referredBy, referralCount, referralPoints, tokenBalance
+        referralCode, referredBy, referralCount, referralPoints, tokenBalance, multiplier,
+        lastInteractionTime, cooldowns, recentPointGain, lastPointGainTime
       ) VALUES (
         $walletAddress, $username, $score, $gamesPlayed, $lastPlayed, $createdAt,
         $points, $dailyPoints, $lastPointsUpdate, $daysActive, $consecutiveDays,
-        $referralCode, $referredBy, $referralCount, $referralPoints, $tokenBalance
+        $referralCode, $referredBy, $referralCount, $referralPoints, $tokenBalance, $multiplier,
+        $lastInteractionTime, $cooldowns, $recentPointGain, $lastPointGainTime
       )
     `, insertData);
     
@@ -227,9 +382,11 @@ const users = {
     if (doc.petState) {
       await db.run(`
         INSERT INTO pet_states (
-          walletAddress, health, happiness, hunger, cleanliness, lastStateUpdate, qualityScore
+          walletAddress, health, happiness, hunger, cleanliness, energy,
+          lastStateUpdate, qualityScore, lastMessage, lastReaction, isDead, lastInteractionTime
         ) VALUES (
-          $walletAddress, $health, $happiness, $hunger, $cleanliness, $lastStateUpdate, $qualityScore
+          $walletAddress, $health, $happiness, $hunger, $cleanliness, $energy,
+          $lastStateUpdate, $qualityScore, $lastMessage, $lastReaction, $isDead, $lastInteractionTime
         )
       `, {
         walletAddress: doc.walletAddress,
@@ -237,8 +394,13 @@ const users = {
         happiness: doc.petState.happiness || 100,
         hunger: doc.petState.hunger || 100,
         cleanliness: doc.petState.cleanliness || 100,
+        energy: doc.petState.energy || 100,
         lastStateUpdate: doc.petState.lastStateUpdate ? doc.petState.lastStateUpdate.toISOString() : new Date().toISOString(),
-        qualityScore: doc.petState.qualityScore || 0
+        qualityScore: doc.petState.qualityScore || 0,
+        lastMessage: doc.petState.lastMessage || '',
+        lastReaction: doc.petState.lastReaction || 'none',
+        isDead: doc.petState.isDead ? 1 : 0,
+        lastInteractionTime: doc.petState.lastInteractionTime ? doc.petState.lastInteractionTime.toISOString() : new Date().toISOString()
       });
     }
     
@@ -294,6 +456,7 @@ const users = {
               happiness = $happiness,
               hunger = $hunger,
               cleanliness = $cleanliness,
+              energy = $energy,
               lastStateUpdate = $lastStateUpdate,
               qualityScore = $qualityScore
             WHERE walletAddress = $walletAddress
@@ -303,6 +466,7 @@ const users = {
             happiness: petState.happiness,
             hunger: petState.hunger,
             cleanliness: petState.cleanliness,
+            energy: petState.energy,
             lastStateUpdate: petState.lastStateUpdate.toISOString(),
             qualityScore: petState.qualityScore
           });
@@ -312,9 +476,9 @@ const users = {
           // Insert new pet state
           await db.run(`
             INSERT INTO pet_states (
-              walletAddress, health, happiness, hunger, cleanliness, lastStateUpdate, qualityScore
+              walletAddress, health, happiness, hunger, cleanliness, energy, lastStateUpdate, qualityScore
             ) VALUES (
-              $walletAddress, $health, $happiness, $hunger, $cleanliness, $lastStateUpdate, $qualityScore
+              $walletAddress, $health, $happiness, $hunger, $cleanliness, $energy, $lastStateUpdate, $qualityScore
             )
           `, {
             walletAddress: filter.walletAddress,
@@ -322,6 +486,7 @@ const users = {
             happiness: petState.happiness,
             hunger: petState.hunger,
             cleanliness: petState.cleanliness,
+            energy: petState.energy,
             lastStateUpdate: petState.lastStateUpdate.toISOString(),
             qualityScore: petState.qualityScore
           });
@@ -425,6 +590,7 @@ const users = {
               happiness: petState.happiness,
               hunger: petState.hunger,
               cleanliness: petState.cleanliness,
+              energy: petState.energy,
               lastStateUpdate: new Date(petState.lastStateUpdate),
               qualityScore: petState.qualityScore
             };
@@ -681,6 +847,9 @@ const userRewards = {
   }
 };
 
+// Export the getDb function for direct database access
+export { getDb };
+
 // Export a compatible interface
 const sqliteClient = {
   collection: (name: string) => {
@@ -694,7 +863,9 @@ const sqliteClient = {
       default:
         throw new Error(`Collection not implemented: ${name}`);
     }
-  }
+  },
+  // Also expose getDb through the client
+  getDb
 };
 
-export default sqliteClient; 
+export default sqliteClient;

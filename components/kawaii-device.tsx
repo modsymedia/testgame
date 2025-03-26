@@ -96,25 +96,35 @@ export function KawaiiDevice() {
 
   // Update wallet points whenever game points change
   useEffect(() => {
-    if (isConnected && points > 0 && points !== lastUpdatedPointsRef.current) {
-      // Only update if points have actually changed significantly
-      if (Math.abs(points - lastUpdatedPointsRef.current) >= 5) {
-        updatePoints(points);
-        lastUpdatedPointsRef.current = points;
-        
-        // Update leaderboard with the user's current score
-        if (publicKey) {
-          updateUserScore(publicKey, points);
+    const updateWalletData = async () => {
+      if (isConnected && points > 0 && points !== lastUpdatedPointsRef.current) {
+        // Only update if points have actually changed significantly
+        if (Math.abs(points - lastUpdatedPointsRef.current) >= 5) {
+          try {
+            await updatePoints(points);
+            lastUpdatedPointsRef.current = points;
+            
+            // Update leaderboard with the user's current score
+            if (publicKey) {
+              updateUserScore(publicKey, points)
+                .catch(err => console.error('Error updating leaderboard:', err));
+            }
+          } catch (error) {
+            console.error('Error updating wallet points:', error);
+          }
         }
       }
-    }
+    };
+    
+    updateWalletData();
   }, [points, isConnected, updatePoints, publicKey]);
 
   // Update leaderboard when pet dies
   useEffect(() => {
     if (isDead && isConnected && publicKey && points > 0) {
       // Save final score to leaderboard
-      updateUserScore(publicKey, points);
+      updateUserScore(publicKey, points)
+        .catch(err => console.error('Error updating leaderboard on death:', err));
     }
   }, [isDead, isConnected, publicKey, points]);
 
@@ -154,26 +164,26 @@ export function KawaiiDevice() {
   };
 
   // Define handleInteraction before it's used in handleButtonClick
-  const handleInteraction = (type: string) => {
+  const handleInteraction = async (type: string) => {
     switch (type) {
       case 'feed':
-        handleFeeding(); // No arguments needed
+        await handleFeeding(); // Handle async operation
         break;
       case 'play':
-        handlePlaying(); // No arguments needed
+        await handlePlaying(); // Handle async operation
         break;
       case 'clean':
-        handleCleaning(); // No arguments needed
+        await handleCleaning(); // Handle async operation
         break;
       case 'doctor':
-        handleDoctor(); // No arguments needed
+        await handleDoctor(); // Handle async operation
         break;
     }
   };
 
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
-    (option: "food" | "clean" | "doctor" | "play" | "previous" | "next" | "a" | "b") => {
+    async (option: "food" | "clean" | "doctor" | "play" | "previous" | "next" | "a" | "b") => {
       // This call is causing an infinite update loop
       // Only set the last interaction time when really needed
       // setLastInteractionTime(Date.now());
@@ -198,25 +208,25 @@ export function KawaiiDevice() {
         } else if (menuStack[menuStack.length - 1] === "food") {
           // Handle food selection
           if (selectedFoodItem !== null) {
-            handleInteraction('feed');
+            await handleInteraction('feed');
             resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "play") {
           // Handle play selection
           if (selectedPlayItem !== null) {
-            handleInteraction('play');
+            await handleInteraction('play');
             resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "clean") {
           // Handle clean selection
           if (selectedCleanItem !== null) {
-            handleInteraction('clean');
+            await handleInteraction('clean');
             resetMenu();
           }
         } else if (menuStack[menuStack.length - 1] === "doctor") {
           // Handle doctor selection
           if (selectedDoctorItem !== null) {
-            handleInteraction('doctor');
+            await handleInteraction('doctor');
             resetMenu();
           }
         }
@@ -241,9 +251,9 @@ export function KawaiiDevice() {
     setShowReviveConfirm(true);
   };
   
-  const handleReviveConfirm = () => {
+  const handleReviveConfirm = async () => {
     // Burn 50% of points through the wallet context
-    burnPoints();
+    await burnPoints();
     // Reset pet stats
     resetPet();
     // Hide confirmation dialog

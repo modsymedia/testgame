@@ -20,6 +20,13 @@ export interface User {
   referralPoints: number;
   // Token holdings (for post-launch)
   tokenBalance?: number;
+  // Multiplier for points
+  multiplier?: number;
+  // Interaction tracking
+  lastInteractionTime?: Date;
+  cooldowns?: Record<string, number>;
+  recentPointGain?: number;
+  lastPointGainTime?: Date;
   // Pet state metrics
   petState?: PetState;
 }
@@ -29,8 +36,13 @@ export interface PetState {
   happiness: number;
   hunger: number;
   cleanliness: number;
+  energy: number;
   lastStateUpdate: Date;
   qualityScore: number; // AI-evaluated score of pet condition
+  lastMessage?: string;
+  lastReaction?: string;
+  isDead?: boolean;
+  lastInteractionTime?: Date;
 }
 
 export interface LeaderboardEntry {

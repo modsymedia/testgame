@@ -557,7 +557,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       
       // Save stats to wallet if connected
       if (isConnected) {
-        saveWalletData(publicKey!, {
+        await saveWalletData(publicKey!, {
           ...walletData!,
           petStats: {
             food: foodRef.current,
@@ -568,7 +568,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
             isDead,
             points
           }
-        })
+        });
       }
     }
     
@@ -709,7 +709,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       
       // Save stats to wallet if connected
       if (isConnected) {
-        saveWalletData(publicKey!, {
+        await saveWalletData(publicKey!, {
           ...walletData!,
           petStats: {
             food: foodRef.current,
@@ -720,7 +720,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
             isDead,
             points
           }
-        })
+        });
       }
     }
     
@@ -861,7 +861,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       
       // Save stats to wallet if connected
       if (isConnected) {
-        saveWalletData(publicKey!, {
+        await saveWalletData(publicKey!, {
           ...walletData!,
           petStats: {
             food: foodRef.current,
@@ -872,7 +872,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
             isDead,
             points
           }
-        })
+        });
       }
     }
     
@@ -1014,7 +1014,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       
       // Save stats to wallet if connected
       if (isConnected) {
-        saveWalletData(publicKey!, {
+        await saveWalletData(publicKey!, {
           ...walletData!,
           petStats: {
             food: foodRef.current,
@@ -1025,7 +1025,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
             isDead,
             points
           }
-        })
+        });
       }
     }
     
@@ -1164,27 +1164,64 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     return () => clearInterval(idleCheckInterval);
   }, [lastInteractionTime, isDead, getPetMessageForInteraction, petMessage]);
   
+  // Reset the pet
   const resetPet = useCallback(() => {
-    setFood(50)
-    setHappiness(40)
-    setCleanliness(40)
-    setEnergy(30)
-    setHealth(30)
-    setIsDead(false)
-    // Don't reset points - they're handled by the wallet context
+    setFood(50);
+    setHappiness(40);
+    setCleanliness(40);
+    setEnergy(30);
+    setHealth(30);
+    setIsDead(false);
+    setPoints(0);
+    
+    // Reset cooldowns
     setCooldowns({
       feed: 0,
       play: 0,
       clean: 0,
       heal: 0
-    })
-    setIsOnCooldown({
-      feed: false,
-      play: false,
-      clean: false,
-      heal: false
-    })
-  }, [])
+    });
+    
+    // Save reset data
+    if (isConnected && publicKey) {
+      const updatedWalletData = {
+        ...walletData!,
+        petStats: {
+          food: 50,
+          happiness: 40,
+          cleanliness: 40,
+          energy: 30,
+          health: 30,
+          isDead: false,
+          points: 0
+        }
+      };
+      
+      // Need to make this async but we can't return a promise from the callback
+      // instead we call it but don't await it
+      saveWalletData(publicKey, updatedWalletData)
+        .catch(error => console.error('Error saving reset pet data:', error));
+    }
+    
+    // Reset last interaction time
+    setLastInteractionTime(Date.now());
+    
+    // Give feedback to user
+    addInteraction("Doctor", 0);
+  }, [
+    isConnected, 
+    publicKey, 
+    walletData, 
+    setFood, 
+    setHappiness, 
+    setCleanliness, 
+    setEnergy, 
+    setHealth, 
+    setIsDead, 
+    setPoints, 
+    setCooldowns, 
+    addInteraction
+  ]);
   
   return {
     // Stats
