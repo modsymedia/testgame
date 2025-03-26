@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { sql } from '@vercel/postgres';
+import sql from '@/lib/neon';
 
 // Create an in-memory leaderboard cache to improve performance
 type LeaderboardEntry = {
@@ -34,21 +34,21 @@ export default async function handler(
         const result = await sql`
           SELECT 
             wallet_address, 
-            username, 
-            score, 
-            last_played
+            name, 
+            points as score, 
+            last_updated
           FROM users 
-          WHERE score > 0 
-          ORDER BY score DESC 
+          WHERE points > 0 
+          ORDER BY points DESC 
           LIMIT 10
         `;
         
         // Format the response
-        const leaderboard = result.rows.map((row, index) => ({
+        const leaderboard = result.map((row, index) => ({
           walletAddress: row.wallet_address,
-          name: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
+          name: row.name || `Pet_${row.wallet_address.substring(0, 4)}`,
           score: row.score,
-          lastUpdated: row.last_played,
+          lastUpdated: row.last_updated,
           rank: index + 1
         }));
         
@@ -60,7 +60,7 @@ export default async function handler(
         return res.status(200).json({ 
           success: true, 
           data: leaderboard,
-          source: 'postgres'
+          source: 'database'
         });
       } catch (dbError: any) {
         console.error('Database error when retrieving leaderboard:', dbError);
@@ -86,12 +86,12 @@ export default async function handler(
       try {
         // Try to update the database
         const userResult = await sql`
-          SELECT score FROM users 
+          SELECT points as score FROM users 
           WHERE wallet_address = ${walletAddress}
         `;
         
-        const userExists = userResult.rows.length > 0;
-        const currentScore = userExists ? userResult.rows[0].score : 0;
+        const userExists = userResult.length > 0;
+        const currentScore = userExists ? userResult[0].score : 0;
         
         // Only update if new score is higher
         if (!userExists || score > currentScore) {
@@ -99,19 +99,18 @@ export default async function handler(
             // Update existing user
             await sql`
               UPDATE users 
-              SET score = ${score}, last_played = ${new Date().toISOString()} 
+              SET points = ${score}, last_updated = NOW() 
               WHERE wallet_address = ${walletAddress}
             `;
           } else {
             // Create new user
             await sql`
               INSERT INTO users (
-                wallet_address, score, last_played, created_at
+                wallet_address, points, last_updated
               ) VALUES (
                 ${walletAddress}, 
                 ${score}, 
-                ${new Date().toISOString()}, 
-                ${new Date().toISOString()}
+                NOW()
               )
             `;
           }

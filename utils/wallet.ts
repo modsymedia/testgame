@@ -50,14 +50,13 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
         walletAddress: publicKey,
         score: data.petStats?.points || 0,
         petState: {
-          health: data.petStats?.health || 30,
-          happiness: data.petStats?.happiness || 40,
           hunger: data.petStats?.food || 50,
-          cleanliness: data.petStats?.cleanliness || 40,
+          happiness: data.petStats?.happiness || 40,
           energy: data.petStats?.energy || 30,
-          qualityScore: data.petStats?.qualityScore || 0,
-          isDead: data.petStats?.isDead || false,
-          lastStateUpdate: new Date()
+          lastFed: data.petStats?.lastFed,
+          lastPlayed: data.petStats?.lastPlayed,
+          lastSlept: data.petStats?.lastSlept,
+          state: data.petStats?.isDead ? 'dead' : 'idle'
         }
       }),
     });
@@ -124,18 +123,18 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       return {
         petName: `Pet_${publicKey.substring(0, 4)}`,
         points: 0,
-        multiplier: 1.0,
         lastLogin: Date.now(),
         daysActive: 0,
         consecutiveDays: 0,
         petStats: {
           food: 50,
           happiness: 40,
-          cleanliness: 40,
           energy: 30,
-          health: 30,
           isDead: false,
-          points: 0
+          points: 0,
+          lastFed: null,
+          lastPlayed: null,
+          lastSlept: null
         }
       };
     }
@@ -149,38 +148,38 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       return {
         petName: `Pet_${publicKey.substring(0, 4)}`,
         points: 0,
-        multiplier: 1.0,
         lastLogin: Date.now(),
         daysActive: 0,
         consecutiveDays: 0,
         petStats: {
           food: 50,
           happiness: 40,
-          cleanliness: 40,
           energy: 30,
-          health: 30,
           isDead: false,
-          points: 0
+          points: 0,
+          lastFed: null,
+          lastPlayed: null,
+          lastSlept: null
         }
       };
     }
     
     // Format data for client use
     return {
-      petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
+      petName: data.name || `Pet_${publicKey.substring(0, 4)}`,
       points: data.points || 0,
-      multiplier: data.multiplier || 1.0,
       lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
       daysActive: data.daysActive || 0,
       consecutiveDays: data.consecutiveDays || 0,
       petStats: {
         food: data.petState?.hunger || 50,
         happiness: data.petState?.happiness || 40,
-        cleanliness: data.petState?.cleanliness || 40,
         energy: data.petState?.energy || 30,
-        health: data.petState?.health || 30,
-        isDead: data.petState?.isDead || false,
-        points: data.points || 0
+        isDead: data.petState?.state === 'dead',
+        points: data.points || 0,
+        lastFed: data.petState?.lastFed ? new Date(data.petState.lastFed) : null,
+        lastPlayed: data.petState?.lastPlayed ? new Date(data.petState.lastPlayed) : null,
+        lastSlept: data.petState?.lastSlept ? new Date(data.petState.lastSlept) : null
       }
     };
   } catch (error) {
@@ -190,18 +189,18 @@ export async function loadWalletData(publicKey: string): Promise<any> {
     return {
       petName: `Pet_${publicKey.substring(0, 4)}`,
       points: 0,
-      multiplier: 1.0,
       lastLogin: Date.now(),
       daysActive: 0,
       consecutiveDays: 0,
       petStats: {
         food: 50,
         happiness: 40,
-        cleanliness: 40,
         energy: 30,
-        health: 30,
         isDead: false,
-        points: 0
+        points: 0,
+        lastFed: null,
+        lastPlayed: null,
+        lastSlept: null
       }
     };
   }
@@ -252,14 +251,14 @@ export async function burnPoints(publicKey: string): Promise<number> {
     
     const { success, remainingPoints } = await response.json();
     
-    if (!success) {
-      console.error('Failed to burn points');
+    if (!success || remainingPoints === undefined) {
+      console.error('Failed to burn points: Invalid response format');
       return 0;
     }
     
     return remainingPoints;
   } catch (error) {
-    console.error('Error burning points:', error);
+    console.error('Failed to burn points:', error);
     return 0;
   }
 }
@@ -286,46 +285,49 @@ export async function updatePoints(publicKey: string, amount: number): Promise<n
       // Update points in memory storage if available
       if (inMemoryStorage.has(publicKey)) {
         const data = inMemoryStorage.get(publicKey);
-        data.petStats.points = amount;
+        const currentPoints = data.petStats?.points || 0;
+        const newPoints = Math.max(0, currentPoints + amount);
+        
+        // Update in-memory storage
+        data.petStats.points = newPoints;
         inMemoryStorage.set(publicKey, data);
+        
+        return newPoints;
       }
       
-      return amount;
+      return 0;
     }
     
-    const { success, points } = await response.json();
+    const { success, newPoints } = await response.json();
     
-    if (!success) {
-      console.error('Failed to update points');
-      return amount;
+    if (!success || newPoints === undefined) {
+      console.error('Failed to update points: Invalid response format');
+      return 0;
     }
     
-    return points;
+    return newPoints;
   } catch (error) {
-    console.error('Error updating points:', error);
-    return amount;
+    console.error('Failed to update points:', error);
+    return 0;
   }
 }
 
-// Get wallet provider (for Solana)
+// Get wallet provider
 export function getProvider() {
   if (typeof window !== 'undefined') {
-    //@ts-ignore
+    // @ts-ignore
     const provider = window.phantom?.solana;
-    
     if (provider?.isPhantom) {
       return provider;
     }
-    
-    // Fallback for other Solana wallets
-    //@ts-ignore
-    return window.solana;
   }
-  
   return null;
 }
 
-// Generate a unique ID from the wallet address
+// Generate a shorter wallet ID for display
 export const generateWalletId = (publicKey: string): string => {
-  return publicKey.substring(0, 8);
+  if (!publicKey) return 'No Wallet';
+  const start = publicKey.substring(0, 4);
+  const end = publicKey.substring(publicKey.length - 4);
+  return `${start}...${end}`;
 }; 
