@@ -79,106 +79,125 @@ export const generateWalletId = (publicKey: string): string => {
   return publicKey.substring(0, 8);
 };
 
-// Get wallet data from database via API
-export const getWalletData = async (publicKey: string) => {
-  try {
-    const response = await fetch(`/api/wallet?publicKey=${publicKey}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const result = await response.json();
-    
-    if (result.success && result.data) {
-      return result.data;
-    }
-    
-    // Default data if fetch fails
-    return {
-      petName: `Pet_${publicKey.substring(0, 4)}`,
-      points: 0,
-      multiplier: 1.0,
-      lastLogin: Date.now(),
-      petStats: {
-        food: 50,
-        happiness: 40,
-        cleanliness: 40,
-        energy: 30,
-        health: 30,
-        isDead: false,
-        points: 0
-      }
-    };
-  } catch (error) {
-    console.error('Error fetching wallet data:', error);
-    
-    // Default data if fetch fails
-    return {
-      petName: `Pet_${publicKey.substring(0, 4)}`,
-      points: 0,
-      multiplier: 1.0,
-      lastLogin: Date.now(),
-      petStats: {
-        food: 50,
-        happiness: 40,
-        cleanliness: 40,
-        energy: 30,
-        health: 30,
-        isDead: false,
-        points: 0
-      }
-    };
-  }
-};
+// Add a fallback storage mechanism for when the database is read-only
+const inMemoryStorage = new Map<string, any>();
 
-// Save wallet data to database via API
-export const saveWalletData = async (publicKey: string, data: any) => {
+// Save wallet data to the server
+export async function saveWalletData(publicKey: string, data: any): Promise<boolean> {
   try {
-    console.log('Saving wallet data for:', publicKey.substring(0, 8) + '...');
+    console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
     
-    const payload = {
-      publicKey,
-      data
-    };
-    
-    // Debug: log the payload size
-    const payloadSize = JSON.stringify(payload).length;
-    console.log(`Payload size: ${payloadSize} bytes`);
-    
-    // Attempt the API call
     const response = await fetch('/api/wallet', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        walletAddress: publicKey,
+        score: data.petStats?.points || 0,
+        petState: {
+          health: data.petStats?.health || 30,
+          happiness: data.petStats?.happiness || 40,
+          hunger: data.petStats?.food || 50,
+          cleanliness: data.petStats?.cleanliness || 40,
+          energy: data.petStats?.energy || 30,
+          qualityScore: data.petStats?.qualityScore || 0,
+          isDead: data.petStats?.isDead || false,
+          lastStateUpdate: new Date()
+        }
+      }),
     });
     
-    // Check if response is OK (status in 200-299 range)
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error (${response.status}): ${errorText}`);
       return false;
     }
     
-    // Parse the JSON response
     const result = await response.json();
     
-    if (!result.success) {
-      console.error('Failed to save wallet data:', result.error || 'Unknown error', 
-                   result.details ? `Details: ${result.details}` : '');
-      return false;
+    // Handle temporary storage fallback from server
+    if (result.warning && result.warning.includes('temporary storage')) {
+      console.log('Using temporary storage due to server filesystem permissions');
+      // Store data in memory as fallback
+      inMemoryStorage.set(publicKey, {
+        ...data,
+        lastSaved: new Date().toISOString(),
+        isTempStorage: true
+      });
+      
+      return true;
     }
     
-    console.log('Wallet data saved successfully');
-    return result.success;
+    console.log(`Wallet data saved successfully: ${result.message}`);
+    return true;
   } catch (error) {
-    console.error('Error saving wallet data:', error);
+    console.error('Failed to save wallet data:', error);
+    
+    // Fall back to in-memory storage
+    inMemoryStorage.set(publicKey, {
+      ...data,
+      lastSaved: new Date().toISOString(),
+      isTempStorage: true
+    });
+    
+    console.log('Saved data to temporary storage');
     return false;
   }
-};
+}
+
+// Load wallet data from the server
+export async function loadWalletData(publicKey: string): Promise<any> {
+  try {
+    // Check if we have temporary stored data first
+    if (inMemoryStorage.has(publicKey)) {
+      console.log('Retrieved data from temporary storage');
+      return inMemoryStorage.get(publicKey);
+    }
+    
+    const response = await fetch(`/api/wallet?walletAddress=${encodeURIComponent(publicKey)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${response.status}): ${errorText}`);
+      return null;
+    }
+    
+    const { success, data } = await response.json();
+    
+    if (!success || !data) {
+      console.error('Failed to load wallet data: Invalid response format');
+      return null;
+    }
+    
+    // Format data for client use
+    return {
+      petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
+      points: data.points || 0,
+      multiplier: data.multiplier || 1.0,
+      lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
+      daysActive: data.daysActive || 0,
+      consecutiveDays: data.consecutiveDays || 0,
+      petStats: {
+        food: data.petState?.hunger || 50,
+        happiness: data.petState?.happiness || 40,
+        cleanliness: data.petState?.cleanliness || 40,
+        energy: data.petState?.energy || 30,
+        health: data.petState?.health || 30,
+        isDead: data.petState?.isDead || false,
+        points: data.points || 0
+      }
+    };
+  } catch (error) {
+    console.error('Failed to load wallet data:', error);
+    return null;
+  }
+}
 
 // Calculate point multiplier based on token holdings
 export const calculateMultiplier = (tokenBalance: number): number => {

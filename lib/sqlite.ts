@@ -39,20 +39,85 @@ async function columnExists(db: Database, table: string, column: string): Promis
  */
 async function getDb(): Promise<Database> {
   if (!_db) {
-    // Initialize database
-    _db = await open({
-      filename: DB_PATH,
-      driver: sqlite3.Database,
-    });
-    
-    // Enable foreign keys
-    await _db.exec('PRAGMA foreign_keys = ON');
-    
-    // Create tables if they don't exist
-    await initDb(_db);
+    try {
+      // Try to create data directory if it doesn't exist
+      if (!fs.existsSync(DATA_DIR)) {
+        try {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        } catch (err: any) {
+          console.warn(`Warning: Could not create data directory: ${err.message}`);
+        }
+      }
+      
+      // Check if we can write to the data directory
+      let canWrite = false;
+      try {
+        // Try to write a test file to check permissions
+        const testFile = path.join(DATA_DIR, '.write-test');
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile); // Remove test file
+        canWrite = true;
+      } catch (err: any) {
+        console.warn(`Warning: Data directory is not writable: ${err.message}`);
+      }
+      
+      if (canWrite) {
+        // Initialize file-based database if directory is writable
+        try {
+          _db = await open({
+            filename: DB_PATH,
+            driver: sqlite3.Database,
+          });
+          console.log(`SQLite database opened at ${DB_PATH}`);
+        } catch (err: any) {
+          console.warn(`Warning: Could not open database file: ${err.message}`);
+          // Fall back to in-memory database
+          _db = await createInMemoryDb();
+        }
+      } else {
+        // Fall back to in-memory database if directory is not writable
+        _db = await createInMemoryDb();
+      }
+      
+      // Enable foreign keys
+      await _db.exec('PRAGMA foreign_keys = ON');
+      
+      // Create tables if they don't exist
+      await initDb(_db);
+    } catch (error: any) {
+      console.error('Database initialization error:', error.message);
+      // Last resort fallback - in-memory db with minimal setup
+      _db = await createInMemoryDb(true);
+    }
   }
   
   return _db;
+}
+
+/**
+ * Create an in-memory database as a fallback
+ */
+async function createInMemoryDb(minimal: boolean = false): Promise<Database> {
+  console.log('Creating in-memory SQLite database as fallback');
+  const db = await open({
+    filename: ':memory:',
+    driver: sqlite3.Database,
+  });
+  
+  if (!minimal) {
+    await initDb(db);
+  } else {
+    // Minimal table creation for emergency fallback
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        walletAddress TEXT UNIQUE NOT NULL,
+        points INTEGER DEFAULT 0
+      )
+    `);
+  }
+  
+  return db;
 }
 
 // Modify the migrations to use this helper

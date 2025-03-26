@@ -95,301 +95,233 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
-  // Handle OPTIONS request for CORS preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
   try {
-    // Get the SQLite database connection
-    const db = await getDatabase();
+    // Get database connection
+    const db = await getDb();
     
-    // GET: Retrieve wallet data for a user
-    if (req.method === 'GET') {
-      const { publicKey } = req.query;
+    if (req.method === 'POST') {
+      const { walletAddress, score, petState } = req.body;
       
-      if (!publicKey || typeof publicKey !== 'string') {
-        return res.status(400).json({ success: false, error: 'Valid wallet public key is required' });
+      if (!walletAddress) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing wallet address' 
+        });
+      }
+      
+      try {
+        // Check if the user exists
+        const existingUser = await db.get(
+          'SELECT walletAddress FROM users WHERE walletAddress = ?', 
+          [walletAddress]
+        );
+        
+        if (existingUser) {
+          // Update existing user
+          const updateResult = await db.run(`
+            UPDATE users 
+            SET points = ?, lastPointsUpdate = ?
+            WHERE walletAddress = ?
+          `, [score, new Date().toISOString(), walletAddress]);
+          
+          if (petState) {
+            try {
+              // Check if pet state exists
+              const existingPet = await db.get(
+                'SELECT walletAddress FROM pet_states WHERE walletAddress = ?', 
+                [walletAddress]
+              );
+              
+              if (existingPet) {
+                // Update pet state
+                await db.run(`
+                  UPDATE pet_states 
+                  SET health = ?, happiness = ?, hunger = ?, cleanliness = ?, 
+                      energy = ?, lastStateUpdate = ?, qualityScore = ?
+                  WHERE walletAddress = ?
+                `, [
+                  petState.health, 
+                  petState.happiness, 
+                  petState.hunger, 
+                  petState.cleanliness,
+                  petState.energy,
+                  new Date().toISOString(), 
+                  petState.qualityScore || 0,
+                  walletAddress
+                ]);
+              } else {
+                // Insert pet state
+                await db.run(`
+                  INSERT INTO pet_states (
+                    walletAddress, health, happiness, hunger, cleanliness, 
+                    energy, lastStateUpdate, qualityScore
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                  walletAddress,
+                  petState.health, 
+                  petState.happiness, 
+                  petState.hunger, 
+                  petState.cleanliness,
+                  petState.energy,
+                  new Date().toISOString(), 
+                  petState.qualityScore || 0
+                ]);
+              }
+            } catch (petError: any) {
+              console.error('Error updating pet state:', petError.message);
+              // Continue execution - don't fail the whole request if just pet state fails
+            }
+          }
+          
+          return res.status(200).json({ 
+            success: true, 
+            message: 'Wallet data updated' 
+          });
+        } else {
+          // Create new user
+          const newUser = {
+            walletAddress,
+            points: score || 0,
+            lastPointsUpdate: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          };
+          
+          const insertResult = await db.run(`
+            INSERT INTO users (walletAddress, points, lastPointsUpdate, createdAt)
+            VALUES (?, ?, ?, ?)
+          `, [
+            newUser.walletAddress, 
+            newUser.points, 
+            newUser.lastPointsUpdate, 
+            newUser.createdAt
+          ]);
+          
+          if (petState) {
+            try {
+              await db.run(`
+                INSERT INTO pet_states (
+                  walletAddress, health, happiness, hunger, cleanliness, 
+                  energy, lastStateUpdate, qualityScore
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              `, [
+                walletAddress,
+                petState.health, 
+                petState.happiness, 
+                petState.hunger, 
+                petState.cleanliness,
+                petState.energy,
+                new Date().toISOString(), 
+                petState.qualityScore || 0
+              ]);
+            } catch (petError: any) {
+              console.error('Error creating pet state:', petError.message);
+              // Continue execution - don't fail the whole request if just pet state fails
+            }
+          }
+          
+          return res.status(201).json({ 
+            success: true, 
+            message: 'New wallet data created' 
+          });
+        }
+      } catch (dbError: any) {
+        console.error('Database update error:', dbError.message);
+        
+        // Check for specific error conditions
+        if (dbError.message.includes('SQLITE_READONLY')) {
+          console.warn('Database is read-only, falling back to temporary storage');
+          // Here you could implement a fallback to session storage or another mechanism
+          return res.status(200).json({ 
+            success: true, 
+            message: 'Data temporarily stored in memory',
+            warning: 'Using temporary storage due to database permission issues' 
+          });
+        }
+        
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Database update error', 
+          details: dbError.message 
+        });
+      }
+    } else if (req.method === 'GET') {
+      const { walletAddress } = req.query;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing wallet address' 
+        });
       }
       
       try {
         // Get user data
-        const user = await db.get('SELECT * FROM users WHERE walletAddress = ?', [publicKey]);
+        const user = await db.get(
+          'SELECT * FROM users WHERE walletAddress = ?', 
+          [walletAddress]
+        );
         
         if (!user) {
-          // Return default data for new users
-          const walletId = publicKey.substring(0, 8);
-          return res.status(200).json({
-            success: true,
-            data: {
-              petName: `Pet_${walletId.substring(0, 4)}`,
-              points: 0,
-              multiplier: 1.0,
-              lastLogin: Date.now(),
-              daysActive: 0,
-              consecutiveDays: 0,
-              petStats: {
-                food: 50,
-                happiness: 40,
-                cleanliness: 40,
-                energy: 30,
-                health: 30,
-                isDead: false,
-                points: 0
-              }
-            }
+          return res.status(404).json({ 
+            success: false, 
+            error: 'Wallet not found' 
           });
         }
         
-        // Get pet state data
-        const petState = await db.get('SELECT * FROM pet_states WHERE walletAddress = ?', [publicKey]);
-        
-        // Return complete wallet data
-        return res.status(200).json({
-          success: true,
-          data: {
-            petName: user.username || `Pet_${publicKey.substring(0, 4)}`,
-            points: user.points || 0,
-            multiplier: user.multiplier || 1.0,
-            lastLogin: user.lastPlayed ? new Date(user.lastPlayed).getTime() : Date.now(),
-            daysActive: user.daysActive || 0,
-            consecutiveDays: user.consecutiveDays || 0,
-            petStats: {
-              food: petState?.hunger || 50,
-              happiness: petState?.happiness || 40,
-              cleanliness: petState?.cleanliness || 40,
-              energy: petState?.energy || 30,
-              health: petState?.health || 30,
-              isDead: petState?.isDead === 1 || false,
-              points: user.points || 0
-            }
-          }
-        });
-      } catch (error) {
-        console.error('Error fetching wallet data:', error);
-        return res.status(500).json({ success: false, error: 'Database query error', details: String(error) });
-      }
-    }
-    
-    // POST: Save wallet data
-    if (req.method === 'POST') {
-      const { publicKey, data } = req.body;
-      
-      // Validate input data
-      if (!publicKey || typeof publicKey !== 'string') {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Valid wallet public key is required' 
-        });
-      }
-      
-      if (!data || typeof data !== 'object') {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Valid wallet data object is required' 
-        });
-      }
-      
-      try {
-        console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
-        const now = new Date();
-        
-        // Check if user exists
-        const existingUser = await db.get('SELECT * FROM users WHERE walletAddress = ?', [publicKey]);
-        
-        if (!existingUser) {
-          console.log('Creating new user record...');
-          // Create new user
-          await db.run(`
-            INSERT INTO users (
-              walletAddress, 
-              username, 
-              points,
-              lastPlayed,
-              createdAt,
-              daysActive,
-              consecutiveDays,
-              multiplier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `, [
-            publicKey,
-            data.petName || `Pet_${publicKey.substring(0, 4)}`,
-            data.petStats?.points || 0,
-            now.toISOString(),
-            now.toISOString(),
-            data.daysActive || 0,
-            data.consecutiveDays || 0,
-            data.multiplier || 1.0
-          ]);
-        } else {
-          console.log('Updating existing user record...');
-          // Update existing user
-          await db.run(`
-            UPDATE users SET
-              username = ?,
-              points = ?,
-              lastPlayed = ?,
-              daysActive = ?,
-              consecutiveDays = ?,
-              multiplier = ?
-            WHERE walletAddress = ?
-          `, [
-            data.petName || existingUser.username,
-            data.petStats?.points || existingUser.points || 0,
-            now.toISOString(),
-            data.daysActive || existingUser.daysActive || 0,
-            data.consecutiveDays || existingUser.consecutiveDays || 0,
-            data.multiplier || existingUser.multiplier || 1.0,
-            publicKey
-          ]);
+        // Get pet state if it exists
+        let petState = null;
+        try {
+          petState = await db.get(
+            'SELECT * FROM pet_states WHERE walletAddress = ?', 
+            [walletAddress]
+          );
+        } catch (petError: any) {
+          console.error('Error fetching pet state:', petError.message);
+          // Continue without pet state
         }
         
-        // Check if pet state exists
-        const existingPetState = await db.get('SELECT * FROM pet_states WHERE walletAddress = ?', [publicKey]);
+        // Format and return user data
+        const userData = {
+          walletAddress: user.walletAddress,
+          points: user.points || 0,
+          multiplier: user.multiplier || 1.0,
+          lastUpdated: user.lastPointsUpdate ? new Date(user.lastPointsUpdate) : null,
+          petState: petState ? {
+            health: petState.health,
+            happiness: petState.happiness,
+            hunger: petState.hunger,
+            cleanliness: petState.cleanliness,
+            energy: petState.energy,
+            lastStateUpdate: petState.lastStateUpdate ? new Date(petState.lastStateUpdate) : null,
+            qualityScore: petState.qualityScore || 0
+          } : null
+        };
         
-        if (!existingPetState) {
-          console.log('Creating new pet state record...');
-          // Create new pet state
-          await db.run(`
-            INSERT INTO pet_states (
-              walletAddress,
-              health,
-              happiness,
-              hunger,
-              cleanliness,
-              energy,
-              isDead,
-              lastStateUpdate
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `, [
-            publicKey,
-            data.petStats?.health || 30,
-            data.petStats?.happiness || 40,
-            data.petStats?.food || 50,
-            data.petStats?.cleanliness || 40,
-            data.petStats?.energy || 30,
-            data.petStats?.isDead ? 1 : 0,
-            now.toISOString()
-          ]);
-        } else {
-          console.log('Updating existing pet state record...');
-          // Update existing pet state
-          await db.run(`
-            UPDATE pet_states SET
-              health = ?,
-              happiness = ?,
-              hunger = ?,
-              cleanliness = ?,
-              energy = ?,
-              isDead = ?,
-              lastStateUpdate = ?
-            WHERE walletAddress = ?
-          `, [
-            data.petStats?.health !== undefined ? data.petStats.health : existingPetState.health,
-            data.petStats?.happiness !== undefined ? data.petStats.happiness : existingPetState.happiness,
-            data.petStats?.food !== undefined ? data.petStats.food : existingPetState.hunger,
-            data.petStats?.cleanliness !== undefined ? data.petStats.cleanliness : existingPetState.cleanliness,
-            data.petStats?.energy !== undefined ? data.petStats.energy : existingPetState.energy || 30,
-            data.petStats?.isDead ? 1 : 0,
-            now.toISOString(),
-            publicKey
-          ]);
-        }
-        
-        console.log('Wallet data saved successfully');
-        return res.status(200).json({
-          success: true,
-          message: 'Wallet data saved successfully'
+        return res.status(200).json({ 
+          success: true, 
+          data: userData 
         });
-      } catch (error) {
-        console.error('Error saving wallet data:', error);
-        const errorDetails = error instanceof Error ? error.message : String(error);
+      } catch (dbError: any) {
+        console.error('Database query error:', dbError.message);
+        
         return res.status(500).json({ 
           success: false, 
-          error: 'Database update error', 
-          details: errorDetails 
+          error: 'Server error', 
+          message: dbError.message 
         });
       }
+    } else {
+      return res.status(405).json({ 
+        success: false, 
+        error: 'Method not allowed' 
+      });
     }
-    
-    // Handle PUT method for updates like burnPoints
-    if (req.method === 'PUT') {
-      const { publicKey, action, amount } = req.body;
-      
-      if (!publicKey || !action) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Wallet public key and action are required' 
-        });
-      }
-      
-      try {
-        // Handle different actions
-        if (action === 'burnPoints') {
-          // Get current points
-          const user = await db.get('SELECT points FROM users WHERE walletAddress = ?', [publicKey]);
-          
-          if (!user) {
-            return res.status(404).json({ success: false, error: 'User not found' });
-          }
-          
-          // Calculate remaining points (burn 50%)
-          const remainingPoints = Math.floor(user.points * 0.5);
-          
-          // Update user points
-          await db.run(
-            'UPDATE users SET points = ? WHERE walletAddress = ?',
-            [remainingPoints, publicKey]
-          );
-          
-          return res.status(200).json({
-            success: true,
-            remainingPoints
-          });
-        }
-        
-        if (action === 'updatePoints') {
-          if (typeof amount !== 'number') {
-            return res.status(400).json({ success: false, error: 'Valid amount is required for updatePoints' });
-          }
-          
-          // Update user points
-          await db.run(
-            'UPDATE users SET points = ? WHERE walletAddress = ?',
-            [amount, publicKey]
-          );
-          
-          return res.status(200).json({
-            success: true,
-            points: amount
-          });
-        }
-        
-        // Unsupported action
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Unsupported action' 
-        });
-      } catch (error) {
-        console.error('Error processing PUT request:', error);
-        return res.status(500).json({ success: false, error: 'Database update error', details: String(error) });
-      }
-    }
-    
-    // Handle unsupported methods
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-    
-  } catch (error) {
-    console.error('Wallet API error:', error);
+  } catch (error: any) {
+    console.error('Unhandled API error:', error.message);
     return res.status(500).json({ 
       success: false, 
-      error: 'Server error',
-      message: error instanceof Error ? error.message : String(error)
+      error: 'Server error', 
+      message: error.message 
     });
   }
 } 

@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getProvider, getWalletData, saveWalletData, calculateMultiplier, burnPoints as burnWalletPoints, updatePoints as updateWalletPoints } from '@/utils/wallet';
+import { 
+  getProvider, 
+  calculateMultiplier,
+  saveWalletData, 
+  loadWalletData
+} from '@/utils/wallet';
 
 interface WalletContextType {
   isConnected: boolean;
@@ -9,8 +14,8 @@ interface WalletContextType {
   walletData: any;
   connect: () => Promise<boolean>;
   disconnect: () => void;
-  updatePoints: (points: number) => Promise<void>;
-  burnPoints: () => Promise<number>;
+  updatePoints: (points: number) => Promise<number | undefined>;
+  burnPoints: () => Promise<number | undefined>;
   error: string | null;
 }
 
@@ -20,8 +25,8 @@ const defaultContext: WalletContextType = {
   walletData: null,
   connect: async () => false,
   disconnect: () => {},
-  updatePoints: async () => {},
-  burnPoints: async () => 0,
+  updatePoints: async () => undefined,
+  burnPoints: async () => undefined,
   error: null
 };
 
@@ -40,6 +45,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [walletData, setWalletData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Safe connect wrapper
   const safeConnect = async (provider: any): Promise<any> => {
@@ -89,7 +95,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
           
           try {
             // Fetch wallet data asynchronously
-            const data = await getWalletData(key);
+            const data = await loadWalletData(key);
             setWalletData(data);
           } catch (err) {
             console.error('Error loading wallet data:', err);
@@ -113,7 +119,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setPublicKey(key);
           
           try {
-            const data = await getWalletData(key);
+            const data = await loadWalletData(key);
             setWalletData(data);
           } catch (dataErr) {
             console.error('Error loading wallet data after connect:', dataErr);
@@ -231,31 +237,68 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setPublicKey(key);
         setIsConnected(true);
         
-        // Get or initialize wallet data
+        // Once connected, load wallet data
+        setIsLoading(true);
+        
         try {
-          console.log('Loading wallet data for', key.substring(0, 8) + '...');
-          const data = await getWalletData(key);
+          const walletData = await loadWalletData(key);
           
-          // Update wallet state
-          setWalletData(data);
-          
-          // Update login time
-          const updatedData = { 
-            ...data,
-            lastLogin: Date.now()
-          };
-          
-          // Save the updated data
-          await saveWalletData(key, updatedData);
-          
-          return true;
+          if (walletData) {
+            console.log(`Loaded wallet data for ${key.substring(0, 8)}...`);
+            setWalletData(walletData);
+          } else {
+            console.log('No existing wallet data found, initializing with defaults');
+            const defaultData = {
+              petName: `Pet_${key.substring(0, 4)}`,
+              points: 0,
+              multiplier: 1.0,
+              lastLogin: Date.now(),
+              daysActive: 0,
+              consecutiveDays: 0,
+              petStats: {
+                food: 50,
+                happiness: 40,
+                cleanliness: 40,
+                energy: 30,
+                health: 30,
+                isDead: false,
+                points: 0
+              }
+            };
+            
+            setWalletData(defaultData);
+            
+            // Save the default data
+            const saved = await saveWalletData(key, defaultData);
+            if (!saved) {
+              console.warn('Failed to save initial wallet data, using memory storage');
+            }
+          }
         } catch (dataError) {
-          console.error('Error loading or saving wallet data:', dataError);
-          // Still return true since connection succeeded
-          setPublicKey(key);
-          setIsConnected(true);
-          return true;
+          console.error('Error loading wallet data:', dataError);
+          // Set default values if data loading fails
+          setWalletData({
+            petName: `Pet_${key.substring(0, 4)}`,
+            points: 0,
+            multiplier: 1.0,
+            lastLogin: Date.now(),
+            daysActive: 0,
+            consecutiveDays: 0,
+            petStats: {
+              food: 50,
+              happiness: 40,
+              cleanliness: 40,
+              energy: 30,
+              health: 30,
+              isDead: false,
+              points: 0
+            }
+          });
+        } finally {
+          setIsLoading(false);
         }
+        
+        return true;
       } catch (connError) {
         console.error('Connection error:', connError);
         setError('Failed to connect wallet. Please try again or refresh the page.');
@@ -295,42 +338,51 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
   
   const updatePoints = async (points: number) => {
-    if (!publicKey || !walletData) return;
+    if (!publicKey || !walletData) return undefined;
     
-    try {
-      // Calculate the new points with multiplier
-      const pointsToAdd = points * (walletData.multiplier || 1);
-      const newTotalPoints = walletData.points + pointsToAdd;
-      
-      // Update points in the database via API
-      const success = await updateWalletPoints(publicKey, newTotalPoints);
-      
-      if (success) {
-        // Update local state if the API call was successful
-        const updatedData = { ...walletData, points: newTotalPoints };
-        setWalletData(updatedData);
+    const updatedWalletData = {
+      ...walletData,
+      petStats: {
+        ...walletData.petStats,
+        points
       }
-    } catch (error) {
-      console.error('Error updating points:', error);
+    };
+    
+    setWalletData(updatedWalletData);
+    
+    // Save updated data
+    const saved = await saveWalletData(publicKey, updatedWalletData);
+    if (!saved) {
+      console.warn('Failed to persist points update to server, using memory storage');
     }
+    
+    return points;
   };
   
-  const burnPoints = async (): Promise<number> => {
-    if (!publicKey || !walletData) return 0;
+  const burnPoints = async () => {
+    if (!publicKey || !walletData) return undefined;
     
-    try {
-      // Burn points via API
-      const remainingPoints = await burnWalletPoints(publicKey);
-      
-      // Update local state
-      const updatedData = { ...walletData, points: remainingPoints };
-      setWalletData(updatedData);
-      
-      return remainingPoints;
-    } catch (error) {
-      console.error('Error burning points:', error);
-      return walletData.points; // Return current points if error
+    // Calculate remaining points (burn 50%)
+    const currentPoints = walletData.petStats.points;
+    const remainingPoints = Math.floor(currentPoints * 0.5);
+    
+    const updatedWalletData = {
+      ...walletData,
+      petStats: {
+        ...walletData.petStats,
+        points: remainingPoints
+      }
+    };
+    
+    setWalletData(updatedWalletData);
+    
+    // Save updated data
+    const saved = await saveWalletData(publicKey, updatedWalletData);
+    if (!saved) {
+      console.warn('Failed to persist points burn to server, using memory storage');
     }
+    
+    return remainingPoints;
   };
   
   const value = {
