@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
 
 // Check if the MongoDB URI is properly defined
-const uri = process.env.MONGODB_URI;
+const uri = process.env.NEXT_PUBLIC_MONGODB_URI;
 const options = {};
 
 let clientPromise: Promise<MongoClient>;

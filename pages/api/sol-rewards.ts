@@ -1,11 +1,34 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
+import clientPromise from '@/lib/clientPromise';
 import { HourlyPool, RewardPool, UserReward } from '@/lib/models';
 import { 
   calculateHoldingMultiplier, 
   calculateWeightedPoints,
   calculateUserSolReward
 } from '@/lib/utils';
+
+// Define types for the collections to help with TypeScript
+interface RewardPoolsCollection {
+  findOne: (filter: any) => Promise<any>;
+  insertOne: (doc: any) => Promise<any>;
+  updateOne: (filter: any, update: any) => Promise<any>;
+}
+
+interface UsersCollection {
+  findOne: (filter: any) => Promise<any>;
+  updateOne: (filter: any, update: any) => Promise<any>;
+}
+
+interface UserRewardsCollection {
+  findOne: (filter: any) => Promise<any>;
+  insertOne: (doc: any) => Promise<any>;
+  updateOne: (filter: any, update: any) => Promise<any>;
+  find: (filter: any) => Promise<{
+    sort: (sortSpec: any) => any;
+    limit: (n: number) => any;
+    toArray: () => Promise<any[]>;
+  }>;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,17 +45,12 @@ export default async function handler(
   }
   
   try {
-    // Check if MongoDB is configured
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'MongoDB not properly configured',
-        source: 'config'
-      });
-    }
-    
     const client = await clientPromise;
-    const db = client.db('Cluster0');
+    
+    // Get the collections with appropriate type assertions
+    const rewardPoolsCollection = client.collection('rewardPools') as unknown as RewardPoolsCollection;
+    const usersCollection = client.collection('users') as unknown as UsersCollection;
+    const userRewardsCollection = client.collection('userRewards') as unknown as UserRewardsCollection;
     
     // GET: Get user rewards or reward pool info
     if (req.method === 'GET') {
@@ -40,7 +58,6 @@ export default async function handler(
       
       // If poolInfo is requested, return current reward pool info
       if (poolInfo === 'true') {
-        const rewardPoolsCollection = db.collection('rewardPools');
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
@@ -89,9 +106,6 @@ export default async function handler(
       
       // If walletAddress is provided, return user's rewards
       if (walletAddress) {
-        const userRewardsCollection = db.collection('userRewards');
-        const usersCollection = db.collection('users');
-        
         // Get user data
         const user = await usersCollection.findOne({ walletAddress });
         
@@ -100,9 +114,8 @@ export default async function handler(
         }
         
         // Get unclaimed rewards
-        const unclaimedRewards = await userRewardsCollection
-          .find({ walletAddress, claimed: false })
-          .toArray();
+        const unclaimedRewardsCursor = await userRewardsCollection.find({ walletAddress, claimed: false });
+        const unclaimedRewards = await unclaimedRewardsCursor.toArray();
         
         // Calculate total unclaimed amount
         const totalUnclaimed = unclaimedRewards.reduce(
@@ -111,8 +124,8 @@ export default async function handler(
         );
         
         // Get recent claimed rewards (last 10)
-        const recentClaimed = await userRewardsCollection
-          .find({ walletAddress, claimed: true })
+        const recentClaimedCursor = await userRewardsCollection.find({ walletAddress, claimed: true });
+        const recentClaimedSorted = await recentClaimedCursor
           .sort({ claimTimestamp: -1 })
           .limit(10)
           .toArray();
@@ -125,7 +138,7 @@ export default async function handler(
           holdingMultiplier: calculateHoldingMultiplier(user.tokenBalance || 0),
           totalUnclaimed,
           unclaimedRewards,
-          recentClaimed
+          recentClaimed: recentClaimedSorted
         });
       }
       
@@ -142,10 +155,6 @@ export default async function handler(
           error: 'Wallet address and base points are required' 
         });
       }
-      
-      const usersCollection = db.collection('users');
-      const rewardPoolsCollection = db.collection('rewardPools');
-      const userRewardsCollection = db.collection('userRewards');
       
       // Get user data
       const user = await usersCollection.findOne({ walletAddress });
@@ -250,92 +259,101 @@ export default async function handler(
       // Return success
       return res.status(200).json({
         success: true,
-        message: 'Successfully participated in reward pool',
+        message: 'Successfully recorded participation in reward pool',
+        walletAddress,
         tokenBalance: currentTokenBalance,
         holdingMultiplier,
         basePoints,
         weightedPoints,
-        poolInfo: {
-          date: today,
-          hour: currentHour,
-          poolAmount: currentPool.hourlyPools[hourlyPoolIndex].poolAmount,
-          participants: currentPool.hourlyPools[hourlyPoolIndex].participants
-        }
+        currentHour,
+        status: 'pending'
       });
     }
     
     // PUT: Claim rewards
     if (req.method === 'PUT') {
-      const { walletAddress } = req.body;
+      const { walletAddress, claim } = req.body;
       
-      if (!walletAddress) {
-        return res.status(400).json({ success: false, error: 'Wallet address is required' });
-      }
-      
-      const userRewardsCollection = db.collection('userRewards');
-      
-      // Get all unclaimed rewards
-      const unclaimedRewards = await userRewardsCollection
-        .find({ walletAddress, claimed: false })
-        .toArray();
-      
-      if (unclaimedRewards.length === 0) {
-        return res.status(200).json({
-          success: false,
-          error: 'No unclaimed rewards',
-          message: 'You have no unclaimed rewards to claim'
+      if (!walletAddress || !claim) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Wallet address and claim operation are required' 
         });
       }
       
-      // Calculate total amount to claim
-      const totalAmount = unclaimedRewards.reduce(
-        (total: number, reward: any) => total + (reward.amount || 0), 
-        0
-      );
+      // Get user data
+      const user = await usersCollection.findOne({ walletAddress });
       
-      // If total is below minimum threshold, don't process
-      if (totalAmount < 0.005) {
-        return res.status(200).json({
-          success: false,
-          error: 'Below minimum threshold',
-          message: 'Rewards are below minimum threshold (0.005 SOL)',
-          currentAmount: totalAmount
-        });
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'User not found' });
       }
       
-      // Update all rewards as claimed
-      const now = new Date();
-      
-      await userRewardsCollection.updateMany(
-        { walletAddress, claimed: false },
-        { 
-          $set: { 
-            claimed: true,
-            claimTimestamp: now
-          }
+      // If claiming rewards
+      if (claim === 'rewards') {
+        // Get unclaimed rewards
+        const unclaimedRewardsCursor = await userRewardsCollection.find({ 
+          walletAddress, 
+          claimed: false,
+          amount: { $gt: 0 } // Only claim rewards that have an amount greater than 0
+        });
+        const unclaimedRewards = await unclaimedRewardsCursor.toArray();
+        
+        // Calculate total amount to claim
+        const totalAmount = unclaimedRewards.reduce(
+          (total: number, reward: any) => total + (reward.amount || 0), 
+          0
+        );
+        
+        if (totalAmount <= 0) {
+          return res.status(200).json({
+            success: false,
+            error: 'No rewards to claim',
+            message: 'You have no unclaimed rewards that can be claimed at this time'
+          });
         }
-      );
+        
+        // Mark rewards as claimed
+        const now = new Date();
+        for (const reward of unclaimedRewards) {
+          await userRewardsCollection.updateOne(
+            { _id: reward._id },
+            { 
+              $set: { 
+                claimed: true,
+                claimTimestamp: now
+              }
+            }
+          );
+        }
+        
+        // Update user's token balance
+        const newBalance = (user.tokenBalance || 0) + totalAmount;
+        await usersCollection.updateOne(
+          { walletAddress },
+          { $set: { tokenBalance: newBalance } }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Successfully claimed rewards',
+          claimedAmount: totalAmount,
+          newBalance,
+          claimedRewards: unclaimedRewards.length
+        });
+      }
       
-      // In a real implementation, here would be the code to transfer SOL to the user's wallet
-      // This would involve interaction with the Solana blockchain
-      
-      // Return success
-      return res.status(200).json({
-        success: true,
-        message: 'Rewards claimed successfully',
-        claimedAmount: totalAmount,
-        rewardsCount: unclaimedRewards.length,
-        claimTimestamp: now
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid claim operation'
       });
     }
     
-    // Handle unsupported methods
     return res.status(405).json({ success: false, error: 'Method not allowed' });
-    
   } catch (error) {
     console.error('SOL Rewards API error:', error);
-    return res.status(500).json({ 
-      success: false, 
+    
+    return res.status(500).json({
+      success: false,
       error: 'Server error',
       message: error instanceof Error ? error.message : String(error)
     });

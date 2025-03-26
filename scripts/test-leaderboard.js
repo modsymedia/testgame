@@ -102,13 +102,13 @@ async function testLeaderboard() {
   try {
     console.log('\n📋 Test 4: Checking MongoDB connection...');
     
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
+    if (!process.env.NEXT_PUBLIC_MONGODB_URI || process.env.NEXT_PUBLIC_MONGODB_URI.includes('username:password')) {
       console.log('⚠️ MongoDB not configured (using placeholder URI)');
       console.log('   You need to update .env.local with a real MongoDB connection string');
       console.log('   to use actual database storage.');
     } else {
       const { MongoClient } = require('mongodb');
-      const client = new MongoClient(process.env.MONGODB_URI);
+      const client = new MongoClient(process.env.NEXT_PUBLIC_MONGODB_URI);
       await client.connect();
       
       const db = client.db('Cluster0');

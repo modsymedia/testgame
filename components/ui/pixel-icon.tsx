@@ -44,7 +44,7 @@ export function PixelIcon({ icon, isHighlighted }: PixelIconProps) {
       case "nails":
         return <Image src="/assets/icons/hygiene/hygiene-nailclipper.png" alt="Nails" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "styling":
-        return <Image src="/assets/icons/hygiene/hygiene-styling.png" alt="Styling" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return <Image src="/assets/icons/hygiene/hygiene-styling.png" alt="Styling" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated', width: 'auto', height: 'auto' }} />;
       case "dental":
         return <Image src="/assets/icons/hygiene/hygiene-tooth.png" alt="Dental" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "checkup":

@@ -1,50 +1,54 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
+import clientPromise from '@/lib/clientPromise';
+import path from 'path';
+import fs from 'fs';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    // Check if MongoDB URI is missing or using placeholder
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      return res.status(200).json({ 
-        status: 'warning',
-        message: 'MongoDB not properly configured',
-        mock: true,
-        diagnostics: {
-          hasConnectionString: !!process.env.MONGODB_URI,
-          isPlaceholder: process.env.MONGODB_URI ? process.env.MONGODB_URI.includes('username:password') : false,
-          recommended: 'Please update your .env.local file with a valid MongoDB connection string'
-        }
-      });
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Handle OPTIONS request for CORS preflight
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
     }
     
-    const client = await clientPromise;
-    const db = client.db('Cluster0');
+    // Check if data directory exists
+    const DATA_DIR = path.join(process.cwd(), 'data');
+    const DB_PATH = path.join(DATA_DIR, 'game.db');
+    const dbExists = fs.existsSync(DB_PATH);
     
-    // Test connection by checking the collections
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map((c: any) => c.name);
+    // Get the SQLite client
+    const client = await clientPromise;
+    
+    // Get all available collections
+    const availableCollections = ['users', 'rewardPools', 'userRewards'];
     
     return res.status(200).json({ 
       status: 'connected',
-      database: 'Cluster0',
-      collections: collectionNames,
-      message: 'Database connection successful!',
-      connectionString: process.env.MONGODB_URI.replace(/mongodb\+srv:\/\/([^:]+):[^@]+@/, 'mongodb+srv://$1:****@')
+      database: 'SQLite',
+      databasePath: DB_PATH.replace(process.cwd(), ''),
+      databaseExists: dbExists,
+      collections: availableCollections,
+      message: 'SQLite database connection successful!',
+      storageEngine: 'SQLite'
     });
   } catch (error) {
     console.error('Database connection error:', error);
     return res.status(500).json({ 
       status: 'error',
-      message: 'Failed to connect to the database',
+      message: 'Failed to connect to the SQLite database',
       error: error instanceof Error ? error.message : String(error),
       tips: [
-        'Make sure your MongoDB connection string is correct',
-        'Verify that your MongoDB cluster is running',
-        'Check if your IP address is whitelisted in MongoDB Atlas',
-        'Ensure you\'ve created the database and have proper permissions'
+        'Make sure your SQLite database file exists or can be created',
+        'Check that the data directory is writable',
+        'Ensure that the SQLite implementation is properly set up',
+        'Verify that the required Node.js modules (sqlite and sqlite3) are installed'
       ]
     });
   }

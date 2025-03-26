@@ -1,5 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
+import clientPromise from '@/lib/clientPromise';
+
+// Define type for the users collection to help with TypeScript
+interface UsersCollection {
+  findOne: (filter: any) => Promise<any>;
+  updateOne: (filter: any, update: any) => Promise<any>;
+  updateWithInc: (filter: any, update: any) => Promise<any>;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,18 +23,8 @@ export default async function handler(
   }
   
   try {
-    // Check if MongoDB is configured
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'MongoDB not properly configured',
-        source: 'config'
-      });
-    }
-    
     const client = await clientPromise;
-    const db = client.db('Cluster0');
-    const collection = db.collection('users');
+    const collection = client.collection('users') as unknown as UsersCollection;
     
     // GET: Check referral code validity
     if (req.method === 'GET') {
@@ -118,8 +115,8 @@ export default async function handler(
         { $set: { referredBy: referrer.walletAddress } }
       );
       
-      // Update referrer's referral count
-      await collection.updateOne(
+      // Update referrer's referral count using the special updateWithInc method for SQLite
+      await collection.updateWithInc(
         { walletAddress: referrer.walletAddress },
         { $inc: { referralCount: 1 } }
       );
@@ -129,7 +126,8 @@ export default async function handler(
         // Calculate and award referral bonus (10% of points, max 1000)
         const referralBonus = Math.min(1000, Math.floor((user.points || 0) * 0.1));
         
-        await collection.updateOne(
+        // Use updateWithInc for increment operations in SQLite
+        await collection.updateWithInc(
           { walletAddress: referrer.walletAddress },
           { 
             $inc: { 

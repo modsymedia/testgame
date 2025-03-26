@@ -243,31 +243,64 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       setCleanliness((prev: number) => Math.max(prev - cleanlinessDecay, 0));
       setEnergy((prev: number) => Math.max(prev - energyDecay, 0));
       
-      // Use AI system to award points based on pet state
-      const pointMultiplier = aiPointSystem()
-      const averageStats = (food + happiness + cleanliness + energy) / 4
+      // Use GOCHI technical specification for point calculation
+      // -------------------------------------------------------
+      // BaseRate = 10 points per hour
+      // QualityMultiplier = 0.5 (poor) to 3.0 (excellent) based on pet state
+      // StreakMultiplier = 1.0 + (ConsecutiveDays × 0.05), capped at 1.5
+      // Hourly Points = BaseRate × QualityMultiplier × StreakMultiplier
       
-      // Award points based on average health and AI multiplier
-      let passivePoints = 0
-      if (averageStats > 80) {
-        passivePoints = Math.round((150/60) * pointMultiplier) // 150 points per hour with multiplier
-      } else if (averageStats > 60) {
-        passivePoints = Math.round((100/60) * pointMultiplier) // 100 points per hour with multiplier
-      } else if (averageStats > 40) {
-        passivePoints = Math.round((60/60) * pointMultiplier) // 60 points per hour with multiplier
-      } else if (averageStats > 20) {
-        passivePoints = Math.round((30/60) * pointMultiplier) // 30 points per hour with multiplier
-      } else {
-        passivePoints = Math.round((10/60) * pointMultiplier) // 10 points per hour with multiplier
-      }
+      // Calculate pet state quality (the higher the better)
+      const petState = {
+        health: health,
+        happiness: happiness,
+        hunger: food,  // In our system, food = hunger
+        cleanliness: cleanliness
+      };
       
-      if (passivePoints > 0) {
-        awardPoints(passivePoints)
+      // Get consecutive days from wallet data or default to 0
+      const consecutiveDays = walletData?.daysActive || 0;
+      
+      // Calculate the base hourly points using the GOCHI formula
+      const BASE_RATE = 10; // 10 points per hour as specified in the doc
+      
+      // Calculate the quality multiplier (0.5 to 3.0)
+      const avgState = (health + happiness + food + cleanliness) / 4;
+      const qualityMultiplier = Math.max(0.5, Math.min(3.0, avgState / 33.33));
+      
+      // Calculate streak multiplier (1.0 to 1.5)
+      const streakMultiplier = Math.min(1.5, 1.0 + (consecutiveDays * 0.05));
+      
+      // Calculate hourly points
+      const hourlyPoints = BASE_RATE * qualityMultiplier * streakMultiplier;
+      
+      // Convert to per-minute points for this interval (divide by 60)
+      const passivePoints = Math.round((hourlyPoints / 60) * (timeElapsed || 1));
+      
+      // Apply the AI point multiplier if available
+      const pointMultiplier = aiPointSystem();
+      const totalPassivePoints = Math.round(passivePoints * pointMultiplier);
+      
+      // Daily points cap based on days active
+      const dailyPointsCap = Math.min(500, 200 + (consecutiveDays * 20));
+      
+      // Check if we've exceeded the daily cap (this would need proper tracking in a real implementation)
+      const todayPoints = (walletData?.dailyPoints || 0) + totalPassivePoints;
+      const cappedPoints = Math.min(todayPoints, dailyPointsCap) - (walletData?.dailyPoints || 0);
+      
+      if (cappedPoints > 0) {
+        awardPoints(cappedPoints);
+        
+        // Log this activity using an existing activity type
+        if (cappedPoints > 10) {
+          // If significant points earned, log it as one of the valid activities
+          logActivity('feed');
+        }
       }
-    }, 60000);
+    }, 60000); // Run every minute
     
     return () => clearInterval(decayInterval);
-  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints, decayRates]);
+  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints, decayRates, health, walletData, logActivity]);
   
   // Apply cooldowns from AI
   const applyCooldown = useCallback((actionType: keyof ActionCooldowns) => {
@@ -483,8 +516,44 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       const pointMultiplier = aiPointSystem()
       const basePoints = 50; // Base points for feeding
       const aiBonus = petResponse?.reward || 0; // Additional points from AI
-      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
-      awardPoints(totalPoints)
+      
+      // Apply the GOCHI point calculation formula
+      // Quality multiplier based on pet state after feeding
+      const petStateAfterFeeding = {
+        health: healthRef.current,
+        happiness: happinessRef.current,
+        hunger: foodRef.current,  // In our system, food = hunger
+        cleanliness: cleanlinessRef.current
+      };
+      
+      // Get quality multiplier (0.5 to 3.0)
+      const avgState = (petStateAfterFeeding.health + 
+                        petStateAfterFeeding.happiness + 
+                        petStateAfterFeeding.hunger + 
+                        petStateAfterFeeding.cleanliness) / 4;
+      const qualityMultiplier = Math.max(0.5, Math.min(3.0, avgState / 33.33));
+      
+      // Get consecutive days from wallet data or default to 0
+      const consecutiveDays = walletData?.daysActive || 0;
+      
+      // Get streak multiplier (1.0 to 1.5)
+      const streakMultiplier = Math.min(1.5, 1.0 + (consecutiveDays * 0.05));
+      
+      // Calculate interaction points with quality and streak bonuses
+      const interactionPoints = basePoints * qualityMultiplier * streakMultiplier;
+      
+      // Apply AI multiplier and any AI bonus
+      const totalPoints = Math.round((interactionPoints + aiBonus) * pointMultiplier);
+      
+      // Apply daily points cap
+      const dailyPointsCap = Math.min(500, 200 + (consecutiveDays * 20));
+      const todayPoints = (walletData?.dailyPoints || 0) + totalPoints;
+      const cappedPoints = Math.min(todayPoints, dailyPointsCap) - (walletData?.dailyPoints || 0);
+      
+      // Award capped points
+      if (cappedPoints > 0) {
+        awardPoints(cappedPoints);
+      }
       
       // Save stats to wallet if connected
       if (isConnected) {
@@ -599,8 +668,44 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       const pointMultiplier = aiPointSystem()
       const basePoints = 60; // Base points for playing
       const aiBonus = petResponse?.reward || 0; // Additional points from AI
-      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
-      awardPoints(totalPoints)
+      
+      // Apply the GOCHI point calculation formula
+      // Quality multiplier based on pet state after playing
+      const petStateAfterPlaying = {
+        health: healthRef.current,
+        happiness: happinessRef.current,
+        hunger: foodRef.current,  // In our system, food = hunger
+        cleanliness: cleanlinessRef.current
+      };
+      
+      // Get quality multiplier (0.5 to 3.0)
+      const avgState = (petStateAfterPlaying.health + 
+                        petStateAfterPlaying.happiness + 
+                        petStateAfterPlaying.hunger + 
+                        petStateAfterPlaying.cleanliness) / 4;
+      const qualityMultiplier = Math.max(0.5, Math.min(3.0, avgState / 33.33));
+      
+      // Get consecutive days from wallet data or default to 0
+      const consecutiveDays = walletData?.daysActive || 0;
+      
+      // Get streak multiplier (1.0 to 1.5)
+      const streakMultiplier = Math.min(1.5, 1.0 + (consecutiveDays * 0.05));
+      
+      // Calculate interaction points with quality and streak bonuses
+      const interactionPoints = basePoints * qualityMultiplier * streakMultiplier;
+      
+      // Apply AI multiplier and any AI bonus
+      const totalPoints = Math.round((interactionPoints + aiBonus) * pointMultiplier);
+      
+      // Apply daily points cap
+      const dailyPointsCap = Math.min(500, 200 + (consecutiveDays * 20));
+      const todayPoints = (walletData?.dailyPoints || 0) + totalPoints;
+      const cappedPoints = Math.min(todayPoints, dailyPointsCap) - (walletData?.dailyPoints || 0);
+      
+      // Award capped points
+      if (cappedPoints > 0) {
+        awardPoints(cappedPoints);
+      }
       
       // Save stats to wallet if connected
       if (isConnected) {
@@ -715,8 +820,44 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       const pointMultiplier = aiPointSystem()
       const basePoints = 40; // Base points for cleaning
       const aiBonus = petResponse?.reward || 0; // Additional points from AI
-      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
-      awardPoints(totalPoints)
+      
+      // Apply the GOCHI point calculation formula
+      // Quality multiplier based on pet state after cleaning
+      const petStateAfterCleaning = {
+        health: healthRef.current,
+        happiness: happinessRef.current,
+        hunger: foodRef.current,  // In our system, food = hunger
+        cleanliness: cleanlinessRef.current
+      };
+      
+      // Get quality multiplier (0.5 to 3.0)
+      const avgState = (petStateAfterCleaning.health + 
+                        petStateAfterCleaning.happiness + 
+                        petStateAfterCleaning.hunger + 
+                        petStateAfterCleaning.cleanliness) / 4;
+      const qualityMultiplier = Math.max(0.5, Math.min(3.0, avgState / 33.33));
+      
+      // Get consecutive days from wallet data or default to 0
+      const consecutiveDays = walletData?.daysActive || 0;
+      
+      // Get streak multiplier (1.0 to 1.5)
+      const streakMultiplier = Math.min(1.5, 1.0 + (consecutiveDays * 0.05));
+      
+      // Calculate interaction points with quality and streak bonuses
+      const interactionPoints = basePoints * qualityMultiplier * streakMultiplier;
+      
+      // Apply AI multiplier and any AI bonus
+      const totalPoints = Math.round((interactionPoints + aiBonus) * pointMultiplier);
+      
+      // Apply daily points cap
+      const dailyPointsCap = Math.min(500, 200 + (consecutiveDays * 20));
+      const todayPoints = (walletData?.dailyPoints || 0) + totalPoints;
+      const cappedPoints = Math.min(todayPoints, dailyPointsCap) - (walletData?.dailyPoints || 0);
+      
+      // Award capped points
+      if (cappedPoints > 0) {
+        awardPoints(cappedPoints);
+      }
       
       // Save stats to wallet if connected
       if (isConnected) {
@@ -830,10 +971,46 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       
       // Award points based on AI system and any bonus from AI
       const pointMultiplier = aiPointSystem()
-      const basePoints = 70; // Base points for doctor treatment
+      const basePoints = 70; // Base points for doctor visit
       const aiBonus = petResponse?.reward || 0; // Additional points from AI
-      const totalPoints = Math.round((basePoints + aiBonus) * pointMultiplier)
-      awardPoints(totalPoints)
+      
+      // Apply the GOCHI point calculation formula
+      // Quality multiplier based on pet state after doctor visit
+      const petStateAfterHealing = {
+        health: healthRef.current,
+        happiness: happinessRef.current,
+        hunger: foodRef.current,  // In our system, food = hunger
+        cleanliness: cleanlinessRef.current
+      };
+      
+      // Get quality multiplier (0.5 to 3.0)
+      const avgState = (petStateAfterHealing.health + 
+                        petStateAfterHealing.happiness + 
+                        petStateAfterHealing.hunger + 
+                        petStateAfterHealing.cleanliness) / 4;
+      const qualityMultiplier = Math.max(0.5, Math.min(3.0, avgState / 33.33));
+      
+      // Get consecutive days from wallet data or default to 0
+      const consecutiveDays = walletData?.daysActive || 0;
+      
+      // Get streak multiplier (1.0 to 1.5)
+      const streakMultiplier = Math.min(1.5, 1.0 + (consecutiveDays * 0.05));
+      
+      // Calculate interaction points with quality and streak bonuses
+      const interactionPoints = basePoints * qualityMultiplier * streakMultiplier;
+      
+      // Apply AI multiplier and any AI bonus
+      const totalPoints = Math.round((interactionPoints + aiBonus) * pointMultiplier);
+      
+      // Apply daily points cap
+      const dailyPointsCap = Math.min(500, 200 + (consecutiveDays * 20));
+      const todayPoints = (walletData?.dailyPoints || 0) + totalPoints;
+      const cappedPoints = Math.min(todayPoints, dailyPointsCap) - (walletData?.dailyPoints || 0);
+      
+      // Award capped points
+      if (cappedPoints > 0) {
+        awardPoints(cappedPoints);
+      }
       
       // Save stats to wallet if connected
       if (isConnected) {

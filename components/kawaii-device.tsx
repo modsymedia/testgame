@@ -320,7 +320,9 @@ export function KawaiiDevice() {
             </div>
           </div>
           <div className="flex-grow flex items-center justify-center relative">
-            {getCatEmotion()}
+            <div className="relative w-full h-full">
+              {getCatEmotion()}
+            </div>
             
             {/* Cooldown indicators */}
             <div className="absolute bottom-2 left-0 right-0 flex justify-center space-x-2">
@@ -449,7 +451,7 @@ export function KawaiiDevice() {
   }, [disconnect, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-pink-100 p-4">
+    <div className="w-full flex items-center justify-center min-h-screen bg-pink-100 p-4">
       {/* Navigation and Dev Tools */}
       <div className="absolute top-4 right-4 flex space-x-2">
         {isConnected && (
@@ -464,180 +466,190 @@ export function KawaiiDevice() {
         )}
       </div>
       
-      {/* GPT Logs Panel */}
-      <GPTLogsPanel />
-      
-      {showInteraction && currentInteraction && (
-        <motion.div 
-          className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-        >
-          <h3 className="font-bold">{currentInteraction.type}</h3>
-          {currentInteraction.stats && (
-            <>
-              <p>Food: {currentInteraction.stats.food.toFixed(1)}%</p>
-              <p>Happiness: {currentInteraction.stats.happiness.toFixed(1)}%</p>
-              <p>Cleanliness: {currentInteraction.stats.cleanliness.toFixed(1)}%</p>
-              <p>Energy: {currentInteraction.stats.energy.toFixed(1)}%</p>
-              <p>Health: {currentInteraction.stats.health.toFixed(1)}%</p>
-            </>
+      {/* Three-column layout */}
+      <div className="flex w-full max-w-6xl justify-between">
+        {/* Left column - AI Pet Advisor and Notifications */}
+        <div className="w-1/4">
+          <AIPetAdvisor 
+            show={true}
+            isDead={isDead}
+            food={food}
+            happiness={happiness}
+            cleanliness={cleanliness}
+            energy={energy}
+            health={health}
+            aiAdvice={aiAdvice}
+            aiPersonality={aiPersonality}
+          />
+          {/* Notifications and other elements */}
+          {showInteraction && currentInteraction && (
+            <motion.div 
+              className="bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs mt-4"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+            >
+              <h3 className="font-bold">{currentInteraction.type}</h3>
+              {currentInteraction.stats && (
+                <>
+                  <p>Food: {currentInteraction.stats.food.toFixed(1)}%</p>
+                  <p>Happiness: {currentInteraction.stats.happiness.toFixed(1)}%</p>
+                  <p>Cleanliness: {currentInteraction.stats.cleanliness.toFixed(1)}%</p>
+                  <p>Energy: {currentInteraction.stats.energy.toFixed(1)}%</p>
+                  <p>Health: {currentInteraction.stats.health.toFixed(1)}%</p>
+                </>
+              )}
+              {currentInteraction.emotion && <p>Pet is feeling {currentInteraction.emotion}</p>}
+            </motion.div>
           )}
-          {currentInteraction.emotion && <p>Pet is feeling {currentInteraction.emotion}</p>}
-        </motion.div>
-      )}
-      
-      {/* AI Advisor - moved above the device */}
-      <div className="mb-4">
-        <AIPetAdvisor 
-          show={true}
-          isDead={isDead}
-          food={food}
-          happiness={happiness}
-          cleanliness={cleanliness}
-          energy={energy}
-          health={health}
-          aiAdvice={aiAdvice}
-          aiPersonality={aiPersonality}
-        />
-      </div>
-      
-      {/* Display pet message in a cute speech bubble when available */}
-      <AnimatePresence>
-        {petMessage && (
-          <motion.div 
-            className={`relative bg-white p-3 rounded-lg shadow-md mb-2 max-w-[300px] text-center ${
-              petReaction === "happy" || petReaction === "excited" ? "border-green-300" :
-              petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "border-blue-300" :
-              petReaction === "angry" || petReaction === "sick" ? "border-red-300" :
-              petReaction === "clean" ? "border-cyan-300" :
-              petReaction === "dirty" ? "border-amber-300" :
-              "border-gray-200"
-            }`}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0,
-              x: petReaction === "excited" ? [0, -5, 5, -5, 0] : 0,
-              rotate: petReaction === "happy" ? [0, -2, 2, -2, 0] : 0
-            }}
-            transition={{ 
-              duration: 0.5,
-              x: { duration: 0.5, repeat: petReaction === "excited" ? 2 : 0 },
-              rotate: { duration: 0.5, repeat: petReaction === "happy" ? 2 : 0 }
-            }}
-            exit={{ opacity: 0, y: -10 }}
-            style={{ 
-              border: "2px solid",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-              zIndex: 100
-            }}
-          >
-            {/* Pet message content */}
-            <div className="text-sm font-medium text-gray-800">
-              {petMessage}
-            </div>
-            
-            {/* Reaction emoji */}
-            <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md">
-              {petReaction === "happy" && "😊"}
-              {petReaction === "sad" && "😢"}
-              {petReaction === "excited" && "🤩"}
-              {petReaction === "sleepy" && "😴"}
-              {petReaction === "hungry" && "🍽️"}
-              {petReaction === "angry" && "😠"}
-              {petReaction === "sick" && "🤒"}
-              {petReaction === "clean" && "✨"}
-              {petReaction === "dirty" && "🧹"}
-              {petReaction === "none" && "😐"}
-            </div>
-            
-            {/* Speech bubble tail */}
-            <div 
-              className={`absolute w-4 h-4 bg-white rotate-45 ${
-                petReaction === "happy" || petReaction === "excited" ? "bg-green-100" :
-                petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "bg-blue-100" :
-                petReaction === "angry" || petReaction === "sick" ? "bg-red-100" :
-                petReaction === "clean" ? "bg-cyan-100" :
-                petReaction === "dirty" ? "bg-amber-100" :
-                "bg-white"
-              }`}
-              style={{
-                bottom: "-8px",
-                left: "50%",
-                marginLeft: "-8px",
-                boxShadow: "2px 2px 0 0 #e9e9e9",
-                zIndex: -1
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      <motion.div
-        className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative overflow-hidden"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-purple-400/50" />
-        <div className="absolute top-2 left-0 right-0 flex justify-center">
-          <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
-        </div>
-        <div className="bg-[#eff8cb]  rounded-[1.5rem] p-2 mb-4 relative">
-          <div className="relative  p-3 flex flex-col items-center justify-between h-[320px]">
-            
-            {/* Game Boy-like color filter */}
-            <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
-            
-            {/* Point animation */}
-            {recentPointGain && !pointAnimationComplete && (
-              <PointAnimation 
-                points={recentPointGain.amount}
-                show={true}
-                onComplete={handlePointAnimationComplete}
-              />
-            )}
-            
-            {renderMenuContent()}
-          </div>
-        </div>
-
-        <div className="relative mt-6 flex justify-around px-2 space-x-2">
-          {["Previous", "Next", "A", "B"].map((label, index) => (
-            <div key={index} className="flex flex-col items-center">
-              <motion.button
-                onClick={() => handleButtonClick(label.toLowerCase() as "previous" | "next" | "a" | "b")}
-                className={`w-10 h-10 rounded-full relative group overflow-hidden ${index < 2 ? "bg-gray-300" : "bg-red-500"}`}
-                whileTap={{ scale: 0.95 }}
-                aria-label={label}>
-                <div className={`absolute inset-0 rounded-full ${index < 2 ? "bg-gradient-to-br from-gray-200 to-gray-400" : "bg-gradient-to-br from-red-400 to-red-600"}`} />
-
-                <div
-                  className={`absolute inset-[2px] rounded-full ${
-                    index < 2 ? "bg-gradient-to-tl from-gray-300 to-gray-200" : "bg-gradient-to-tl from-red-500 to-red-400"
-                  } flex items-center justify-center`}>
-                  {index < 2 ? (
-                    <div className={`w-5 h-5 flex items-center justify-center ${index === 0 ? "-translate-x-0.5" : "translate-x-0.5"}`}>
-                      <div
-                        className={`w-0 h-0 ${
-                          index === 0 ? "border-r-[8px] border-r-gray-500 border-y-[5px] border-y-transparent" : "border-l-[8px] border-l-gray-500 border-y-[5px] border-y-transparent"
-                        }`}
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-sm font-bold text-white">{label}</span>
-                  )}
-                </div>
-
-                <div className="absolute inset-0 rounded-full opacity-0 group-active:opacity-100 bg-black/10 transition-opacity" />
-              </motion.button>
-            </div>
-          ))}
         </div>
         
-      </motion.div>
+        {/* Center column - Game device */}
+        <div className="relative flex flex-col items-center justify-center">
+          {/* Display pet message in a cute speech bubble when available */}
+          <AnimatePresence>
+            {petMessage && (
+              <motion.div 
+                id="ainotification"
+                className={`absolute left-0 right-0 bg-white p-3 rounded-lg shadow-md mb-2 max-w-[300px] text-center ${
+                  petReaction === "happy" || petReaction === "excited" ? "border-green-300" :
+                  petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "border-blue-300" :
+                  petReaction === "angry" || petReaction === "sick" ? "border-red-300" :
+                  petReaction === "clean" ? "border-cyan-300" :
+                  petReaction === "dirty" ? "border-amber-300" :
+                  "border-gray-200"
+                }`}
+                style={{ 
+                  top: '-10px',
+                  transform: 'translateY(-100%)',
+                  border: "2px solid",
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                  zIndex: 100,
+                }}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ 
+                  opacity: 1, 
+                  y: 0,
+                  x: petReaction === "excited" ? [0, -5, 5, -5, 0] : 0,
+                  rotate: petReaction === "happy" ? [0, -2, 2, -2, 0] : 0
+                }}
+                transition={{ 
+                  duration: 0.5,
+                  x: { duration: 0.5, repeat: petReaction === "excited" ? 2 : 0 },
+                  rotate: { duration: 0.5, repeat: petReaction === "happy" ? 2 : 0 }
+                }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                {/* Pet message content */}
+                <div className="text-sm font-medium text-gray-800">
+                  {petMessage}
+                </div>
+                
+                {/* Reaction emoji */}
+                <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md">
+                  {petReaction === "happy" && "😊"}
+                  {petReaction === "sad" && "😢"}
+                  {petReaction === "excited" && "🤩"}
+                  {petReaction === "sleepy" && "😴"}
+                  {petReaction === "hungry" && "🍽️"}
+                  {petReaction === "angry" && "😠"}
+                  {petReaction === "sick" && "🤒"}
+                  {petReaction === "clean" && "✨"}
+                  {petReaction === "dirty" && "🧹"}
+                  {petReaction === "none" && "😐"}
+                </div>
+                
+                {/* Speech bubble tail */}
+                <div 
+                  className={`absolute w-4 h-4 bg-white rotate-45 ${
+                    petReaction === "happy" || petReaction === "excited" ? "bg-green-100" :
+                    petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "bg-blue-100" :
+                    petReaction === "angry" || petReaction === "sick" ? "bg-red-100" :
+                    petReaction === "clean" ? "bg-cyan-100" :
+                    petReaction === "dirty" ? "bg-amber-100" :
+                    "bg-white"
+                  }`}
+                  style={{
+                    bottom: "-8px",
+                    left: "50%",
+                    marginLeft: "-8px",
+                    boxShadow: "2px 2px 0 0 #e9e9e9",
+                    zIndex: -1
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          <motion.div
+            className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative overflow-hidden"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-purple-400/50" />
+            <div className="absolute top-2 left-0 right-0 flex justify-center">
+              <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
+            </div>
+            <div className="bg-[#eff8cb]  rounded-[1.5rem] p-2 mb-4 relative">
+              <div className="relative  p-3 flex flex-col items-center justify-between h-[320px]">
+                
+                {/* Game Boy-like color filter */}
+                <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
+                
+                {/* Point animation */}
+                {recentPointGain && !pointAnimationComplete && (
+                  <PointAnimation 
+                    points={recentPointGain.amount}
+                    show={true}
+                    onComplete={handlePointAnimationComplete}
+                  />
+                )}
+                
+                {renderMenuContent()}
+              </div>
+            </div>
+
+            <div className="relative mt-6 flex justify-around px-2 space-x-2">
+              {["Previous", "Next", "A", "B"].map((label, index) => (
+                <div key={index} className="flex flex-col items-center">
+                  <motion.button
+                    onClick={() => handleButtonClick(label.toLowerCase() as "previous" | "next" | "a" | "b")}
+                    className={`w-10 h-10 rounded-full relative group overflow-hidden ${index < 2 ? "bg-gray-300" : "bg-red-500"}`}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label={label}>
+                    <div className={`absolute inset-0 rounded-full ${index < 2 ? "bg-gradient-to-br from-gray-200 to-gray-400" : "bg-gradient-to-br from-red-400 to-red-600"}`} />
+
+                    <div
+                      className={`absolute inset-[2px] rounded-full ${
+                        index < 2 ? "bg-gradient-to-tl from-gray-300 to-gray-200" : "bg-gradient-to-tl from-red-500 to-red-400"
+                      } flex items-center justify-center`}>
+                      {index < 2 ? (
+                        <div className={`w-5 h-5 flex items-center justify-center ${index === 0 ? "-translate-x-0.5" : "translate-x-0.5"}`}>
+                          <div
+                            className={`w-0 h-0 ${
+                              index === 0 ? "border-r-[8px] border-r-gray-500 border-y-[5px] border-y-transparent" : "border-l-[8px] border-l-gray-500 border-y-[5px] border-y-transparent"
+                            }`}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-white">{label}</span>
+                      )}
+                    </div>
+
+                    <div className="absolute inset-0 rounded-full opacity-0 group-active:opacity-100 bg-black/10 transition-opacity" />
+                  </motion.button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+        
+        {/* Right column - GPT Logs Panel */}
+        <div className="w-1/4">
+          <GPTLogsPanel />
+        </div>
+      </div>
     </div>
   );
 }

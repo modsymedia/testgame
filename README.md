@@ -9,6 +9,7 @@ A virtual pet game with Phantom wallet integration for Solana blockchain.
 - Points system with multiplier based on wallet holdings
 - Pet care simulation game with multiple stats (health, food, mood, etc.)
 - Leaderboard to compete with other players
+- Local SQLite database storage (no MongoDB required)
 
 ## Getting Started
 
@@ -16,7 +17,6 @@ A virtual pet game with Phantom wallet integration for Solana blockchain.
 
 - Node.js (v16 or newer)
 - Phantom wallet browser extension
-- MongoDB database (for leaderboard functionality)
 
 ### Installation
 
@@ -31,16 +31,7 @@ cd crypto-pet-game
 npm install
 ```
 
-3. Set up your environment variables:
-   - Copy `.env.local.example` to `.env.local`
-   - Edit `.env.local` to add your MongoDB connection string
-
-```bash
-cp .env.local.example .env.local
-# Edit .env.local with your database credentials
-```
-
-4. Start the development server:
+3. Start the development server:
 ```bash
 npm run dev
 ```
@@ -53,19 +44,22 @@ chmod +x launch.sh
 
 ## Database Setup
 
-The application uses MongoDB for storing leaderboard data. To set up your database:
+The application uses SQLite for local data storage. No external database is required.
 
-1. Create a MongoDB database (you can use MongoDB Atlas for a free cloud database)
-2. Get your connection string from MongoDB
-3. Add the connection string to your `.env.local` file:
-   ```
-   MONGODB_URI=mongodb+srv://username:password@clustername.mongodb.net/gochi-game?retryWrites=true&w=majority
-   MONGODB_DB=gochi-game
-   ```
+The SQLite database file will be automatically created in the `data` directory when the application starts.
+
+## API Endpoints
+
+The application provides Next.js API routes for interacting with the database:
+
+- `GET /api/points?walletAddress={address}` - Get points for a wallet
+- `POST /api/points` - Update points based on pet state
+- `GET /api/points-leaderboard` - Get leaderboard data
+- `POST /api/referral` - Process referral
 
 ## Usage
 
-1. Visit the application in your browser (default: http://localhost:3000)
+1. Visit the application in your browser (default: http://localhost:3001)
 2. Connect your Phantom wallet
 3. Name your pet
 4. Start playing and earning points

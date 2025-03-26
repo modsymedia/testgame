@@ -38,8 +38,8 @@ For persistent storage, configure a MongoDB database:
 1. Create a `.env.local` file in the project root with:
 
 ```
-MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>?retryWrites=true&w=majority
-MONGODB_DB=gochi-game
+NEXT_PUBLIC_MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>?retryWrites=true&w=majority
+NEXT_PUBLIC_MONGODB_DB=gochi-game
 ```
 
 Replace `<username>`, `<password>`, `<cluster>`, and `<database>` with your MongoDB credentials.

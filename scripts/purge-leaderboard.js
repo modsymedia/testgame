@@ -11,7 +11,7 @@ const { MongoClient } = require('mongodb');
 
 async function purgeLeaderboard() {
   // Check for MongoDB connection string
-  if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
+  if (!process.env.NEXT_PUBLIC_MONGODB_URI || process.env.NEXT_PUBLIC_MONGODB_URI.includes('username:password')) {
     console.error('⚠️ MongoDB connection string not found or using placeholder.');
     console.error('Please update your .env.local file with a valid MongoDB connection string.');
     process.exit(1);
@@ -26,7 +26,7 @@ async function purgeLeaderboard() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.NEXT_PUBLIC_MONGODB_URI;
   const dbName = 'Cluster0';
   
   console.log(`Connecting to MongoDB database: ${dbName}`);

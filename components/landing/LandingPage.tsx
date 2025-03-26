@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import LeaderboardDisplay from './LeaderboardDisplay';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -77,11 +76,6 @@ export default function LandingPage() {
       >
         {isLoading ? 'Connecting...' : 'Start'}
       </Button>
-
-      {/* Leaderboard section */}
-      <div className="w-full max-w-4xl px-4">
-        <LeaderboardDisplay />
-      </div>
     </div>
   );
 } 

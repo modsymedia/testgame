@@ -1,6 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
-import { LeaderboardEntry, PointsLeaderboard } from '@/lib/models';
+import clientPromise from '@/lib/clientPromise';
+import { LeaderboardEntry, PointsLeaderboard, User } from '@/lib/models';
+
+// Define a type for the users collection to match the methods we need
+interface UsersCollection {
+  find: (filter?: any) => Promise<{
+    sort: (sortSpec: any) => any;
+    limit: (n: number) => any;
+    toArray: () => Promise<any[]>;
+  }>;
+}
 
 // Default leaderboard size
 const DEFAULT_LIMIT = 10;
@@ -33,22 +42,12 @@ export default async function handler(
   }
   
   try {
-    // Check if MongoDB is configured
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      // Return empty data if MongoDB is not configured
-      return res.status(200).json({ 
-        leaderboard: createEmptyLeaderboard(), 
-        source: 'no-db'
-      });
-    }
-    
     // Get the requested leaderboard limit
     const limit = Math.min(50, parseInt(req.query.limit as string) || DEFAULT_LIMIT);
     
-    // Connect to MongoDB
+    // Connect to SQLite
     const client = await clientPromise;
-    const db = client.db('Cluster0');
-    const collection = db.collection('users');
+    const collection = client.collection('users') as unknown as UsersCollection;
     
     // Get current date information for daily and weekly queries
     const now = new Date();
@@ -60,8 +59,8 @@ export default async function handler(
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diff);
     
     // Get all-time leaderboard (total points)
-    const allTimeUsers = await collection
-      .find({})
+    const allTimeCursor = await collection.find({});
+    const allTimeUsers = await allTimeCursor
       .sort({ points: -1 })
       .limit(limit)
       .toArray();
@@ -77,9 +76,8 @@ export default async function handler(
     
     // Get weekly leaderboard
     // We need to find users who earned points this week by comparing points earned since the start of the week
-    // This would require storing point history, but for now, we'll use a simplified approach
-    const weeklyUsers = await collection
-      .find({ lastPointsUpdate: { $gte: startOfWeek } })
+    const weeklyCursor = await collection.find({ lastPointsUpdate: { $gte: startOfWeek } });
+    const weeklyUsers = await weeklyCursor
       .sort({ points: -1 })
       .limit(limit)
       .toArray();
@@ -94,8 +92,8 @@ export default async function handler(
     }));
     
     // Get daily leaderboard
-    const dailyUsers = await collection
-      .find({ lastPointsUpdate: { $gte: startOfDay } })
+    const dailyCursor = await collection.find({ lastPointsUpdate: { $gte: startOfDay } });
+    const dailyUsers = await dailyCursor
       .sort({ dailyPoints: -1 })
       .limit(limit)
       .toArray();
@@ -110,8 +108,8 @@ export default async function handler(
     }));
     
     // Get referral leaderboard
-    const referralUsers = await collection
-      .find({})
+    const referralCursor = await collection.find({});
+    const referralUsers = await referralCursor
       .sort({ referralCount: -1, referralPoints: -1 })
       .limit(limit)
       .toArray();
@@ -135,7 +133,7 @@ export default async function handler(
     
     return res.status(200).json({ 
       leaderboard: pointsLeaderboard,
-      source: 'mongodb'
+      source: 'sqlite'
     });
     
   } catch (error) {

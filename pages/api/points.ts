@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
+import clientPromise from '@/lib/clientPromise';
 import { User, PetState } from '@/lib/models';
 import { 
   calculateHourlyPoints, 
@@ -8,7 +8,6 @@ import {
   calculateDailyPointsCap,
   calculateTotalPointsCap
 } from '@/lib/utils';
-import { ObjectId, Document } from 'mongodb';
 import crypto from 'crypto';
 
 // Base rate for points earning (10 points per hour)
@@ -29,18 +28,9 @@ export default async function handler(
   }
   
   try {
-    // Check if MongoDB is configured
-    if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('username:password')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'MongoDB not properly configured',
-        source: 'config'
-      });
-    }
-    
+    // Get the SQLite client
     const client = await clientPromise;
-    const db = client.db('Cluster0');
-    const collection = db.collection('users');
+    const collection = client.collection('users');
     
     // GET: Retrieve user's points
     if (req.method === 'GET') {
@@ -90,7 +80,7 @@ export default async function handler(
         // Create new user with referral code
         const referralCode = crypto.randomBytes(4).toString('hex');
         
-        const newUser: Document = {
+        const newUser = {
           walletAddress,
           score: 0,
           points: 0,
