@@ -1,79 +1,79 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/clientPromise';
-import { LeaderboardEntry, User } from '@/lib/models';
-import path from 'path';
-import fs from 'fs';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import { getDb } from '@/lib/sqlite';
+import { sql } from '@vercel/postgres';
 
-// Define a type for the users collection to match the methods we need
-interface UsersCollection {
-  findOne: (filter: any) => Promise<User | null>;
-  insertOne: (doc: any) => Promise<{ insertedId: number | undefined }>;
-  updateOne: (filter: any, update: any) => Promise<{ modifiedCount: number }>;
-  find: (filter?: any) => Promise<{
-    sort: (sortSpec: any) => any;
-    limit: (n: number) => any;
-    toArray: () => Promise<User[]>;
-  }>;
-}
+// Create an in-memory leaderboard cache to improve performance
+type LeaderboardEntry = {
+  walletAddress: string;
+  name: string;
+  score: number;
+  lastUpdated: Date;
+};
 
-// Create an in-memory leaderboard fallback for read-only environments
-const inMemoryLeaderboard = new Map<string, { walletAddress: string, score: number, lastUpdated: Date }>();
+const leaderboardCache: LeaderboardEntry[] = [];
+let lastCacheUpdate = 0;
+const CACHE_TTL = 60 * 1000; // 1 minute
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    // Get database connection (which will fall back to in-memory if needed)
-    const db = await getDb();
-    
     if (req.method === 'GET') {
-      // Get top scores
-      const leaderboard = [];
+      // Check if we have a recent cache
+      const now = Date.now();
+      if (leaderboardCache.length > 0 && now - lastCacheUpdate < CACHE_TTL) {
+        return res.status(200).json({ 
+          success: true, 
+          data: leaderboardCache,
+          source: 'cache'
+        });
+      }
       
+      // Get top scores from database
       try {
-        // Try to get from database first
-        const rows = await db.all(`
-          SELECT walletAddress, username AS name, score, lastPlayed AS lastUpdated 
+        const result = await sql`
+          SELECT 
+            wallet_address, 
+            username, 
+            score, 
+            last_played
           FROM users 
           WHERE score > 0 
           ORDER BY score DESC 
           LIMIT 10
-        `);
+        `;
         
-        leaderboard.push(...rows.map(row => ({
-          walletAddress: row.walletAddress,
-          name: row.name || `Pet_${row.walletAddress.substring(0, 4)}`,
+        // Format the response
+        const leaderboard = result.rows.map((row, index) => ({
+          walletAddress: row.wallet_address,
+          name: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
           score: row.score,
-          lastUpdated: row.lastUpdated
-        })));
-      } catch (dbError) {
+          lastUpdated: row.last_played,
+          rank: index + 1
+        }));
+        
+        // Update cache
+        leaderboardCache.length = 0;
+        leaderboardCache.push(...leaderboard);
+        lastCacheUpdate = now;
+        
+        return res.status(200).json({ 
+          success: true, 
+          data: leaderboard,
+          source: 'postgres'
+        });
+      } catch (dbError: any) {
         console.error('Database error when retrieving leaderboard:', dbError);
         
-        // Fall back to in-memory leaderboard
-        const memoryEntries = Array.from(inMemoryLeaderboard.values())
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 10)
-          .map(entry => ({
-            walletAddress: entry.walletAddress,
-            name: `Pet_${entry.walletAddress.substring(0, 4)}`,
-            score: entry.score,
-            lastUpdated: entry.lastUpdated
-          }));
-          
-        leaderboard.push(...memoryEntries);
+        // Return empty leaderboard on error
+        return res.status(200).json({ 
+          success: true, 
+          data: [],
+          error: dbError.message,
+          source: 'error'
+        });
       }
-      
-      return res.status(200).json({ 
-        success: true, 
-        data: leaderboard 
-      });
-    }
-    
-    if (req.method === 'POST') {
+    } else if (req.method === 'POST') {
       const { walletAddress, score } = req.body;
       
       if (!walletAddress || score === undefined) {
@@ -84,73 +84,69 @@ export default async function handler(
       }
       
       try {
-        // Try to update the database first
-        const user = await db.get('SELECT score FROM users WHERE walletAddress = ?', [walletAddress]);
+        // Try to update the database
+        const userResult = await sql`
+          SELECT score FROM users 
+          WHERE wallet_address = ${walletAddress}
+        `;
         
-        if (user) {
-          // Only update if new score is higher
-          if (score > user.score) {
-            await db.run(`
+        const userExists = userResult.rows.length > 0;
+        const currentScore = userExists ? userResult.rows[0].score : 0;
+        
+        // Only update if new score is higher
+        if (!userExists || score > currentScore) {
+          if (userExists) {
+            // Update existing user
+            await sql`
               UPDATE users 
-              SET score = ?, lastPlayed = ? 
-              WHERE walletAddress = ?
-            `, [score, new Date().toISOString(), walletAddress]);
+              SET score = ${score}, last_played = ${new Date().toISOString()} 
+              WHERE wallet_address = ${walletAddress}
+            `;
+          } else {
+            // Create new user
+            await sql`
+              INSERT INTO users (
+                wallet_address, score, last_played, created_at
+              ) VALUES (
+                ${walletAddress}, 
+                ${score}, 
+                ${new Date().toISOString()}, 
+                ${new Date().toISOString()}
+              )
+            `;
           }
+          
+          // Clear cache to reflect new data
+          leaderboardCache.length = 0;
+          lastCacheUpdate = 0;
+          
+          return res.status(200).json({
+            success: true,
+            message: 'Score updated successfully'
+          });
         } else {
-          // Insert new user if they don't exist
-          await db.run(`
-            INSERT INTO users (walletAddress, score, lastPlayed, createdAt)
-            VALUES (?, ?, ?, ?)
-          `, [walletAddress, score, new Date().toISOString(), new Date().toISOString()]);
+          // No update needed
+          return res.status(200).json({
+            success: true,
+            message: 'No update needed (score not higher)'
+          });
         }
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Score updated successfully'
-        });
       } catch (dbError: any) {
         console.error('Error updating user score:', dbError);
         
-        // If database is read-only, update in-memory leaderboard
-        if (dbError.message && dbError.message.includes('SQLITE_READONLY')) {
-          // Get current entry or create new one
-          const entry = inMemoryLeaderboard.get(walletAddress) || { 
-            walletAddress, 
-            score: 0, 
-            lastUpdated: new Date() 
-          };
-          
-          // Only update if new score is higher
-          if (score > entry.score) {
-            inMemoryLeaderboard.set(walletAddress, {
-              walletAddress,
-              score,
-              lastUpdated: new Date()
-            });
-          }
-          
-          // Return success even though we're using in-memory fallback
-          return res.status(200).json({
-            success: true,
-            message: 'Score updated in temporary storage',
-            warning: 'Using in-memory storage due to database permission issues'
-          });
-        }
-        
-        // For other errors, return the error
         return res.status(503).json({
           success: false,
           error: 'Error updating user score',
           details: dbError.message
         });
       }
+    } else {
+      // Method not allowed
+      return res.status(405).json({ 
+        success: false, 
+        error: 'Method not allowed' 
+      });
     }
-    
-    // Method not allowed
-    return res.status(405).json({ 
-      success: false, 
-      error: 'Method not allowed' 
-    });
   } catch (error: any) {
     console.error('Unhandled leaderboard API error:', error);
     return res.status(500).json({ 

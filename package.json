@@ -46,6 +46,7 @@
     "@types/express": "^5.0.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@vercel/postgres": "^0.7.2",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^11.9.1",
     "class-variance-authority": "^0.7.0",

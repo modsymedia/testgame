@@ -1,104 +1,12 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import sqliteClient, { getDb } from '@/lib/sqlite';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import fs from 'fs';
-
-// Ensure data directory exists
-const DATA_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-const DB_PATH = path.join(DATA_DIR, 'game.db');
-
-// Get database connection - use the exported getDb function which is a singleton
-async function getDatabase() {
-  // Use the exported getDb function which maintains a singleton connection
-  return await getDb();
-}
-
-// Ensure tables have all required columns
-async function ensureTables(db: any) {
-  try {
-    console.log('Ensuring database tables exist...');
-    
-    // Check if users table exists and create it first (since it's referenced by foreign key)
-    await db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        walletAddress TEXT UNIQUE NOT NULL,
-        username TEXT,
-        score INTEGER DEFAULT 0,
-        gamesPlayed INTEGER DEFAULT 0,
-        lastPlayed TEXT,
-        createdAt TEXT,
-        points INTEGER DEFAULT 0,
-        dailyPoints INTEGER DEFAULT 0,
-        lastPointsUpdate TEXT,
-        daysActive INTEGER DEFAULT 0,
-        consecutiveDays INTEGER DEFAULT 0,
-        referralCode TEXT UNIQUE,
-        referredBy TEXT,
-        referralCount INTEGER DEFAULT 0,
-        referralPoints INTEGER DEFAULT 0,
-        tokenBalance INTEGER DEFAULT 0,
-        multiplier REAL DEFAULT 1.0
-      )
-    `);
-    
-    // Now check if pet_states table exists
-    const tableExists = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='pet_states'");
-    
-    if (!tableExists) {
-      console.log('Creating pet_states table...');
-      // Create pet_states table with all columns
-      await db.exec(`
-        CREATE TABLE IF NOT EXISTS pet_states (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          walletAddress TEXT UNIQUE NOT NULL,
-          health INTEGER DEFAULT 30,
-          happiness INTEGER DEFAULT 40,
-          hunger INTEGER DEFAULT 50,
-          cleanliness INTEGER DEFAULT 40,
-          energy INTEGER DEFAULT 30,
-          isDead INTEGER DEFAULT 0,
-          lastStateUpdate TEXT,
-          qualityScore INTEGER DEFAULT 0
-        )
-      `);
-    } else {
-      // Check for and add missing columns
-      const columns = await db.all("PRAGMA table_info(pet_states)");
-      const columnNames = columns.map((col: { name: string }) => col.name);
-      
-      if (!columnNames.includes('energy')) {
-        console.log('Adding energy column to pet_states table...');
-        await db.exec("ALTER TABLE pet_states ADD COLUMN energy INTEGER DEFAULT 30");
-      }
-      
-      if (!columnNames.includes('isDead')) {
-        console.log('Adding isDead column to pet_states table...');
-        await db.exec("ALTER TABLE pet_states ADD COLUMN isDead INTEGER DEFAULT 0");
-      }
-    }
-    
-    console.log('Database tables initialized successfully');
-  } catch (error) {
-    console.error('Error ensuring tables:', error);
-    throw error;
-  }
-}
+import type { NextApiRequest, NextApiResponse } from 'next';
+import postgresClient from '@/lib/postgres';
+import { sql } from '@vercel/postgres';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    // Get database connection
-    const db = await getDb();
-    
     if (req.method === 'POST') {
       const { walletAddress, score, petState } = req.body;
       
@@ -111,61 +19,61 @@ export default async function handler(
       
       try {
         // Check if the user exists
-        const existingUser = await db.get(
-          'SELECT walletAddress FROM users WHERE walletAddress = ?', 
-          [walletAddress]
-        );
+        const existingUserResult = await sql`
+          SELECT wallet_address FROM users 
+          WHERE wallet_address = ${walletAddress}
+        `;
+        
+        const existingUser = existingUserResult.rows.length > 0 ? existingUserResult.rows[0] : null;
         
         if (existingUser) {
           // Update existing user
-          const updateResult = await db.run(`
+          await sql`
             UPDATE users 
-            SET points = ?, lastPointsUpdate = ?
-            WHERE walletAddress = ?
-          `, [score, new Date().toISOString(), walletAddress]);
+            SET points = ${score}, last_points_update = ${new Date().toISOString()}
+            WHERE wallet_address = ${walletAddress}
+          `;
           
           if (petState) {
             try {
               // Check if pet state exists
-              const existingPet = await db.get(
-                'SELECT walletAddress FROM pet_states WHERE walletAddress = ?', 
-                [walletAddress]
-              );
+              const existingPetResult = await sql`
+                SELECT wallet_address FROM pet_states 
+                WHERE wallet_address = ${walletAddress}
+              `;
+              
+              const existingPet = existingPetResult.rows.length > 0 ? existingPetResult.rows[0] : null;
               
               if (existingPet) {
                 // Update pet state
-                await db.run(`
+                await sql`
                   UPDATE pet_states 
-                  SET health = ?, happiness = ?, hunger = ?, cleanliness = ?, 
-                      energy = ?, lastStateUpdate = ?, qualityScore = ?
-                  WHERE walletAddress = ?
-                `, [
-                  petState.health, 
-                  petState.happiness, 
-                  petState.hunger, 
-                  petState.cleanliness,
-                  petState.energy,
-                  new Date().toISOString(), 
-                  petState.qualityScore || 0,
-                  walletAddress
-                ]);
+                  SET health = ${petState.health},
+                      happiness = ${petState.happiness},
+                      hunger = ${petState.hunger},
+                      cleanliness = ${petState.cleanliness},
+                      energy = ${petState.energy},
+                      last_state_update = ${new Date().toISOString()},
+                      quality_score = ${petState.qualityScore || 0}
+                  WHERE wallet_address = ${walletAddress}
+                `;
               } else {
                 // Insert pet state
-                await db.run(`
+                await sql`
                   INSERT INTO pet_states (
-                    walletAddress, health, happiness, hunger, cleanliness, 
-                    energy, lastStateUpdate, qualityScore
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `, [
-                  walletAddress,
-                  petState.health, 
-                  petState.happiness, 
-                  petState.hunger, 
-                  petState.cleanliness,
-                  petState.energy,
-                  new Date().toISOString(), 
-                  petState.qualityScore || 0
-                ]);
+                    wallet_address, health, happiness, hunger, cleanliness,
+                    energy, last_state_update, quality_score
+                  ) VALUES (
+                    ${walletAddress},
+                    ${petState.health},
+                    ${petState.happiness},
+                    ${petState.hunger},
+                    ${petState.cleanliness},
+                    ${petState.energy},
+                    ${new Date().toISOString()},
+                    ${petState.qualityScore || 0}
+                  )
+                `;
               }
             } catch (petError: any) {
               console.error('Error updating pet state:', petError.message);
@@ -179,40 +87,34 @@ export default async function handler(
           });
         } else {
           // Create new user
-          const newUser = {
-            walletAddress,
-            points: score || 0,
-            lastPointsUpdate: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          };
-          
-          const insertResult = await db.run(`
-            INSERT INTO users (walletAddress, points, lastPointsUpdate, createdAt)
-            VALUES (?, ?, ?, ?)
-          `, [
-            newUser.walletAddress, 
-            newUser.points, 
-            newUser.lastPointsUpdate, 
-            newUser.createdAt
-          ]);
+          await sql`
+            INSERT INTO users (
+              wallet_address, points, last_points_update, created_at
+            ) VALUES (
+              ${walletAddress},
+              ${score || 0},
+              ${new Date().toISOString()},
+              ${new Date().toISOString()}
+            )
+          `;
           
           if (petState) {
             try {
-              await db.run(`
+              await sql`
                 INSERT INTO pet_states (
-                  walletAddress, health, happiness, hunger, cleanliness, 
-                  energy, lastStateUpdate, qualityScore
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-              `, [
-                walletAddress,
-                petState.health, 
-                petState.happiness, 
-                petState.hunger, 
-                petState.cleanliness,
-                petState.energy,
-                new Date().toISOString(), 
-                petState.qualityScore || 0
-              ]);
+                  wallet_address, health, happiness, hunger, cleanliness,
+                  energy, last_state_update, quality_score
+                ) VALUES (
+                  ${walletAddress},
+                  ${petState.health},
+                  ${petState.happiness},
+                  ${petState.hunger},
+                  ${petState.cleanliness},
+                  ${petState.energy},
+                  ${new Date().toISOString()},
+                  ${petState.qualityScore || 0}
+                )
+              `;
             } catch (petError: any) {
               console.error('Error creating pet state:', petError.message);
               // Continue execution - don't fail the whole request if just pet state fails
@@ -227,17 +129,6 @@ export default async function handler(
       } catch (dbError: any) {
         console.error('Database update error:', dbError.message);
         
-        // Check for specific error conditions
-        if (dbError.message.includes('SQLITE_READONLY')) {
-          console.warn('Database is read-only, falling back to temporary storage');
-          // Here you could implement a fallback to session storage or another mechanism
-          return res.status(200).json({ 
-            success: true, 
-            message: 'Data temporarily stored in memory',
-            warning: 'Using temporary storage due to database permission issues' 
-          });
-        }
-        
         return res.status(500).json({ 
           success: false, 
           error: 'Database update error', 
@@ -247,7 +138,7 @@ export default async function handler(
     } else if (req.method === 'GET') {
       const { walletAddress } = req.query;
       
-      if (!walletAddress) {
+      if (!walletAddress || typeof walletAddress !== 'string') {
         return res.status(400).json({ 
           success: false, 
           error: 'Missing wallet address' 
@@ -256,25 +147,29 @@ export default async function handler(
       
       try {
         // Get user data
-        const user = await db.get(
-          'SELECT * FROM users WHERE walletAddress = ?', 
-          [walletAddress]
-        );
+        const userResult = await sql`
+          SELECT * FROM users WHERE wallet_address = ${walletAddress}
+        `;
         
-        if (!user) {
+        if (userResult.rows.length === 0) {
           return res.status(404).json({ 
             success: false, 
             error: 'Wallet not found' 
           });
         }
         
+        const user = userResult.rows[0];
+        
         // Get pet state if it exists
         let petState = null;
         try {
-          petState = await db.get(
-            'SELECT * FROM pet_states WHERE walletAddress = ?', 
-            [walletAddress]
-          );
+          const petStateResult = await sql`
+            SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
+          `;
+          
+          if (petStateResult.rows.length > 0) {
+            petState = petStateResult.rows[0];
+          }
         } catch (petError: any) {
           console.error('Error fetching pet state:', petError.message);
           // Continue without pet state
@@ -282,18 +177,18 @@ export default async function handler(
         
         // Format and return user data
         const userData = {
-          walletAddress: user.walletAddress,
+          walletAddress: user.wallet_address,
           points: user.points || 0,
           multiplier: user.multiplier || 1.0,
-          lastUpdated: user.lastPointsUpdate ? new Date(user.lastPointsUpdate) : null,
+          lastUpdated: user.last_points_update ? new Date(user.last_points_update) : null,
           petState: petState ? {
             health: petState.health,
             happiness: petState.happiness,
             hunger: petState.hunger,
             cleanliness: petState.cleanliness,
             energy: petState.energy,
-            lastStateUpdate: petState.lastStateUpdate ? new Date(petState.lastStateUpdate) : null,
-            qualityScore: petState.qualityScore || 0
+            lastStateUpdate: petState.last_state_update ? new Date(petState.last_state_update) : null,
+            qualityScore: petState.quality_score || 0
           } : null
         };
         
@@ -308,6 +203,81 @@ export default async function handler(
           success: false, 
           error: 'Server error', 
           message: dbError.message 
+        });
+      }
+    } else if (req.method === 'PUT') {
+      const { walletAddress, action, amount } = req.body;
+      
+      if (!walletAddress || !action) {
+        return res.status(400).json({
+          success: false,
+          error: 'Wallet address and action are required'
+        });
+      }
+      
+      try {
+        if (action === 'burnPoints') {
+          // Get current points
+          const userResult = await sql`
+            SELECT points FROM users WHERE wallet_address = ${walletAddress}
+          `;
+          
+          if (userResult.rows.length === 0) {
+            return res.status(404).json({
+              success: false,
+              error: 'User not found'
+            });
+          }
+          
+          const user = userResult.rows[0];
+          
+          // Calculate remaining points (burn 50%)
+          const remainingPoints = Math.floor(user.points * 0.5);
+          
+          // Update user points
+          await sql`
+            UPDATE users SET points = ${remainingPoints} 
+            WHERE wallet_address = ${walletAddress}
+          `;
+          
+          return res.status(200).json({
+            success: true,
+            remainingPoints
+          });
+        }
+        
+        if (action === 'updatePoints') {
+          if (typeof amount !== 'number') {
+            return res.status(400).json({
+              success: false,
+              error: 'Valid amount is required for updatePoints'
+            });
+          }
+          
+          // Update user points
+          await sql`
+            UPDATE users SET points = ${amount} 
+            WHERE wallet_address = ${walletAddress}
+          `;
+          
+          return res.status(200).json({
+            success: true,
+            points: amount
+          });
+        }
+        
+        // Unsupported action
+        return res.status(400).json({
+          success: false,
+          error: 'Unsupported action'
+        });
+      } catch (dbError: any) {
+        console.error('Error processing PUT request:', dbError.message);
+        
+        return res.status(500).json({
+          success: false,
+          error: 'Database update error',
+          details: dbError.message
         });
       }
     } else {

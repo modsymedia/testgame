@@ -33,53 +33,7 @@ interface WalletContextState {
   error: string | null;
 }
 
-// Check if Phantom is available
-export const getProvider = (): PhantomProvider | undefined => {
-  if (typeof window !== 'undefined') {
-    try {
-      console.log('Checking for Phantom provider...');
-      
-      // Check if window.solana exists first
-      if (!(window as any)['solana']) {
-        console.warn('window.solana is undefined - Phantom extension may not be installed');
-        return undefined;
-      }
-      
-      const provider = (window as any)?.solana;
-      
-      // Log some debug info about the provider
-      console.log('Provider found:', provider ? 'Yes' : 'No');
-      if (provider) {
-        console.log('isPhantom:', provider.isPhantom ? 'Yes' : 'No');
-        console.log('isConnected:', provider.isConnected ? 'Yes' : 'No');
-        console.log('publicKey:', provider.publicKey ? 'Available' : 'Not available');
-      }
-      
-      // Make sure provider and isPhantom property both exist
-      if (provider && provider?.isPhantom) {
-        return provider as PhantomProvider;
-      }
-      
-      // If no provider found yet, give a warning
-      if (!provider) {
-        console.warn('No Solana provider found. Phantom wallet may not be installed or is disabled.');
-      } else if (!provider.isPhantom) {
-        console.warn('Solana provider found but it is not Phantom.');
-      }
-    } catch (e) {
-      console.error('Error checking Phantom provider:', e);
-    }
-  }
-  
-  return undefined;
-};
-
-// Generate a unique ID from the wallet address
-export const generateWalletId = (publicKey: string): string => {
-  return publicKey.substring(0, 8);
-};
-
-// Add a fallback storage mechanism for when the database is read-only
+// Add a fallback storage mechanism for when the database is unavailable
 const inMemoryStorage = new Map<string, any>();
 
 // Save wallet data to the server
@@ -111,14 +65,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error (${response.status}): ${errorText}`);
-      return false;
-    }
-    
-    const result = await response.json();
-    
-    // Handle temporary storage fallback from server
-    if (result.warning && result.warning.includes('temporary storage')) {
-      console.log('Using temporary storage due to server filesystem permissions');
+      
       // Store data in memory as fallback
       inMemoryStorage.set(publicKey, {
         ...data,
@@ -126,7 +73,14 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
         isTempStorage: true
       });
       
-      return true;
+      return false;
+    }
+    
+    const result = await response.json();
+    
+    // If there's a warning about temporary storage, log it
+    if (result.warning) {
+      console.warn(result.warning);
     }
     
     console.log(`Wallet data saved successfully: ${result.message}`);
@@ -165,14 +119,50 @@ export async function loadWalletData(publicKey: string): Promise<any> {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error (${response.status}): ${errorText}`);
-      return null;
+      
+      // Return default data
+      return {
+        petName: `Pet_${publicKey.substring(0, 4)}`,
+        points: 0,
+        multiplier: 1.0,
+        lastLogin: Date.now(),
+        daysActive: 0,
+        consecutiveDays: 0,
+        petStats: {
+          food: 50,
+          happiness: 40,
+          cleanliness: 40,
+          energy: 30,
+          health: 30,
+          isDead: false,
+          points: 0
+        }
+      };
     }
     
     const { success, data } = await response.json();
     
     if (!success || !data) {
       console.error('Failed to load wallet data: Invalid response format');
-      return null;
+      
+      // Return default data
+      return {
+        petName: `Pet_${publicKey.substring(0, 4)}`,
+        points: 0,
+        multiplier: 1.0,
+        lastLogin: Date.now(),
+        daysActive: 0,
+        consecutiveDays: 0,
+        petStats: {
+          food: 50,
+          happiness: 40,
+          cleanliness: 40,
+          energy: 30,
+          health: 30,
+          isDead: false,
+          points: 0
+        }
+      };
     }
     
     // Format data for client use
@@ -195,7 +185,25 @@ export async function loadWalletData(publicKey: string): Promise<any> {
     };
   } catch (error) {
     console.error('Failed to load wallet data:', error);
-    return null;
+    
+    // Return default data on error
+    return {
+      petName: `Pet_${publicKey.substring(0, 4)}`,
+      points: 0,
+      multiplier: 1.0,
+      lastLogin: Date.now(),
+      daysActive: 0,
+      consecutiveDays: 0,
+      petStats: {
+        food: 50,
+        happiness: 40,
+        cleanliness: 40,
+        energy: 30,
+        health: 30,
+        isDead: false,
+        points: 0
+      }
+    };
   }
 }
 
@@ -208,59 +216,116 @@ export const calculateMultiplier = (tokenBalance: number): number => {
   return 1.0;
 };
 
-// Burn 50% of wallet points
-export const burnPoints = async (publicKey: string): Promise<number> => {
+// Burn points (for pet resurrection)
+export async function burnPoints(publicKey: string): Promise<number> {
   try {
     const response = await fetch('/api/wallet', {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        publicKey,
+        walletAddress: publicKey,
         action: 'burnPoints'
-      })
+      }),
     });
     
-    const result = await response.json();
-    
-    if (result.success && result.remainingPoints !== undefined) {
-      return result.remainingPoints;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${response.status}): ${errorText}`);
+      
+      // Get current points from memory storage if available
+      if (inMemoryStorage.has(publicKey)) {
+        const data = inMemoryStorage.get(publicKey);
+        const currentPoints = data.petStats?.points || 0;
+        const remainingPoints = Math.floor(currentPoints * 0.5);
+        
+        // Update in-memory storage
+        data.petStats.points = remainingPoints;
+        inMemoryStorage.set(publicKey, data);
+        
+        return remainingPoints;
+      }
+      
+      return 0;
     }
     
-    console.error('Failed to burn points:', result.error || 'Unknown error');
-    return 0;
+    const { success, remainingPoints } = await response.json();
+    
+    if (!success) {
+      console.error('Failed to burn points');
+      return 0;
+    }
+    
+    return remainingPoints;
   } catch (error) {
     console.error('Error burning points:', error);
     return 0;
   }
-};
+}
 
-// Update points in database
-export const updatePoints = async (publicKey: string, amount: number): Promise<boolean> => {
+// Update points directly
+export async function updatePoints(publicKey: string, amount: number): Promise<number> {
   try {
     const response = await fetch('/api/wallet', {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        publicKey,
+        walletAddress: publicKey,
         action: 'updatePoints',
         amount
-      })
+      }),
     });
     
-    const result = await response.json();
-    
-    if (result.success) {
-      return true;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${response.status}): ${errorText}`);
+      
+      // Update points in memory storage if available
+      if (inMemoryStorage.has(publicKey)) {
+        const data = inMemoryStorage.get(publicKey);
+        data.petStats.points = amount;
+        inMemoryStorage.set(publicKey, data);
+      }
+      
+      return amount;
     }
     
-    console.error('Failed to update points:', result.error || 'Unknown error');
-    return false;
+    const { success, points } = await response.json();
+    
+    if (!success) {
+      console.error('Failed to update points');
+      return amount;
+    }
+    
+    return points;
   } catch (error) {
     console.error('Error updating points:', error);
-    return false;
+    return amount;
   }
+}
+
+// Get wallet provider (for Solana)
+export function getProvider() {
+  if (typeof window !== 'undefined') {
+    //@ts-ignore
+    const provider = window.phantom?.solana;
+    
+    if (provider?.isPhantom) {
+      return provider;
+    }
+    
+    // Fallback for other Solana wallets
+    //@ts-ignore
+    return window.solana;
+  }
+  
+  return null;
+}
+
+// Generate a unique ID from the wallet address
+export const generateWalletId = (publicKey: string): string => {
+  return publicKey.substring(0, 8);
 }; 
