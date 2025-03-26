@@ -251,8 +251,11 @@ export function WalletProvider({ children }: WalletProviderProps) {
           if (walletData) {
             console.log(`Loaded wallet data for ${key.substring(0, 8)}...`);
             setWalletData(walletData);
+            setIsNewUser(false);
           } else {
             console.log('No existing wallet data found, initializing with defaults');
+            // Mark as new user so we can show pet name form
+            setIsNewUser(true);
             const defaultData = {
               petName: `Pet_${key.substring(0, 4)}`,
               points: 0,
@@ -390,6 +393,29 @@ export function WalletProvider({ children }: WalletProviderProps) {
     return remainingPoints;
   };
   
+  // Add function to set pet name for new users
+  const setPetName = async (petName: string): Promise<boolean> => {
+    if (!publicKey || !walletData) return false;
+    
+    const updatedWalletData = {
+      ...walletData,
+      petName: petName
+    };
+    
+    setWalletData(updatedWalletData);
+    
+    // Save updated data with the new pet name
+    const saved = await saveWalletData(publicKey, updatedWalletData);
+    if (!saved) {
+      console.warn('Failed to save pet name to server, using memory storage');
+    }
+    
+    // No longer a new user after completing setup
+    setIsNewUser(false);
+    
+    return true;
+  };
+  
   const value = {
     isConnected,
     publicKey,
@@ -399,8 +425,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
     updatePoints,
     burnPoints,
     error,
-    isNewUser: false,
-    setPetName: async () => false
+    isNewUser,
+    setPetName
   };
   
   return (

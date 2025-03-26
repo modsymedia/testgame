@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PetNameSetup } from '@/components/PetNameSetup';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { connect, disconnect, isConnected, walletData, error } = useWallet();
+  const { connect, disconnect, isConnected, walletData, error, isNewUser } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check if already connected when page loads
+  // Redirect to game if already connected, unless new user setup is needed
   useEffect(() => {
-    if (isConnected && walletData) {
+    if (isConnected && !isNewUser) {
       router.push('/game');
     }
-  }, [isConnected, walletData, router]);
+  }, [isConnected, isNewUser, router]);
 
   const handleStart = async () => {
     setIsLoading(true);
@@ -58,7 +59,10 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-indigo-500 to-purple-700 py-12">
+    <div className="bg-gradient-to-br from-purple-500 to-cyan-400 min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      {/* Show PetNameSetup for new users */}
+      {isNewUser && <PetNameSetup />}
+
       <div className="text-center mb-8">
         <h1 className="text-5xl font-bold text-white mb-4">Gochi Landing Page</h1>
       </div>
