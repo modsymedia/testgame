@@ -442,7 +442,191 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     [isDead]
   )
   
-  // Handle feeding the pet
+  // Add a ref to track the last saved state to prevent infinite updates
+  const lastSavedStatsRef = useRef({
+    food: initialWalletStats.food ?? 50,
+    happiness: initialWalletStats.happiness ?? 40,
+    cleanliness: initialWalletStats.cleanliness ?? 40,
+    energy: initialWalletStats.energy ?? 30,
+    health: initialWalletStats.health ?? 30,
+    isDead: initialWalletStats.isDead ?? false,
+    points: initialWalletStats.points ?? 0,
+  });
+
+  // Create a ref for debouncing
+  const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const SAVE_DEBOUNCE_DELAY = 5000; // 5 seconds
+  
+  // Add a ref to track the last actual save time to enforce minimum time between saves
+  const lastSaveTimeRef = useRef<number>(Date.now());
+  const MIN_SAVE_INTERVAL = 30000; // Increased to 30 seconds to be more conservative
+
+  // Save pet stats to wallet data whenever they change, with debouncing
+  useEffect(() => {
+    if (isConnected && publicKey) {
+      const currentStats = {
+        food,
+        happiness,
+        cleanliness,
+        energy,
+        health,
+        isDead,
+        points
+      };
+      
+      // Only save if values have actually changed significantly to prevent infinite loops
+      const lastSaved = lastSavedStatsRef.current;
+      const hasSignificantChange = 
+        Math.abs(lastSaved.food - food) > 1 || 
+        Math.abs(lastSaved.happiness - happiness) > 1 ||
+        Math.abs(lastSaved.cleanliness - cleanliness) > 1 ||
+        Math.abs(lastSaved.energy - energy) > 1 ||
+        Math.abs(lastSaved.health - health) > 1 ||
+        lastSaved.isDead !== isDead ||
+        Math.abs(lastSaved.points - points) > 5;
+        
+      if (hasSignificantChange) {
+        // Clear any existing timer
+        if (saveDebounceTimerRef.current) {
+          clearTimeout(saveDebounceTimerRef.current);
+        }
+        
+        // Set a new timer to debounce the save
+        saveDebounceTimerRef.current = setTimeout(() => {
+          // Check if enough time has elapsed since the last save
+          const now = Date.now();
+          const timeElapsedSinceLastSave = now - lastSaveTimeRef.current;
+          
+          if (timeElapsedSinceLastSave >= MIN_SAVE_INTERVAL && walletData) {
+            const updatedWalletData = {
+              ...walletData,
+              petStats: currentStats
+            };
+            
+            console.log(`Debounced save after ${timeElapsedSinceLastSave}ms: Saving wallet data`);
+            saveWalletData(publicKey, updatedWalletData);
+            
+            // Update refs
+            lastSavedStatsRef.current = { ...currentStats };
+            lastSaveTimeRef.current = now;
+          } else {
+            console.log(`Skipped save - too soon (${timeElapsedSinceLastSave}ms < ${MIN_SAVE_INTERVAL}ms)`);
+          }
+          
+          saveDebounceTimerRef.current = null;
+        }, SAVE_DEBOUNCE_DELAY);
+      }
+    }
+    
+    // Clean up the timer when the component unmounts
+    return () => {
+      if (saveDebounceTimerRef.current) {
+        clearTimeout(saveDebounceTimerRef.current);
+      }
+    };
+  }, [food, happiness, cleanliness, energy, health, isDead, points, isConnected, publicKey, walletData]);
+  
+  // Check for idle pet message
+  useEffect(() => {
+    // Show an idle message if no interaction for 2 minutes
+    const idleCheckInterval = setInterval(async () => {
+      const timeSinceLastInteraction = Date.now() - lastInteractionTime;
+      
+      // Show idle message after 2 minutes of no interaction
+      if (timeSinceLastInteraction > 2 * 60 * 1000 && !isDead && !petMessage) {
+        await getPetMessageForInteraction('idle', {
+          food: foodRef.current,
+          happiness: happinessRef.current,
+          cleanliness: cleanlinessRef.current,
+          energy: energyRef.current,
+          health: healthRef.current
+        });
+      }
+    }, 2 * 60 * 1000); // Check every 2 minutes
+    
+    return () => clearInterval(idleCheckInterval);
+  }, [lastInteractionTime, isDead, getPetMessageForInteraction, petMessage]);
+  
+  // Reset the pet
+  const resetPet = useCallback(() => {
+    setFood(50);
+    setHappiness(40);
+    setCleanliness(40);
+    setEnergy(30);
+    setHealth(30);
+    setIsDead(false);
+    setPoints(0);
+    
+    // Reset cooldowns
+    setCooldowns({
+      feed: 0,
+      play: 0,
+      clean: 0,
+      heal: 0
+    });
+    
+    // NOTE: We don't directly call saveWalletData here
+    // State changes will trigger the debounced save useEffect
+    
+    // Reset last interaction time
+    setLastInteractionTime(Date.now());
+    
+    // Give feedback to user
+    addInteraction("Doctor", 0);
+  }, [
+    setFood, 
+    setHappiness, 
+    setCleanliness, 
+    setEnergy, 
+    setHealth, 
+    setIsDead, 
+    setPoints, 
+    setCooldowns, 
+    addInteraction,
+    setLastInteractionTime
+  ]);
+  
+  // Update Stat decay over time to use awardPoints
+  useEffect(() => {
+    if (isDead) return
+    
+    const decayInterval = setInterval(() => {
+      const timeElapsed = (Date.now() - lastInteractionTime) / (1000 * 60) // in minutes
+      // Using accelerated decay for testing (32 points/hour = 0.53 points/minute)
+      const decayRate = 0.53 * (timeElapsed / 60)
+      
+      setFood((prev: number) => Math.max(prev - decayRate, 0))
+      setHappiness((prev: number) => Math.max(prev - decayRate, 0))
+      setCleanliness((prev: number) => Math.max(prev - decayRate, 0))
+      setEnergy((prev: number) => Math.max(prev - decayRate, 0))
+      
+      // Use AI system to award points based on pet state
+      const pointMultiplier = aiPointSystem()
+      const averageStats = (food + happiness + cleanliness + energy) / 4
+      
+      // Award points based on average health and AI multiplier
+      let passivePoints = 0
+      if (averageStats > 80) {
+        passivePoints = Math.round((150/60) * pointMultiplier) // 150 points per hour with multiplier
+      } else if (averageStats > 60) {
+        passivePoints = Math.round((100/60) * pointMultiplier) // 100 points per hour with multiplier
+      } else if (averageStats > 40) {
+        passivePoints = Math.round((60/60) * pointMultiplier) // 60 points per hour with multiplier
+      } else if (averageStats > 20) {
+        passivePoints = Math.round((30/60) * pointMultiplier) // 30 points per hour with multiplier
+      } else {
+        passivePoints = Math.round((10/60) * pointMultiplier) // 10 points per hour with multiplier
+      }
+      
+      if (passivePoints > 0) {
+        awardPoints(passivePoints)
+      }
+    }, 60000) // Update every minute
+    
+    return () => clearInterval(decayInterval)
+  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints])
+
+  // Remove the direct saveWalletData call from handleFeeding
   const handleFeeding = useCallback(async () => {
     if (isDead || isOnCooldown.feed) return false
     
@@ -555,21 +739,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         awardPoints(cappedPoints);
       }
       
-      // Save stats to wallet if connected
-      if (isConnected) {
-        await saveWalletData(publicKey!, {
-          ...walletData!,
-          petStats: {
-            food: foodRef.current,
-            happiness: happinessRef.current,
-            cleanliness: cleanlinessRef.current,
-            energy: energyRef.current,
-            health: healthRef.current,
-            isDead,
-            points
-          }
-        });
-      }
+      // NOTE: We no longer call saveWalletData directly here
+      // State changes will trigger the debounced save useEffect
     }
     
     return success
@@ -581,8 +752,6 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setCurrentInteraction, 
     setShowInteraction, 
     logActivity, 
-    isConnected, 
-    publicKey, 
     walletData,
     aiPointSystem,
     awardPoints,
@@ -594,7 +763,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setHealth
   ])
   
-  // Handle playing with the pet
+  // Remove the direct saveWalletData call from handlePlaying
   const handlePlaying = useCallback(async () => {
     if (isDead || isOnCooldown.play) return false
     
@@ -707,21 +876,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         awardPoints(cappedPoints);
       }
       
-      // Save stats to wallet if connected
-      if (isConnected) {
-        await saveWalletData(publicKey!, {
-          ...walletData!,
-          petStats: {
-            food: foodRef.current,
-            happiness: happinessRef.current,
-            cleanliness: cleanlinessRef.current,
-            energy: energyRef.current,
-            health: healthRef.current,
-            isDead,
-            points
-          }
-        });
-      }
+      // NOTE: We no longer call saveWalletData directly here
+      // State changes will trigger the debounced save useEffect
     }
     
     return success
@@ -733,8 +889,6 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setCurrentInteraction, 
     setShowInteraction, 
     logActivity, 
-    isConnected, 
-    publicKey, 
     walletData,
     aiPointSystem,
     awardPoints,
@@ -745,8 +899,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy,
     setHealth
   ])
-  
-  // Handle cleaning the pet
+
+  // Remove the direct saveWalletData call from handleCleaning
   const handleCleaning = useCallback(async () => {
     if (isDead || isOnCooldown.clean) return false
     
@@ -859,21 +1013,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         awardPoints(cappedPoints);
       }
       
-      // Save stats to wallet if connected
-      if (isConnected) {
-        await saveWalletData(publicKey!, {
-          ...walletData!,
-          petStats: {
-            food: foodRef.current,
-            happiness: happinessRef.current,
-            cleanliness: cleanlinessRef.current,
-            energy: energyRef.current,
-            health: healthRef.current,
-            isDead,
-            points
-          }
-        });
-      }
+      // NOTE: We no longer call saveWalletData directly here
+      // State changes will trigger the debounced save useEffect
     }
     
     return success
@@ -885,8 +1026,6 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setCurrentInteraction, 
     setShowInteraction, 
     logActivity,
-    isConnected, 
-    publicKey, 
     walletData,
     aiPointSystem,
     awardPoints,
@@ -897,8 +1036,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy,
     setHealth
   ])
-  
-  // Handle giving medicine to the pet
+
+  // Remove the direct saveWalletData call from handleDoctor
   const handleDoctor = useCallback(async () => {
     if (isDead || isOnCooldown.heal) return false
     
@@ -1012,21 +1151,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         awardPoints(cappedPoints);
       }
       
-      // Save stats to wallet if connected
-      if (isConnected) {
-        await saveWalletData(publicKey!, {
-          ...walletData!,
-          petStats: {
-            food: foodRef.current,
-            happiness: happinessRef.current,
-            cleanliness: cleanlinessRef.current,
-            energy: energyRef.current,
-            health: healthRef.current,
-            isDead,
-            points
-          }
-        });
-      }
+      // NOTE: We no longer call saveWalletData directly here
+      // State changes will trigger the debounced save useEffect
     }
     
     return success
@@ -1038,8 +1164,6 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setCurrentInteraction, 
     setShowInteraction, 
     logActivity,
-    isConnected, 
-    publicKey, 
     walletData,
     aiPointSystem,
     awardPoints,
@@ -1050,178 +1174,6 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy,
     setHealth
   ])
-  
-  // Update Stat decay over time to use awardPoints
-  useEffect(() => {
-    if (isDead) return
-    
-    const decayInterval = setInterval(() => {
-      const timeElapsed = (Date.now() - lastInteractionTime) / (1000 * 60) // in minutes
-      // Using accelerated decay for testing (32 points/hour = 0.53 points/minute)
-      const decayRate = 0.53 * (timeElapsed / 60)
-      
-      setFood((prev: number) => Math.max(prev - decayRate, 0))
-      setHappiness((prev: number) => Math.max(prev - decayRate, 0))
-      setCleanliness((prev: number) => Math.max(prev - decayRate, 0))
-      setEnergy((prev: number) => Math.max(prev - decayRate, 0))
-      
-      // Use AI system to award points based on pet state
-      const pointMultiplier = aiPointSystem()
-      const averageStats = (food + happiness + cleanliness + energy) / 4
-      
-      // Award points based on average health and AI multiplier
-      let passivePoints = 0
-      if (averageStats > 80) {
-        passivePoints = Math.round((150/60) * pointMultiplier) // 150 points per hour with multiplier
-      } else if (averageStats > 60) {
-        passivePoints = Math.round((100/60) * pointMultiplier) // 100 points per hour with multiplier
-      } else if (averageStats > 40) {
-        passivePoints = Math.round((60/60) * pointMultiplier) // 60 points per hour with multiplier
-      } else if (averageStats > 20) {
-        passivePoints = Math.round((30/60) * pointMultiplier) // 30 points per hour with multiplier
-      } else {
-        passivePoints = Math.round((10/60) * pointMultiplier) // 10 points per hour with multiplier
-      }
-      
-      if (passivePoints > 0) {
-        awardPoints(passivePoints)
-      }
-    }, 60000) // Update every minute
-    
-    return () => clearInterval(decayInterval)
-  }, [lastInteractionTime, isDead, food, happiness, cleanliness, energy, aiPointSystem, awardPoints])
-  
-  // Add a ref to track the last saved state to prevent infinite updates
-  const lastSavedStatsRef = useRef({
-    food: initialWalletStats.food ?? 50,
-    happiness: initialWalletStats.happiness ?? 40,
-    cleanliness: initialWalletStats.cleanliness ?? 40,
-    energy: initialWalletStats.energy ?? 30,
-    health: initialWalletStats.health ?? 30,
-    isDead: initialWalletStats.isDead ?? false,
-    points: initialWalletStats.points ?? 0,
-  });
-
-  // Save pet stats to wallet data whenever they change
-  useEffect(() => {
-    if (isConnected && publicKey) {
-      const currentStats = {
-        food,
-        happiness,
-        cleanliness,
-        energy,
-        health,
-        isDead,
-        points
-      };
-      
-      // Update wallet data with current pet stats
-      if (walletData) {
-        // Only save if values have actually changed significantly to prevent infinite loops
-        const lastSaved = lastSavedStatsRef.current;
-        const hasSignificantChange = 
-          Math.abs(lastSaved.food - food) > 1 || 
-          Math.abs(lastSaved.happiness - happiness) > 1 ||
-          Math.abs(lastSaved.cleanliness - cleanliness) > 1 ||
-          Math.abs(lastSaved.energy - energy) > 1 ||
-          Math.abs(lastSaved.health - health) > 1 ||
-          lastSaved.isDead !== isDead ||
-          Math.abs(lastSaved.points - points) > 5;
-          
-        if (hasSignificantChange) {
-          const updatedWalletData = {
-            ...walletData,
-            petStats: currentStats
-          };
-          
-          saveWalletData(publicKey, updatedWalletData);
-          
-          // Update the ref
-          lastSavedStatsRef.current = currentStats;
-        }
-      }
-    }
-  }, [food, happiness, cleanliness, energy, health, isDead, points, isConnected, publicKey, walletData]);
-  
-  // Check for idle pet message
-  useEffect(() => {
-    // Show an idle message if no interaction for 2 minutes
-    const idleCheckInterval = setInterval(async () => {
-      const timeSinceLastInteraction = Date.now() - lastInteractionTime;
-      
-      // Show idle message after 2 minutes of no interaction
-      if (timeSinceLastInteraction > 2 * 60 * 1000 && !isDead && !petMessage) {
-        await getPetMessageForInteraction('idle', {
-          food: foodRef.current,
-          happiness: happinessRef.current,
-          cleanliness: cleanlinessRef.current,
-          energy: energyRef.current,
-          health: healthRef.current
-        });
-      }
-    }, 2 * 60 * 1000); // Check every 2 minutes
-    
-    return () => clearInterval(idleCheckInterval);
-  }, [lastInteractionTime, isDead, getPetMessageForInteraction, petMessage]);
-  
-  // Reset the pet
-  const resetPet = useCallback(() => {
-    setFood(50);
-    setHappiness(40);
-    setCleanliness(40);
-    setEnergy(30);
-    setHealth(30);
-    setIsDead(false);
-    setPoints(0);
-    
-    // Reset cooldowns
-    setCooldowns({
-      feed: 0,
-      play: 0,
-      clean: 0,
-      heal: 0
-    });
-    
-    // Save reset data
-    if (isConnected && publicKey) {
-      const updatedWalletData = {
-        ...walletData!,
-        petStats: {
-          food: 50,
-          happiness: 40,
-          cleanliness: 40,
-          energy: 30,
-          health: 30,
-          isDead: false,
-          points: 0
-        }
-      };
-      
-      // Need to make this async but we can't return a promise from the callback
-      // instead we call it but don't await it
-      saveWalletData(publicKey, updatedWalletData)
-        .catch(error => console.error('Error saving reset pet data:', error));
-    }
-    
-    // Reset last interaction time
-    setLastInteractionTime(Date.now());
-    
-    // Give feedback to user
-    addInteraction("Doctor", 0);
-  }, [
-    isConnected, 
-    publicKey, 
-    walletData, 
-    setFood, 
-    setHappiness, 
-    setCleanliness, 
-    setEnergy, 
-    setHealth, 
-    setIsDead, 
-    setPoints, 
-    setCooldowns, 
-    addInteraction
-  ]);
   
   return {
     // Stats

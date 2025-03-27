@@ -94,7 +94,15 @@ export function KawaiiDevice() {
   // Keep track of last updated points to prevent loops
   const lastUpdatedPointsRef = useRef(0);
 
-  // Update wallet points whenever game points change
+  // Create a ref for debouncing leaderboard updates
+  const leaderboardUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const LEADERBOARD_UPDATE_DELAY = 10000; // 10 seconds between leaderboard updates
+
+  // Add this near the other refs
+  const lastInteractionUpdateRef = useRef<number>(0);
+  const INTERACTION_UPDATE_THROTTLE = 3000; // 3 seconds between lastInteraction updates
+
+  // Update wallet points whenever game points change (with debouncing)
   useEffect(() => {
     const updateWalletData = async () => {
       if (isConnected && points > 0 && points !== lastUpdatedPointsRef.current) {
@@ -104,10 +112,20 @@ export function KawaiiDevice() {
             await updatePoints(points);
             lastUpdatedPointsRef.current = points;
             
-            // Update leaderboard with the user's current score
+            // Update leaderboard with the user's current score (debounced)
             if (publicKey) {
-              updateUserScore(publicKey, points)
-                .catch(err => console.error('Error updating leaderboard:', err));
+              // Clear any existing timer
+              if (leaderboardUpdateTimerRef.current) {
+                clearTimeout(leaderboardUpdateTimerRef.current);
+              }
+              
+              // Set a new timer to debounce the leaderboard update
+              leaderboardUpdateTimerRef.current = setTimeout(() => {
+                console.log("Debounced update: Updating leaderboard after delay");
+                updateUserScore(publicKey, points)
+                  .catch(err => console.error('Error updating leaderboard:', err));
+                leaderboardUpdateTimerRef.current = null;
+              }, LEADERBOARD_UPDATE_DELAY);
             }
           } catch (error) {
             console.error('Error updating wallet points:', error);
@@ -117,9 +135,16 @@ export function KawaiiDevice() {
     };
     
     updateWalletData();
+    
+    return () => {
+      // Clean up timer on component unmount
+      if (leaderboardUpdateTimerRef.current) {
+        clearTimeout(leaderboardUpdateTimerRef.current);
+      }
+    };
   }, [points, isConnected, updatePoints, publicKey]);
 
-  // Update leaderboard when pet dies
+  // Update leaderboard when pet dies (this can remain immediate since it's a one-time event)
   useEffect(() => {
     if (isDead && isConnected && publicKey && points > 0) {
       // Save final score to leaderboard
@@ -184,9 +209,12 @@ export function KawaiiDevice() {
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
     async (option: "food" | "clean" | "doctor" | "play" | "previous" | "next" | "a" | "b") => {
-      // This call is causing an infinite update loop
-      // Only set the last interaction time when really needed
-      // setLastInteractionTime(Date.now());
+      // Only update last interaction time when at least 3 seconds have passed since the last update
+      const now = Date.now();
+      if (now - lastInteractionUpdateRef.current > INTERACTION_UPDATE_THROTTLE) {
+        setLastInteractionTime(now);
+        lastInteractionUpdateRef.current = now;
+      }
       
       if (isDead) {
         if (option === "a") {
@@ -243,6 +271,7 @@ export function KawaiiDevice() {
       handleInteraction,
       resetPet,
       resetMenu,
+      setLastInteractionTime
     ]
   );
   

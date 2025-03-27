@@ -36,9 +36,19 @@ interface WalletContextState {
 // Add a fallback storage mechanism for when the database is unavailable
 const inMemoryStorage = new Map<string, any>();
 
+// Add a flag to track if we're in the middle of a save operation
+let isSaving = false;
+
 // Save wallet data to the server
 export async function saveWalletData(publicKey: string, data: any): Promise<boolean> {
+  // If we're already saving, return early to prevent infinite loops
+  if (isSaving) {
+    console.log("Save operation already in progress, skipping...");
+    return false;
+  }
+  
   try {
+    isSaving = true;
     console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
     
     const response = await fetch('/api/wallet', {
@@ -50,16 +60,19 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
         walletAddress: publicKey,
         score: data.petStats?.points || 0,
         petState: {
-          hunger: data.petStats?.food || 50,
+          health: data.petStats?.health || 30,
           happiness: data.petStats?.happiness || 40,
+          hunger: data.petStats?.food || 50,
+          cleanliness: data.petStats?.cleanliness || 40,
           energy: data.petStats?.energy || 30,
-          lastFed: data.petStats?.lastFed,
-          lastPlayed: data.petStats?.lastPlayed,
-          lastSlept: data.petStats?.lastSlept,
-          state: data.petStats?.isDead ? 'dead' : 'idle'
+          qualityScore: data.petStats?.qualityScore || 0,
+          isDead: data.petStats?.isDead || false,
+          lastStateUpdate: new Date()
         }
       }),
     });
+    
+    isSaving = false;
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -85,6 +98,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     console.log(`Wallet data saved successfully: ${result.message}`);
     return true;
   } catch (error) {
+    isSaving = false;
     console.error('Failed to save wallet data:', error);
     
     // Fall back to in-memory storage
@@ -123,18 +137,18 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       return {
         petName: `Pet_${publicKey.substring(0, 4)}`,
         points: 0,
+        multiplier: 1.0,
         lastLogin: Date.now(),
         daysActive: 0,
         consecutiveDays: 0,
         petStats: {
           food: 50,
           happiness: 40,
+          cleanliness: 40,
           energy: 30,
+          health: 30,
           isDead: false,
-          points: 0,
-          lastFed: null,
-          lastPlayed: null,
-          lastSlept: null
+          points: 0
         }
       };
     }
@@ -148,38 +162,38 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       return {
         petName: `Pet_${publicKey.substring(0, 4)}`,
         points: 0,
+        multiplier: 1.0,
         lastLogin: Date.now(),
         daysActive: 0,
         consecutiveDays: 0,
         petStats: {
           food: 50,
           happiness: 40,
+          cleanliness: 40,
           energy: 30,
+          health: 30,
           isDead: false,
-          points: 0,
-          lastFed: null,
-          lastPlayed: null,
-          lastSlept: null
+          points: 0
         }
       };
     }
     
     // Format data for client use
     return {
-      petName: data.name || `Pet_${publicKey.substring(0, 4)}`,
+      petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
       points: data.points || 0,
+      multiplier: data.multiplier || 1.0,
       lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
       daysActive: data.daysActive || 0,
       consecutiveDays: data.consecutiveDays || 0,
       petStats: {
         food: data.petState?.hunger || 50,
         happiness: data.petState?.happiness || 40,
+        cleanliness: data.petState?.cleanliness || 40,
         energy: data.petState?.energy || 30,
-        isDead: data.petState?.state === 'dead',
-        points: data.points || 0,
-        lastFed: data.petState?.lastFed ? new Date(data.petState.lastFed) : null,
-        lastPlayed: data.petState?.lastPlayed ? new Date(data.petState.lastPlayed) : null,
-        lastSlept: data.petState?.lastSlept ? new Date(data.petState.lastSlept) : null
+        health: data.petState?.health || 30,
+        isDead: data.petState?.isDead || false,
+        points: data.points || 0
       }
     };
   } catch (error) {
@@ -189,18 +203,18 @@ export async function loadWalletData(publicKey: string): Promise<any> {
     return {
       petName: `Pet_${publicKey.substring(0, 4)}`,
       points: 0,
+      multiplier: 1.0,
       lastLogin: Date.now(),
       daysActive: 0,
       consecutiveDays: 0,
       petStats: {
         food: 50,
         happiness: 40,
+        cleanliness: 40,
         energy: 30,
+        health: 30,
         isDead: false,
-        points: 0,
-        lastFed: null,
-        lastPlayed: null,
-        lastSlept: null
+        points: 0
       }
     };
   }
@@ -251,14 +265,14 @@ export async function burnPoints(publicKey: string): Promise<number> {
     
     const { success, remainingPoints } = await response.json();
     
-    if (!success || remainingPoints === undefined) {
-      console.error('Failed to burn points: Invalid response format');
+    if (!success) {
+      console.error('Failed to burn points');
       return 0;
     }
     
     return remainingPoints;
   } catch (error) {
-    console.error('Failed to burn points:', error);
+    console.error('Error burning points:', error);
     return 0;
   }
 }
@@ -285,49 +299,46 @@ export async function updatePoints(publicKey: string, amount: number): Promise<n
       // Update points in memory storage if available
       if (inMemoryStorage.has(publicKey)) {
         const data = inMemoryStorage.get(publicKey);
-        const currentPoints = data.petStats?.points || 0;
-        const newPoints = Math.max(0, currentPoints + amount);
-        
-        // Update in-memory storage
-        data.petStats.points = newPoints;
+        data.petStats.points = amount;
         inMemoryStorage.set(publicKey, data);
-        
-        return newPoints;
       }
       
-      return 0;
+      return amount;
     }
     
-    const { success, newPoints } = await response.json();
+    const { success, points } = await response.json();
     
-    if (!success || newPoints === undefined) {
-      console.error('Failed to update points: Invalid response format');
-      return 0;
+    if (!success) {
+      console.error('Failed to update points');
+      return amount;
     }
     
-    return newPoints;
+    return points;
   } catch (error) {
-    console.error('Failed to update points:', error);
-    return 0;
+    console.error('Error updating points:', error);
+    return amount;
   }
 }
 
-// Get wallet provider
+// Get wallet provider (for Solana)
 export function getProvider() {
   if (typeof window !== 'undefined') {
-    // @ts-ignore
+    //@ts-ignore
     const provider = window.phantom?.solana;
+    
     if (provider?.isPhantom) {
       return provider;
     }
+    
+    // Fallback for other Solana wallets
+    //@ts-ignore
+    return window.solana;
   }
+  
   return null;
 }
 
-// Generate a shorter wallet ID for display
+// Generate a unique ID from the wallet address
 export const generateWalletId = (publicKey: string): string => {
-  if (!publicKey) return 'No Wallet';
-  const start = publicKey.substring(0, 4);
-  const end = publicKey.substring(publicKey.length - 4);
-  return `${start}...${end}`;
+  return publicKey.substring(0, 8);
 }; 

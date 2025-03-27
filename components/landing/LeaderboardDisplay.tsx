@@ -12,14 +12,22 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Trophy, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useWallet } from '@/context/WalletContext';
 
 export default function LeaderboardDisplay() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const { isConnected } = useWallet();
 
   const loadLeaderboard = async () => {
+    // Skip if not connected
+    if (!isConnected) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -39,8 +47,13 @@ export default function LeaderboardDisplay() {
 
   // Trigger leaderboard loading when component mounts or attempt changes
   useEffect(() => {
-    loadLeaderboard();
-  }, [attempt]);
+    // Only load if user is connected
+    if (isConnected) {
+      loadLeaderboard();
+    } else {
+      setIsLoading(false);
+    }
+  }, [attempt, isConnected]);
 
   // Helper function to retry loading the leaderboard
   const handleRefresh = () => {
@@ -67,13 +80,15 @@ export default function LeaderboardDisplay() {
           onClick={handleRefresh} 
           className="text-white hover:text-white hover:bg-indigo-500"
           title="Refresh leaderboard"
-          disabled={isLoading}
+          disabled={isLoading || !isConnected}
         >
           <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading ? (
+        {!isConnected ? (
+          <div className="text-center p-6 text-gray-500">Sign in to view leaderboard</div>
+        ) : isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           </div>

@@ -16,12 +16,17 @@ export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> 
       },
     });
     
+    if (!response.ok) {
+      console.warn(`Leaderboard fetch failed with status: ${response.status}`);
+      return [];
+    }
+    
     // Parse the response body
     const data = await response.json();
     
     // If we got a successful response with leaderboard data, use it
-    if (data && data.leaderboard && Array.isArray(data.leaderboard)) {
-      return data.leaderboard;
+    if (data && data.success && data.data && Array.isArray(data.data)) {
+      return data.data;
     }
     
     // Return empty array if no data available
@@ -41,6 +46,12 @@ export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> 
  * @returns Success status
  */
 export async function updateUserScore(walletAddress: string, score: number): Promise<boolean> {
+  // Skip if no wallet address
+  if (!walletAddress) {
+    console.warn('Cannot update leaderboard without wallet address');
+    return false;
+  }
+  
   try {
     console.log(`Updating leaderboard for ${walletAddress.substring(0, 8)}... with score ${score}`);
     

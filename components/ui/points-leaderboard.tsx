@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeaderboardEntry, PointsLeaderboard as PointsLeaderboardType } from '@/lib/models';
+import { useWallet } from '@/context/WalletContext';
 
 interface PointsLeaderboardProps {
   walletAddress?: string;
@@ -12,8 +13,15 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('allTime');
+  const { isConnected } = useWallet();
 
   useEffect(() => {
+    // Skip if user is not connected
+    if (!isConnected) {
+      setLoading(false);
+      return;
+    }
+    
     async function fetchLeaderboard() {
       setLoading(true);
       setError(null);
@@ -35,13 +43,15 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
       }
     }
     
-    fetchLeaderboard();
-    
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchLeaderboard, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [limit]);
+    if (isConnected) {
+      fetchLeaderboard();
+      
+      // Refresh every 5 minutes
+      const interval = setInterval(fetchLeaderboard, 5 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [limit, isConnected]);
   
   // Find the user's rank in the current tab if wallet address is provided
   const getUserRank = () => {
@@ -77,6 +87,14 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
       </div>
     ));
   };
+  
+  if (!isConnected) {
+    return (
+      <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800">
+        <p className="text-center">Sign in to view leaderboard</p>
+      </div>
+    );
+  }
   
   if (loading) {
     return (

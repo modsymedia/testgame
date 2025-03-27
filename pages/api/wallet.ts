@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import sql from '@/lib/neon';
+import { neon } from '@neondatabase/serverless';
+
+// Create a SQL client with your connection string
+const sql = neon(process.env.DATABASE_URL || '');
 
 export default async function handler(
   req: NextApiRequest,
@@ -18,59 +21,55 @@ export default async function handler(
       
       try {
         // Check if the user exists
-        const existingUserResult = await sql`
+        const existingUser = await sql`
           SELECT wallet_address FROM users 
           WHERE wallet_address = ${walletAddress}
         `;
         
-        const existingUser = existingUserResult.length > 0 ? existingUserResult[0] : null;
-        
-        if (existingUser) {
+        if (existingUser.length > 0) {
           // Update existing user
           await sql`
             UPDATE users 
-            SET points = ${score}, last_updated = NOW()
+            SET points = ${score}, last_points_update = ${new Date().toISOString()}
             WHERE wallet_address = ${walletAddress}
           `;
           
           if (petState) {
             try {
               // Check if pet state exists
-              const existingPetResult = await sql`
+              const existingPet = await sql`
                 SELECT wallet_address FROM pet_states 
                 WHERE wallet_address = ${walletAddress}
               `;
               
-              const existingPet = existingPetResult.length > 0 ? existingPetResult[0] : null;
-              
-              if (existingPet) {
+              if (existingPet.length > 0) {
                 // Update pet state
                 await sql`
                   UPDATE pet_states 
-                  SET hunger = ${petState.hunger},
+                  SET health = ${petState.health},
                       happiness = ${petState.happiness},
+                      hunger = ${petState.hunger},
+                      cleanliness = ${petState.cleanliness},
                       energy = ${petState.energy},
-                      last_fed = ${petState.lastFed ? new Date(petState.lastFed) : null},
-                      last_played = ${petState.lastPlayed ? new Date(petState.lastPlayed) : null},
-                      last_slept = ${petState.lastSlept ? new Date(petState.lastSlept) : null},
-                      state = ${petState.state || 'idle'}
+                      last_state_update = ${new Date().toISOString()},
+                      quality_score = ${petState.qualityScore || 0}
                   WHERE wallet_address = ${walletAddress}
                 `;
               } else {
                 // Insert pet state
                 await sql`
                   INSERT INTO pet_states (
-                    wallet_address, hunger, happiness, energy,
-                    last_fed, last_played, last_slept, state
+                    wallet_address, health, happiness, hunger, cleanliness,
+                    energy, last_state_update, quality_score
                   ) VALUES (
                     ${walletAddress},
-                    ${petState.hunger},
+                    ${petState.health},
                     ${petState.happiness},
+                    ${petState.hunger},
+                    ${petState.cleanliness},
                     ${petState.energy},
-                    ${petState.lastFed ? new Date(petState.lastFed) : null},
-                    ${petState.lastPlayed ? new Date(petState.lastPlayed) : null},
-                    ${petState.lastSlept ? new Date(petState.lastSlept) : null},
-                    ${petState.state || 'idle'}
+                    ${new Date().toISOString()},
+                    ${petState.qualityScore || 0}
                   )
                 `;
               }
@@ -88,11 +87,12 @@ export default async function handler(
           // Create new user
           await sql`
             INSERT INTO users (
-              wallet_address, points, last_updated
+              wallet_address, points, last_points_update, created_at
             ) VALUES (
               ${walletAddress},
               ${score || 0},
-              NOW()
+              ${new Date().toISOString()},
+              ${new Date().toISOString()}
             )
           `;
           
@@ -100,17 +100,17 @@ export default async function handler(
             try {
               await sql`
                 INSERT INTO pet_states (
-                  wallet_address, hunger, happiness, energy,
-                  last_fed, last_played, last_slept, state
+                  wallet_address, health, happiness, hunger, cleanliness,
+                  energy, last_state_update, quality_score
                 ) VALUES (
                   ${walletAddress},
-                  ${petState.hunger},
+                  ${petState.health},
                   ${petState.happiness},
+                  ${petState.hunger},
+                  ${petState.cleanliness},
                   ${petState.energy},
-                  ${petState.lastFed ? new Date(petState.lastFed) : null},
-                  ${petState.lastPlayed ? new Date(petState.lastPlayed) : null},
-                  ${petState.lastSlept ? new Date(petState.lastSlept) : null},
-                  ${petState.state || 'idle'}
+                  ${new Date().toISOString()},
+                  ${petState.qualityScore || 0}
                 )
               `;
             } catch (petError: any) {
@@ -145,18 +145,16 @@ export default async function handler(
       
       try {
         // Get user data
-        const userResult = await sql`
+        const user = await sql`
           SELECT * FROM users WHERE wallet_address = ${walletAddress}
         `;
         
-        if (userResult.length === 0) {
+        if (user.length === 0) {
           return res.status(404).json({ 
             success: false, 
             error: 'Wallet not found' 
           });
         }
-        
-        const user = userResult[0];
         
         // Get pet state if it exists
         let petState = null;
@@ -175,18 +173,18 @@ export default async function handler(
         
         // Format and return user data
         const userData = {
-          walletAddress: user.wallet_address,
-          points: user.points || 0,
-          name: user.name || '',
-          lastUpdated: user.last_updated ? new Date(user.last_updated) : null,
+          walletAddress: user[0].wallet_address,
+          points: user[0].points || 0,
+          multiplier: user[0].multiplier || 1.0,
+          lastUpdated: user[0].last_points_update ? new Date(user[0].last_points_update) : null,
           petState: petState ? {
-            hunger: petState.hunger,
+            health: petState.health,
             happiness: petState.happiness,
+            hunger: petState.hunger,
+            cleanliness: petState.cleanliness,
             energy: petState.energy,
-            lastFed: petState.last_fed ? new Date(petState.last_fed) : null,
-            lastPlayed: petState.last_played ? new Date(petState.last_played) : null,
-            lastSlept: petState.last_slept ? new Date(petState.last_slept) : null,
-            state: petState.state || 'idle'
+            lastStateUpdate: petState.last_state_update ? new Date(petState.last_state_update) : null,
+            qualityScore: petState.quality_score || 0
           } : null
         };
         
@@ -227,14 +225,12 @@ export default async function handler(
             });
           }
           
-          const user = userResult[0];
-          
           // Calculate remaining points (burn 50%)
-          const remainingPoints = Math.floor(user.points * 0.5);
+          const remainingPoints = Math.floor(userResult[0].points * 0.5);
           
           // Update user points
           await sql`
-            UPDATE users SET points = ${remainingPoints}, last_updated = NOW()
+            UPDATE users SET points = ${remainingPoints} 
             WHERE wallet_address = ${walletAddress}
           `;
           
@@ -264,18 +260,17 @@ export default async function handler(
             });
           }
           
-          const user = userResult[0];
-          const newPoints = Math.max(0, user.points + amount);
+          const newPoints = Math.max(0, userResult[0].points + amount);
           
           // Update user points
           await sql`
-            UPDATE users SET points = ${newPoints}, last_updated = NOW()
+            UPDATE users SET points = ${newPoints} 
             WHERE wallet_address = ${walletAddress}
           `;
           
           return res.status(200).json({
             success: true,
-            newPoints
+            points: newPoints
           });
         }
         
@@ -288,8 +283,8 @@ export default async function handler(
         
         return res.status(500).json({
           success: false,
-          error: 'Database update error',
-          details: dbError.message
+          error: 'Server error',
+          message: dbError.message
         });
       }
     } else {
@@ -299,12 +294,12 @@ export default async function handler(
       });
     }
   } catch (error: any) {
-    console.error('API error:', error.message);
+    console.error('Server error:', error.message);
     
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Server error', 
-      message: error.message 
+    return res.status(500).json({
+      success: false,
+      error: 'Server error',
+      message: error.message
     });
   }
 } 
