@@ -5,20 +5,23 @@ import {
   getProvider, 
   calculateMultiplier,
   saveWalletData, 
-  loadWalletData
+  loadWalletData,
+  getAvailableWallets
 } from '@/utils/wallet';
 
 interface WalletContextType {
   isConnected: boolean;
   publicKey: string | null;
   walletData: any;
-  connect: () => Promise<boolean>;
+  connect: (walletName?: string) => Promise<boolean>;
   disconnect: () => void;
   updatePoints: (points: number) => Promise<number | undefined>;
   burnPoints: () => Promise<number | undefined>;
   error: string | null;
   isNewUser: boolean;
   setPetName: (name: string) => Promise<boolean>;
+  availableWallets: Array<{name: string, label: string, icon: string}>;
+  currentWalletName: string | null;
 }
 
 const defaultContext: WalletContextType = {
@@ -31,7 +34,9 @@ const defaultContext: WalletContextType = {
   burnPoints: async () => undefined,
   error: null,
   isNewUser: false,
-  setPetName: async () => false
+  setPetName: async () => false,
+  availableWallets: [],
+  currentWalletName: null
 };
 
 const WalletContext = createContext<WalletContextType>(defaultContext);
@@ -51,10 +56,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [availableWallets, setAvailableWallets] = useState<Array<{name: string, label: string, icon: string}>>([]);
+  const [currentWalletName, setCurrentWalletName] = useState<string | null>(null);
 
   // Safe connect wrapper
   const safeConnect = async (provider: any): Promise<any> => {
     if (!provider) return null;
+    
+    console.log('Attempting to connect with provider:', 
+      provider.isPhantom ? 'Phantom' : 
+      provider.isSolflare ? 'Solflare' : 
+      'Unknown wallet');
     
     // Make sure provider.connect exists and is a function
     if (typeof provider.connect !== 'function') {
@@ -63,7 +75,18 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
     
     try {
-      return await provider.connect();
+      // Call connect and handle both promise and non-promise returns
+      const response = await provider.connect();
+      console.log('Wallet connect response:', response);
+      
+      // Some wallets may update the provider object itself rather than return data
+      if (!response || typeof response !== 'object') {
+        console.log('No direct response object, checking if provider was updated');
+        // Return the provider itself, which might have been updated with the public key
+        return provider.publicKey ? { publicKey: provider.publicKey } : null;
+      }
+      
+      return response;
     } catch (error) {
       console.error('Error in safeConnect:', error);
       throw error; // Re-throw the error for the caller to handle
@@ -89,6 +112,12 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   useEffect(() => {
+    // Check for available wallets
+    if (typeof window !== 'undefined') {
+      const wallets = getAvailableWallets();
+      setAvailableWallets(wallets);
+    }
+
     // Check if wallet was previously connected
     const checkConnection = async () => {
       try {
@@ -97,6 +126,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setIsConnected(true);
           const key = provider.publicKey.toString();
           setPublicKey(key);
+          
+          // Set the current wallet name
+          if ((provider as any).isPhantom) {
+            setCurrentWalletName('phantom');
+          } else if ((provider as any).isSolflare) {
+            setCurrentWalletName('solflare');
+          }
           
           try {
             // Fetch wallet data asynchronously
@@ -123,6 +159,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
           const key = provider.publicKey.toString();
           setPublicKey(key);
           
+          // Set the current wallet name
+          if ((provider as any).isPhantom) {
+            setCurrentWalletName('phantom');
+          } else if ((provider as any).isSolflare) {
+            setCurrentWalletName('solflare');
+          }
+          
           try {
             const data = await loadWalletData(key);
             setWalletData(data);
@@ -141,6 +184,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsConnected(false);
         setPublicKey(null);
         setWalletData(null);
+        setCurrentWalletName(null);
       } catch (error) {
         console.error('Error in disconnect handler:', error);
       }
@@ -164,32 +208,48 @@ export function WalletProvider({ children }: WalletProviderProps) {
     };
   }, []);
   
-  const connect = async (): Promise<boolean> => {
+  const connect = async (walletName?: string): Promise<boolean> => {
     setError(null); // Clear previous errors
     
     try {
-      const provider = getProvider();
+      console.log(`Attempting to connect wallet: ${walletName || 'default'}`);
+      const provider = getProvider(walletName);
       if (!provider) {
-        setError('Phantom wallet not found. Please install it to continue.');
+        const walletLabel = walletName 
+          ? (walletName === 'phantom' ? 'Phantom' : 'Solflare') 
+          : 'Solana';
+        console.error(`${walletLabel} wallet provider not found`);
+        setError(`${walletLabel} wallet not found. Please install it to continue.`);
         return false;
       }
+      
+      console.log('Provider found:', provider.isPhantom ? 'Phantom' : provider.isSolflare ? 'Solflare' : 'Unknown');
       
       // Check if the provider is responsive
       let isProviderResponsive = false;
       try {
         // Attempt to check if the extension is responsive
-        if ((provider as any)['isPhantom']) {
+        if ((provider as any)['isPhantom'] || (provider as any)['isSolflare']) {
           isProviderResponsive = true;
         }
       } catch (error) {
-        console.warn('Phantom provider is not responsive:', error);
-        setError('Could not establish connection with Phantom wallet. Please refresh the page or restart your browser.');
+        console.warn('Wallet provider is not responsive:', error);
+        setError('Could not establish connection with wallet. Please refresh the page or restart your browser.');
         return false;
       }
       
       if (!isProviderResponsive) {
-        setError('Could not establish connection with Phantom wallet. Please refresh the page or restart your browser.');
+        setError('Could not establish connection with wallet. Please refresh the page or restart your browser.');
         return false;
+      }
+      
+      // Save the wallet name we're connecting with
+      if (walletName) {
+        setCurrentWalletName(walletName);
+      } else if ((provider as any).isPhantom) {
+        setCurrentWalletName('phantom');
+      } else if ((provider as any).isSolflare) {
+        setCurrentWalletName('solflare');
       }
       
       // First try to disconnect safely
@@ -228,13 +288,27 @@ export function WalletProvider({ children }: WalletProviderProps) {
           return false;
         }
         
-        // Make sure resp.publicKey exists
-        if (!resp.publicKey) {
+        // Different wallets return different response structures
+        // For Solflare, the publicKey might be directly on the provider after connect
+        let publicKeyValue;
+        
+        if (resp.publicKey) {
+          // Phantom style response
+          publicKeyValue = resp.publicKey;
+        } else if (provider.publicKey) {
+          // Solflare might update the provider directly
+          publicKeyValue = provider.publicKey;
+        }
+        
+        // Make sure we have a public key one way or another
+        if (!publicKeyValue) {
+          console.error('No public key found in response:', resp);
+          console.error('Provider state after connect:', provider);
           setError('Connected but no public key was returned');
           return false;
         }
         
-        const key = resp.publicKey.toString();
+        const key = publicKeyValue.toString();
         
         // Wait a moment before updating state
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -321,7 +395,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   
   const disconnect = () => {
     try {
-      const provider = getProvider();
+      const provider = getProvider(currentWalletName || undefined);
       if (provider) {
         safeDisconnect(provider);
         
@@ -329,15 +403,15 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsConnected(false);
         setPublicKey(null);
         setWalletData(null);
+        setCurrentWalletName(null);
         
         // Clear any stored session data
         if (typeof window !== 'undefined') {
           // Remove the auto-connect session flag if it exists
           sessionStorage.removeItem('phantom_connected');
           localStorage.removeItem('phantom_last_connected');
-          
-          // Don't try to modify read-only solana property
-          // Just clear our own connection state
+          sessionStorage.removeItem('solflare_connected');
+          localStorage.removeItem('solflare_last_connected');
         }
       }
     } catch (error: any) {
@@ -444,7 +518,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
     burnPoints,
     error,
     isNewUser,
-    setPetName
+    setPetName,
+    availableWallets,
+    currentWalletName
   };
   
   return (

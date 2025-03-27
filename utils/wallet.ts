@@ -322,21 +322,74 @@ export async function updatePoints(publicKey: string, amount: number): Promise<n
 }
 
 // Get wallet provider (for Solana)
-export function getProvider() {
-  if (typeof window !== 'undefined') {
-    //@ts-ignore
-    const provider = window.phantom?.solana;
-    
-    if (provider?.isPhantom) {
-      return provider;
+export function getProvider(walletName?: string) {
+  if (typeof window === 'undefined') return null;
+  
+  // If a specific wallet is requested
+  if (walletName) {
+    if (walletName === 'phantom') {
+      //@ts-ignore
+      const provider = window.phantom?.solana;
+      if (provider?.isPhantom) {
+        return provider;
+      }
+    } else if (walletName === 'solflare') {
+      //@ts-ignore
+      const provider = window.solflare;
+      if (provider?.isSolflare) {
+        return provider;
+      }
     }
-    
-    // Fallback for other Solana wallets
-    //@ts-ignore
-    return window.solana;
+    return null;
   }
   
-  return null;
+  // If no specific wallet is requested, try to find any available wallet
+  // First try Phantom
+  //@ts-ignore
+  const phantomProvider = window.phantom?.solana;
+  if (phantomProvider?.isPhantom) {
+    return phantomProvider;
+  }
+  
+  // Then try Solflare
+  //@ts-ignore
+  const solflareProvider = window.solflare;
+  if (solflareProvider?.isSolflare) {
+    return solflareProvider;
+  }
+  
+  // Fallback for other Solana wallets
+  //@ts-ignore
+  return window.solana;
+}
+
+// Detect available wallet providers
+export function getAvailableWallets() {
+  if (typeof window === 'undefined') return [];
+  
+  const wallets = [];
+  
+  // Check for Phantom
+  //@ts-ignore
+  if (window.phantom?.solana?.isPhantom) {
+    wallets.push({
+      name: 'phantom',
+      label: 'Phantom',
+      icon: 'https://187760183-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-MVOiF6Zqit57q_hxJYp%2Fuploads%2FHEjleywo9QOnfYebBPCZ%2FPhantom_SVG_Icon.svg?alt=media&token=71b80a0a-def7-4f98-ae70-5e0843fdaaec',
+    });
+  }
+  
+  // Check for Solflare
+  //@ts-ignore
+  if (window.solflare?.isSolflare) {
+    wallets.push({
+      name: 'solflare',
+      label: 'Solflare',
+      icon: 'https://www.solflare.com/wp-content/uploads/2024/11/App-Icon.svg',
+    });
+  }
+  
+  return wallets;
 }
 
 // Generate a unique ID from the wallet address
