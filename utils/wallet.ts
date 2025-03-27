@@ -59,6 +59,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
       body: JSON.stringify({
         walletAddress: publicKey,
         score: data.petStats?.points || 0,
+        petName: data.petName,
         petState: {
           health: data.petStats?.health || 30,
           happiness: data.petStats?.happiness || 40,

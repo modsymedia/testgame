@@ -1,7 +1,7 @@
-import { ObjectId } from 'mongodb';
+// Import other necessary types
 
 export interface User {
-  _id?: ObjectId;
+  _id?: string;
   walletAddress: string;
   username?: string;
   score: number;
@@ -68,7 +68,7 @@ export interface GameResult {
 
 // For post-launch SOL reward system
 export interface RewardPool {
-  _id?: ObjectId;
+  _id?: string;
   date: Date;
   hourlyPools: HourlyPool[];
   totalDailyVolume: number;
@@ -84,7 +84,7 @@ export interface HourlyPool {
 }
 
 export interface UserReward {
-  _id?: ObjectId;
+  _id?: string;
   walletAddress: string;
   amount: number;
   timestamp: Date;

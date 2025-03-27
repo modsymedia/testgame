@@ -7,9 +7,10 @@ const sql = neon(process.env.DATABASE_URL || '');
 // Create an in-memory leaderboard cache to improve performance
 type LeaderboardEntry = {
   walletAddress: string;
-  name: string;
+  username: string;
   score: number;
   lastUpdated: Date;
+  rank: number;
 };
 
 const leaderboardCache: LeaderboardEntry[] = [];
@@ -22,12 +23,16 @@ export default async function handler(
 ) {
   try {
     if (req.method === 'GET') {
+      // Get the limit from query params (default to 10)
+      const limit = parseInt(req.query.limit as string) || 10;
+      
       // Check if we have a recent cache
       const now = Date.now();
       if (leaderboardCache.length > 0 && now - lastCacheUpdate < CACHE_TTL) {
+        // Return the requested number of entries from cache
         return res.status(200).json({ 
           success: true, 
-          data: leaderboardCache,
+          data: leaderboardCache.slice(0, limit),
           source: 'cache'
         });
       }
@@ -38,20 +43,20 @@ export default async function handler(
           SELECT 
             wallet_address, 
             username, 
-            score, 
-            last_played
+            points as score, 
+            last_points_update as last_played
           FROM users 
-          WHERE score > 0 
-          ORDER BY score DESC 
-          LIMIT 10
+          WHERE points > 0 
+          ORDER BY points DESC 
+          LIMIT ${limit}
         `;
         
         // Format the response
         const leaderboard = result.map((row, index) => ({
           walletAddress: row.wallet_address,
-          name: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
-          score: row.score,
-          lastUpdated: row.last_played,
+          username: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
+          score: row.score || 0,
+          lastUpdated: row.last_played || new Date(),
           rank: index + 1
         }));
         
@@ -77,7 +82,7 @@ export default async function handler(
         });
       }
     } else if (req.method === 'POST') {
-      const { walletAddress, score } = req.body;
+      const { walletAddress, score, username } = req.body;
       
       if (!walletAddress || score === undefined) {
         return res.status(400).json({ 
@@ -89,7 +94,7 @@ export default async function handler(
       try {
         // Try to update the database
         const userResult = await sql`
-          SELECT score FROM users 
+          SELECT points as score, username FROM users 
           WHERE wallet_address = ${walletAddress}
         `;
         
@@ -102,19 +107,20 @@ export default async function handler(
             // Update existing user
             await sql`
               UPDATE users 
-              SET score = ${score}, last_played = ${new Date().toISOString()} 
+              SET points = ${score}, last_points_update = ${new Date().toISOString()} 
               WHERE wallet_address = ${walletAddress}
             `;
           } else {
             // Create new user
             await sql`
               INSERT INTO users (
-                wallet_address, score, last_played, created_at
+                wallet_address, points, last_points_update, created_at, username
               ) VALUES (
                 ${walletAddress}, 
                 ${score}, 
                 ${new Date().toISOString()}, 
-                ${new Date().toISOString()}
+                ${new Date().toISOString()},
+                ${username || `Pet_${walletAddress.substring(0, 4)}`}
               )
             `;
           }

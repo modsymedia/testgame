@@ -704,7 +704,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Apply the GOCHI point calculation formula
       // Quality multiplier based on pet state after feeding
       const petStateAfterFeeding = {
-        health: healthRef.current,
+            health: healthRef.current,
         happiness: happinessRef.current,
         hunger: foodRef.current,  // In our system, food = hunger
         cleanliness: cleanlinessRef.current
@@ -841,7 +841,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Apply the GOCHI point calculation formula
       // Quality multiplier based on pet state after playing
       const petStateAfterPlaying = {
-        health: healthRef.current,
+            health: healthRef.current,
         happiness: happinessRef.current,
         hunger: foodRef.current,  // In our system, food = hunger
         cleanliness: cleanlinessRef.current
@@ -899,7 +899,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy,
     setHealth
   ])
-
+  
   // Remove the direct saveWalletData call from handleCleaning
   const handleCleaning = useCallback(async () => {
     if (isDead || isOnCooldown.clean) return false
@@ -978,7 +978,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Apply the GOCHI point calculation formula
       // Quality multiplier based on pet state after cleaning
       const petStateAfterCleaning = {
-        health: healthRef.current,
+            health: healthRef.current,
         happiness: happinessRef.current,
         hunger: foodRef.current,  // In our system, food = hunger
         cleanliness: cleanlinessRef.current
@@ -1036,7 +1036,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     setEnergy,
     setHealth
   ])
-
+  
   // Remove the direct saveWalletData call from handleDoctor
   const handleDoctor = useCallback(async () => {
     if (isDead || isOnCooldown.heal) return false
@@ -1116,7 +1116,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Apply the GOCHI point calculation formula
       // Quality multiplier based on pet state after doctor visit
       const petStateAfterHealing = {
-        health: healthRef.current,
+            health: healthRef.current,
         happiness: happinessRef.current,
         hunger: foodRef.current,  // In our system, food = hunger
         cleanliness: cleanlinessRef.current

@@ -397,23 +397,41 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const setPetName = async (petName: string): Promise<boolean> => {
     if (!publicKey || !walletData) return false;
     
-    const updatedWalletData = {
-      ...walletData,
-      petName: petName
-    };
-    
-    setWalletData(updatedWalletData);
-    
-    // Save updated data with the new pet name
-    const saved = await saveWalletData(publicKey, updatedWalletData);
-    if (!saved) {
-      console.warn('Failed to save pet name to server, using memory storage');
+    try {
+      // Use PUT endpoint specifically for pet name update
+      const response = await fetch('/api/wallet', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: publicKey,
+          action: 'setPetName',
+          petName: petName
+        }),
+      });
+      
+      if (!response.ok) {
+        console.warn('Failed to save pet name to server');
+        return false;
+      }
+      
+      // Update local state
+      const updatedWalletData = {
+        ...walletData,
+        petName: petName
+      };
+      
+      setWalletData(updatedWalletData);
+      
+      // No longer a new user after completing setup
+      setIsNewUser(false);
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting pet name:', error);
+      return false;
     }
-    
-    // No longer a new user after completing setup
-    setIsNewUser(false);
-    
-    return true;
   };
   
   const value = {

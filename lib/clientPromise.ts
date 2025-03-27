@@ -1,10 +1,10 @@
 /**
- * Bridge module for Next.js API routes to use SQLite
- * This wraps the SQLite client in a Promise to maintain compatibility with the old MongoDB code
+ * Bridge module for Next.js API routes to use Postgres
+ * This wraps the Postgres client in a Promise to maintain compatibility
  */
-import sqliteClient from './sqlite';
+import postgresClient from './postgres';
 
-// SQLite client is already a Promise-based API, but we wrap it for consistent usage
-const clientPromise = Promise.resolve(sqliteClient);
+// Postgres client wrapper for consistent usage
+const clientPromise = Promise.resolve(postgresClient);
 
 export default clientPromise; 

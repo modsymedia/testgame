@@ -10,7 +10,7 @@ export default async function handler(
 ) {
   try {
     if (req.method === 'POST') {
-      const { walletAddress, score, petState } = req.body;
+      const { walletAddress, score, petState, petName } = req.body;
       
       if (!walletAddress) {
         return res.status(400).json({ 
@@ -28,11 +28,22 @@ export default async function handler(
         
         if (existingUser.length > 0) {
           // Update existing user
-          await sql`
-            UPDATE users 
-            SET points = ${score}, last_points_update = ${new Date().toISOString()}
-            WHERE wallet_address = ${walletAddress}
-          `;
+          const updateQuery = petName 
+            ? sql`
+                UPDATE users 
+                SET points = ${score}, 
+                    last_points_update = ${new Date().toISOString()},
+                    username = ${petName}
+                WHERE wallet_address = ${walletAddress}
+              `
+            : sql`
+                UPDATE users 
+                SET points = ${score}, 
+                    last_points_update = ${new Date().toISOString()}
+                WHERE wallet_address = ${walletAddress}
+              `;
+              
+          await updateQuery;
           
           if (petState) {
             try {
@@ -87,12 +98,13 @@ export default async function handler(
           // Create new user
           await sql`
             INSERT INTO users (
-              wallet_address, points, last_points_update, created_at
+              wallet_address, points, last_points_update, created_at, username
             ) VALUES (
               ${walletAddress},
               ${score || 0},
               ${new Date().toISOString()},
-              ${new Date().toISOString()}
+              ${new Date().toISOString()},
+              ${petName || `Pet_${walletAddress.substring(0, 4)}`}
             )
           `;
           
@@ -174,6 +186,7 @@ export default async function handler(
         // Format and return user data
         const userData = {
           walletAddress: user[0].wallet_address,
+          username: user[0].username || `Pet_${walletAddress.substring(0, 4)}`,
           points: user[0].points || 0,
           multiplier: user[0].multiplier || 1.0,
           lastUpdated: user[0].last_points_update ? new Date(user[0].last_points_update) : null,
@@ -198,93 +211,74 @@ export default async function handler(
         return res.status(500).json({ 
           success: false, 
           error: 'Server error', 
-          message: dbError.message 
+          details: dbError.message 
         });
       }
     } else if (req.method === 'PUT') {
-      const { walletAddress, action, amount } = req.body;
+      const { walletAddress, action, petName } = req.body;
       
-      if (!walletAddress || !action) {
-        return res.status(400).json({
-          success: false,
-          error: 'Wallet address and action are required'
+      if (!walletAddress) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing wallet address' 
         });
       }
       
       try {
-        if (action === 'burnPoints') {
-          // Get current points
-          const userResult = await sql`
-            SELECT points FROM users WHERE wallet_address = ${walletAddress}
-          `;
-          
-          if (userResult.length === 0) {
-            return res.status(404).json({
-              success: false,
-              error: 'User not found'
-            });
-          }
-          
-          // Calculate remaining points (burn 50%)
-          const remainingPoints = Math.floor(userResult[0].points * 0.5);
-          
-          // Update user points
-          await sql`
-            UPDATE users SET points = ${remainingPoints} 
-            WHERE wallet_address = ${walletAddress}
-          `;
-          
-          return res.status(200).json({
-            success: true,
-            remainingPoints
+        // Check if the user exists
+        const existingUser = await sql`
+          SELECT * FROM users WHERE wallet_address = ${walletAddress}
+        `;
+        
+        if (existingUser.length === 0) {
+          return res.status(404).json({ 
+            success: false, 
+            error: 'Wallet not found' 
           });
         }
         
-        if (action === 'updatePoints') {
-          if (typeof amount !== 'number') {
-            return res.status(400).json({
-              success: false,
-              error: 'Amount must be a number'
-            });
-          }
-          
-          // Get current points
-          const userResult = await sql`
-            SELECT points FROM users WHERE wallet_address = ${walletAddress}
-          `;
-          
-          if (userResult.length === 0) {
-            return res.status(404).json({
-              success: false,
-              error: 'User not found'
-            });
-          }
-          
-          const newPoints = Math.max(0, userResult[0].points + amount);
-          
-          // Update user points
+        // Handle update actions
+        if (action === 'setPetName' && petName) {
           await sql`
-            UPDATE users SET points = ${newPoints} 
+            UPDATE users 
+            SET username = ${petName}
             WHERE wallet_address = ${walletAddress}
           `;
           
-          return res.status(200).json({
-            success: true,
-            points: newPoints
+          return res.status(200).json({ 
+            success: true, 
+            message: 'Pet name updated' 
+          });
+        } else if (action === 'burnPoints') {
+          // Burn points operation (reduce by 50%)
+          const currentPoints = existingUser[0].points || 0;
+          const remainingPoints = Math.floor(currentPoints * 0.5);
+          
+          await sql`
+            UPDATE users 
+            SET points = ${remainingPoints},
+                last_points_update = ${new Date().toISOString()}
+            WHERE wallet_address = ${walletAddress}
+          `;
+          
+          return res.status(200).json({ 
+            success: true, 
+            message: 'Points burned successfully',
+            remainingPoints 
+          });
+        } else {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'Invalid action or missing required data' 
           });
         }
-        
-        return res.status(400).json({
-          success: false,
-          error: 'Unsupported action'
-        });
       } catch (dbError: any) {
         console.error('Database update error:', dbError.message);
         
-        return res.status(500).json({
-          success: false,
-          error: 'Server error',
-          message: dbError.message
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Database update error', 
+          details: dbError.message 
         });
       }
     } else {
@@ -293,13 +287,12 @@ export default async function handler(
         error: 'Method not allowed' 
       });
     }
-  } catch (error: any) {
-    console.error('Server error:', error.message);
+  } catch (error) {
+    console.error('Server error:', error);
     
-    return res.status(500).json({
-      success: false,
-      error: 'Server error',
-      message: error.message
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error' 
     });
   }
 } 
