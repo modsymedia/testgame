@@ -67,7 +67,7 @@ function NavItem({
   return (
     <Link href={path} className="w-full h-full">
       <PixelatedContainer
-        className={`mx-1 w-full ${isActive ? "h-[59px]" : "h-[40px]"}`} // 74 * 0.8 = 59.2 rounded to 59, 50 * 0.8 = 40
+        className={`mx-1 w-full transition-all duration-300 ease-in-out ${isActive ? "h-[59px]" : "h-[40px]"}`}
         style={{ width: `${width}px` }}
         noPadding
       >
