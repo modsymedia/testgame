@@ -129,13 +129,13 @@ export default function LeaderboardDisplay() {
             <div className="text-center p-6 text-[#304700]">No players yet. Be the first!</div>
           ) : (
             <Table>
-              {/* <TableHeader>
-                <TableRow className="border-[#304700]">
-                  <TableHead className="w-[80px] text-center text-[#304700]">Rank</TableHead>
-                  <TableHead className="text-[#304700]">Player</TableHead>
-                  <TableHead className="text-right text-[#304700]">Score</TableHead>
-                </TableRow>
-              </TableHeader> */}
+                {/* <TableHeader>
+                  <TableRow className="border-[#304700]">
+                    <TableHead className="w-[80px] text-center text-[#304700]">Rank</TableHead>
+                    <TableHead className="text-[#304700]">Player</TableHead>
+                    <TableHead className="text-right text-[#304700]">Score</TableHead>
+                  </TableRow>
+                </TableHeader> */}
               <TableBody>
                 {displayedEntries.map((entry) => (
                   <TableRow key={entry.walletAddress} className="border-[#304700]">
