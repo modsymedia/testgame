@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { WalletProvider } from '@/context/WalletContext'
-import { Header } from '@/components/ui/Header'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -18,7 +17,6 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <WalletProvider>
-          <Header />
           <main>
             {children}
           </main>

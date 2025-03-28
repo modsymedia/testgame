@@ -16,7 +16,7 @@ export default function LandingPage() {
   // Redirect to game if already connected, unless new user setup is needed
   useEffect(() => {
     if (isConnected && !isNewUser) {
-      router.push('/game');
+      router.push('/console/gotchi');
     }
   }, [isConnected, isNewUser, router]);
 

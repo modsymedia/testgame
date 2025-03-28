@@ -1,11 +1,18 @@
-import { KawaiiDevice } from "@/components/kawaii-device"
+"use client";
 
-export default function GamePage() {
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function GameRedirect() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/console/gotchi');
+  }, [router]);
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-grow flex items-center justify-center bg-white">
-        <KawaiiDevice />
-      </main>
+    <div className="min-h-screen flex items-center justify-center">
+      <p>Redirecting to new Gochi game...</p>
     </div>
-  )
+  );
 } 
