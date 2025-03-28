@@ -5,11 +5,19 @@ import { useWallet } from '@/context/WalletContext';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isConnected, walletData, publicKey } = useWallet();
+  const { isConnected, walletData, publicKey, setPetName } = useWallet();
   const [tokenPrice, setTokenPrice] = useState(0.05); // Example token price in USD
+  const [newPetName, setNewPetName] = useState('');
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+  const [nameUpdateStatus, setNameUpdateStatus] = useState<{
+    success?: boolean;
+    message?: string;
+  }>({});
 
   // Redirect to landing if not connected
   useEffect(() => {
@@ -18,11 +26,51 @@ export default function DashboardPage() {
     }
   }, [isConnected, router]);
 
+  // Set the initial value of the pet name input when wallet data loads
+  useEffect(() => {
+    if (walletData?.petName) {
+      setNewPetName(walletData.petName);
+    }
+  }, [walletData?.petName]);
+
   const points = walletData?.points || 0;
   const petName = walletData?.petName || 'Pet';
   const claimedPoints = 6000; // This would come from the backend in a real implementation
   const dollarsCollected = 500; // This would come from the backend in a real implementation
   const potentialRewards = points * tokenPrice;
+
+  const handlePetNameChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newPetName.trim() || newPetName.trim() === petName) return;
+    
+    try {
+      setIsUpdatingName(true);
+      setNameUpdateStatus({});
+      
+      const success = await setPetName(newPetName.trim());
+      
+      if (success) {
+        setNameUpdateStatus({ 
+          success: true, 
+          message: 'Pet name updated successfully!' 
+        });
+      } else {
+        setNameUpdateStatus({ 
+          success: false, 
+          message: 'Failed to update pet name. Please try again.' 
+        });
+      }
+    } catch (error) {
+      setNameUpdateStatus({ 
+        success: false, 
+        message: 'An error occurred while updating the pet name.' 
+      });
+      console.error('Error updating pet name:', error);
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -98,11 +146,43 @@ export default function DashboardPage() {
               <CardTitle className="text-pink-600">Account Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-6">
                 <div>
-                  <span className="text-gray-500 mr-2">Pet Name:</span>
-                  <span className="font-semibold">{petName}</span>
+                  <form onSubmit={handlePetNameChange} className="space-y-4">
+                    <div>
+                      <label htmlFor="petName" className="block text-gray-700 font-medium mb-1">
+                        Pet Name
+                      </label>
+                      <div className="flex space-x-2">
+                        <Input
+                          id="petName"
+                          type="text"
+                          value={newPetName}
+                          onChange={(e) => setNewPetName(e.target.value)}
+                          placeholder="Enter pet name"
+                          className="flex-1"
+                          maxLength={20}
+                          minLength={3}
+                          required
+                        />
+                        <Button 
+                          type="submit" 
+                          disabled={isUpdatingName || newPetName.trim() === petName || !newPetName.trim()}
+                          className={`${isUpdatingName ? 'bg-gray-400' : 'bg-pink-600 hover:bg-pink-700'} text-white`}
+                        >
+                          {isUpdatingName ? 'Updating...' : 'Update Name'}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {nameUpdateStatus.message && (
+                      <div className={`text-sm ${nameUpdateStatus.success ? 'text-green-600' : 'text-red-600'}`}>
+                        {nameUpdateStatus.message}
+                      </div>
+                    )}
+                  </form>
                 </div>
+                
                 <div>
                   <span className="text-gray-500 mr-2">Wallet:</span>
                   <span className="font-mono text-sm break-all">

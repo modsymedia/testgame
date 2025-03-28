@@ -30,12 +30,8 @@ export default function LeaderboardPage() {
         />
       </div>
 
-      <main className="flex-grow relative z-10 items-center justify-center ">
-        <div className="max-w-4xl mx-auto">
-          <div className="p-4 flex items-center justify-center">
-            <LeaderboardDisplay />
-          </div>
-        </div>
+      <main className="flex-grow relative z-10 flex items-center justify-center">
+        <LeaderboardDisplay />
       </main>
     </div>
   );

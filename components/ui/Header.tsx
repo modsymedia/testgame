@@ -64,10 +64,16 @@ function NavItem({
   icon,
   isActive,
 }: NavItemComponentProps) {
+  // Active height is 59px, inactive is 40px, difference is 19px
+  // 50% of difference is 9.5px, so hover height is 40px + 9.5px = 49.5px, rounded to 50px
   return (
-    <Link href={path} className="w-full h-full">
+    <Link href={path} className="w-full h-full group">
       <PixelatedContainer
-        className={`mx-1 w-full transition-all duration-300 ease-in-out ${isActive ? "h-[59px]" : "h-[40px]"}`}
+        className={`mx-1 w-full transition-all duration-300 ease-in-out 
+          ${isActive 
+            ? "h-[59px]" 
+            : "h-[40px] hover:h-[50px] group-hover:h-[44px]"
+          }`}
         style={{ width: `${width}px` }}
         noPadding
       >
