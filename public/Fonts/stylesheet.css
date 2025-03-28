@@ -1,0 +1,9 @@
+@font-face {
+    font-family: 'SK Eliz Trial';
+    src: url('SKEliz-Trial.woff2') format('woff2'),
+        url('SKEliz-Trial.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getGPTLogs, GPTLogEntry } from '@/utils/openai-service';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './button';
+import PixelatedContainer from '@/components/PixelatedContainer';
 
 // No longer need a local log entry interface as we import it from openai-service
 
@@ -62,7 +62,7 @@ export const GPTLogsPanel = () => {
   };
 
   const formatTimestamp = (date: Date) => {
-    return new Date(date).toLocaleTimeString();
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   };
 
   const truncateText = (text: string, maxLength: number = 50) => {
@@ -82,166 +82,130 @@ export const GPTLogsPanel = () => {
   return (
     <AnimatePresence>
       <motion.div
-        className={`absolute left-0 top-1/4 z-10 bg-white shadow-lg rounded-r-lg overflow-hidden ${isExpanded ? 'w-80' : 'w-16'}`}
-        initial={{ x: -10 }}
-        animate={{ x: 0 }}
+        className={`absolute right-4 top-20 z-10 ${isExpanded ? 'w-80' : 'w-16'}`}
+        initial={{ opacity: 0.9 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <div 
-          className="bg-indigo-600 text-white p-2 flex items-center justify-between cursor-pointer"
-          onClick={toggleExpand}
-        >
-          {isExpanded ? (
-            <>
-              <span className="text-sm font-semibold">GPT Logs</span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 text-white p-0"
+        <PixelatedContainer className="overflow-hidden" noPadding>
+          <div className="bg-[#ebffb7] border-2 border-[#304700] w-full">
+            {/* Header */}
+            <div
+              className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between cursor-pointer border-b-2 border-[#304700]"
+              onClick={toggleExpand}
+            >
+              <span className="text-md font-bold font-sk-eliz">GPT Logs</span>
+              <button 
+                className="text-[#304700] hover:text-[#71814e] font-bold"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsExpanded(false);
                 }}
               >
-                ←
-              </Button>
-            </>
-          ) : (
-            <span className="whitespace-nowrap text-xs font-semibold">GPT Logs</span>
-          )}
-        </div>
-
-        {isExpanded && (
-          <div className="p-2">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex space-x-1 flex-1">
-                <Button 
-                  variant={activeFilter === 'all' ? "default" : "outline"} 
-                  size="sm" 
-                  className="text-xs h-6 flex-1"
-                  onClick={() => setActiveFilter('all')}
-                >
-                  All
-                </Button>
-                <Button 
-                  variant={activeFilter === 'petBehavior' ? "default" : "outline"} 
-                  size="sm" 
-                  className="text-xs h-6 flex-1"
-                  onClick={() => setActiveFilter('petBehavior')}
-                >
-                  Behavior
-                </Button>
-                <Button 
-                  variant={activeFilter === 'petMessage' ? "default" : "outline"} 
-                  size="sm" 
-                  className="text-xs h-6 flex-1"
-                  onClick={() => setActiveFilter('petMessage')}
-                >
-                  Msgs
-                </Button>
-              </div>
+                𝗫
+              </button>
             </div>
 
-            <ScrollArea className="h-[450px]">
-              <div className="space-y-2">
-                {logs.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 text-xs">
-                    No logs available yet
+            {isExpanded && (
+              <div className="p-2 bg-[#ebffb7]">
+                {/* Filter Tabs */}
+                <div className="flex justify-between items-center mb-2 border-b-2 border-[#304700] pb-2">
+                  <div className="flex space-x-4 flex-1 px-4">
+                    <button 
+                      className={`text-md font-sk-eliz ${activeFilter === 'all' ? 'text-[#304700] font-bold' : 'text-[#71814e]'}`}
+                      onClick={() => setActiveFilter('all')}
+                    >
+                      All
+                    </button>
+                    <button 
+                      className={`text-md font-sk-eliz ${activeFilter === 'petBehavior' ? 'text-[#304700] font-bold' : 'text-[#71814e]'}`}
+                      onClick={() => setActiveFilter('petBehavior')}
+                    >
+                      Behavior
+                    </button>
+                    <button 
+                      className={`text-md font-sk-eliz ${activeFilter === 'petMessage' ? 'text-[#304700] font-bold' : 'text-[#71814e]'}`}
+                      onClick={() => setActiveFilter('petMessage')}
+                    >
+                      Msgs
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    {logs.map((log, index) => (
-                      <Card key={index} className="p-2 text-xs">
-                        <div className="flex justify-between items-start">
-                          <span className={`font-medium ${log.type === 'petBehavior' ? 'text-blue-600' : 'text-green-600'}`}>
-                            {log.type === 'petBehavior' ? 'AI' : 'Msg'}
-                          </span>
-                          <span className="text-gray-500">
-                            {formatTimestamp(log.timestamp)}
-                          </span>
-                        </div>
-                        
-                        <div className="mt-1 border-t pt-1">
-                          <div className="flex justify-between">
-                            <div className="text-gray-700 font-semibold">Prompt:</div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 text-xs px-1 py-0 -mt-1 -mr-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleLogExpansion(index);
-                              }}
-                            >
-                              {expandedLog === index ? 'Hide' : 'View'}
-                            </Button>
-                          </div>
-                          <div className="text-gray-600">
-                            {expandedLog === index 
-                              ? <pre className="bg-gray-50 p-1 rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-[150px]">{log.prompt}</pre> 
-                              : truncateText(log.prompt, 100)}
-                          </div>
-                        </div>
-                        
-                        {log.response && (
-                          <div className="mt-1 border-t pt-1">
-                            <div className="text-gray-700 font-semibold">Response:</div>
-                            <div className="text-gray-600">
-                              {expandedLog === index 
-                                ? typeof log.response === 'string' 
-                                  ? log.response 
-                                  : (
-                                    <pre className="bg-gray-50 p-1 rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-[150px]">
-                                      {JSON.stringify(log.response, null, 2)}
-                                    </pre>
-                                  )
-                                : truncateText(typeof log.response === 'string' ? log.response : JSON.stringify(log.response), 100)}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {log.error && (
-                          <div className="mt-1 border-t pt-1">
-                            <div className="text-red-600 font-semibold">Error:</div>
-                            <div className="text-red-500">
-                              {expandedLog === index 
-                                ? <pre className="bg-red-50 p-1 rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-[100px]">{log.error}</pre>
-                                : truncateText(log.error, 100)}
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className="mt-2 flex justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs px-2 py-0"
-                            onClick={() => toggleLogExpansion(index)}
-                          >
-                            {expandedLog === index ? 'View Less' : 'View More'}
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                    
-                    {logs.length >= showCount && (
-                      <div className="flex justify-center mt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={loadMoreLogs}
-                        >
-                          Load More
-                        </Button>
+                </div>
+
+                <ScrollArea className="h-[400px] pr-2">
+                  <div className="space-y-4">
+                    {logs.length === 0 ? (
+                      <div className="text-center py-4 text-[#304700] font-sk-eliz">
+                        No logs available yet
                       </div>
+                    ) : (
+                      <>
+                        {logs.map((log, index) => (
+                          <div key={index} className="mb-4">
+                            <div className="bg-[#ebffb7] border-2 border-[#304700] mb-2">
+                              <div className="flex justify-between items-start p-2 border-b border-[#304700]">
+                                <span className="font-bold text-[#304700] font-sk-eliz">
+                                  {log.type === 'petBehavior' ? 'Behavior' : 'Msgs'}
+                                </span>
+                                <span className="text-[#304700]">
+                                  {formatTimestamp(log.timestamp)}
+                                </span>
+                              </div>
+                              
+                              <div className="p-2">
+                                <div className="font-bold text-[#304700] font-sk-eliz mb-1">Prompt:</div>
+                                <div className="text-[#304700] mb-2 font-sk-eliz">
+                                  {expandedLog === index 
+                                    ? log.prompt
+                                    : truncateText(log.prompt, 150)}
+                                </div>
+                                
+                                {log.response && (
+                                  <>
+                                    <div className="font-bold text-[#304700] font-sk-eliz mb-1">Response:</div>
+                                    <div className="text-[#304700] font-sk-eliz">
+                                      {expandedLog === index 
+                                        ? typeof log.response === 'string' 
+                                          ? log.response 
+                                          : JSON.stringify(log.response, null, 2)
+                                        : truncateText(typeof log.response === 'string' 
+                                            ? log.response 
+                                            : JSON.stringify(log.response), 100)}
+                                    </div>
+                                  </>
+                                )}
+                                
+                                <div className="flex justify-end mt-2">
+                                  <button
+                                    className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-2 py-1 hover:bg-[#d1e599] font-sk-eliz"
+                                    onClick={() => toggleLogExpansion(index)}
+                                  >
+                                    {expandedLog === index ? 'View' : 'View more'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {logs.length >= showCount && (
+                          <div className="flex justify-center mt-4">
+                            <button
+                              className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-4 py-1 hover:bg-[#d1e599] font-sk-eliz"
+                              onClick={loadMoreLogs}
+                            >
+                              View more
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
+                  </div>
+                </ScrollArea>
               </div>
-            </ScrollArea>
+            )}
           </div>
-        )}
+        </PixelatedContainer>
       </motion.div>
     </AnimatePresence>
   );

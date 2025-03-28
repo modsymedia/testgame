@@ -25,20 +25,18 @@ export default async function handler(
     if (req.method === 'GET') {
       // Get the limit from query params (default to 10)
       const limit = parseInt(req.query.limit as string) || 10;
+      const offset = parseInt(req.query.offset as string) || 0;
       
-      // Check if we have a recent cache
-      const now = Date.now();
-      if (leaderboardCache.length > 0 && now - lastCacheUpdate < CACHE_TTL) {
-        // Return the requested number of entries from cache
-        return res.status(200).json({ 
-          success: true, 
-          data: leaderboardCache.slice(0, limit),
-          source: 'cache'
-        });
-      }
-      
-      // Get top scores from database
+      // Get top scores from database - disable cache since we need accurate pagination
       try {
+        // Get total count for pagination
+        const countResult = await sql`
+          SELECT COUNT(*) as total FROM users WHERE points > 0
+        `;
+        
+        const totalEntries = countResult[0]?.total || 0;
+        
+        // Get paginated results
         const result = await sql`
           SELECT 
             wallet_address, 
@@ -48,6 +46,7 @@ export default async function handler(
           FROM users 
           WHERE points > 0 
           ORDER BY points DESC 
+          OFFSET ${offset}
           LIMIT ${limit}
         `;
         
@@ -57,17 +56,15 @@ export default async function handler(
           username: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
           score: row.score || 0,
           lastUpdated: row.last_played || new Date(),
-          rank: index + 1
+          rank: offset + index + 1
         }));
-        
-        // Update cache
-        leaderboardCache.length = 0;
-        leaderboardCache.push(...leaderboard);
-        lastCacheUpdate = now;
         
         return res.status(200).json({ 
           success: true, 
           data: leaderboard,
+          meta: {
+            total: totalEntries
+          },
           source: 'postgres'
         });
       } catch (dbError: any) {

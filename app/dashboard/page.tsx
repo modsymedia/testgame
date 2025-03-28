@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Navigation } from "@/components/navigation";
 import { useWallet } from '@/context/WalletContext';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +26,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navigation />
       <main className="flex-grow bg-white p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-6">

@@ -1,14 +1,21 @@
 import { LeaderboardEntry } from '@/lib/models';
 
 /**
- * Fetch the leaderboard data
- * @param limit Number of top players to retrieve
- * @returns Array of leaderboard entries
+ * Fetch the leaderboard data with pagination support
+ * @param limit Number of entries per page
+ * @param page Page number (1-based)
+ * @returns Object containing entries array and metadata
  */
-export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
+export async function fetchLeaderboard(limit = 10, page = 1): Promise<{
+  entries: LeaderboardEntry[];
+  total: number;
+}> {
   try {
+    // Calculate offset for pagination
+    const offset = page === 1 ? 0 : 6 + ((page - 2) * 15);
+    
     // Use relative URL to avoid port/domain issues
-    const response = await fetch(`/api/leaderboard?limit=${limit}`, {
+    const response = await fetch(`/api/leaderboard?limit=${limit}&offset=${offset}`, {
       // Add cache control to prevent stale data
       cache: 'no-cache',
       headers: {
@@ -18,7 +25,7 @@ export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> 
     
     if (!response.ok) {
       console.warn(`Leaderboard fetch failed with status: ${response.status}`);
-      return [];
+      return { entries: [], total: 0 };
     }
     
     // Parse the response body
@@ -26,16 +33,19 @@ export async function fetchLeaderboard(limit = 10): Promise<LeaderboardEntry[]> 
     
     // If we got a successful response with leaderboard data, use it
     if (data && data.success && data.data && Array.isArray(data.data)) {
-      return data.data;
+      return { 
+        entries: data.data,
+        total: data.meta?.total || data.data.length
+      };
     }
     
     // Return empty array if no data available
     console.warn('No valid leaderboard data in response');
-    return [];
+    return { entries: [], total: 0 };
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     // Return empty array on error
-    return [];
+    return { entries: [], total: 0 };
   }
 }
 
