@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import PixelatedContainer from '@/components/PixelatedContainer';
 import { PointsEarnedPanel } from './points-earned-panel';
 
@@ -18,14 +18,62 @@ export const PointsDashboard = ({
   publicKey,
 }: PointsDashboardProps) => {
   const potentialRewards = points * tokenPrice;
-
-  // Points earned section data
+  
+  // Dynamic state for points earned panel
+  const [pointsPerSecond, setPointsPerSecond] = useState(1.3);
+  const [timeUntilUpdate, setTimeUntilUpdate] = useState(30.0);
+  const [progress, setProgress] = useState(0);
+  const [nextPoints, setNextPoints] = useState(points + 10);
+  
+  // Simulate dynamic updates based on game state
+  useEffect(() => {
+    // Fixed values
+    const MAX_TIMER = 30.0;
+    const UPDATE_INTERVAL = 1000; // 1 second
+    const PROGRESS_INCREMENT = 100 / (MAX_TIMER); // Progress increment per second
+    
+    // Update progress every second
+    const progressInterval = setInterval(() => {
+      // Update progress bar
+      setProgress((prev) => {
+        const newProgress = prev + PROGRESS_INCREMENT;
+        if (newProgress >= 100) {
+          return 0; // Reset progress when it reaches 100%
+        }
+        return newProgress;
+      });
+      
+      // Update time until next update
+      setTimeUntilUpdate((prev) => {
+        const newTime = parseFloat((prev - 1).toFixed(1));
+        if (newTime <= 0) {
+          // When timer reaches 0, update points and reset timer
+          setNextPoints(points + Math.round(10 + Math.random() * 5));
+          return MAX_TIMER;
+        }
+        return newTime;
+      });
+    }, UPDATE_INTERVAL);
+    
+    // Update points per second occasionally (every 15 seconds)
+    const rateInterval = setInterval(() => {
+      // Random fluctuation in points per second between 1.0 and 2.5
+      setPointsPerSecond(parseFloat((1 + Math.random() * 1.5).toFixed(1)));
+    }, 15000);
+    
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(rateInterval);
+    };
+  }, [points]);
+  
+  // Points earned section data - dynamic except for task rewards
   const pointsEarnedData = {
     currentPoints: points,
-    nextPoints: points + 10,
-    pointsPerSecond: 1.3,
-    timeUntilUpdate: 4.0,
-    progress: 60, // Example progress percentage
+    nextPoints: nextPoints,
+    pointsPerSecond: pointsPerSecond,
+    timeUntilUpdate: timeUntilUpdate,
+    progress: progress,
   };
 
   return (
@@ -38,7 +86,7 @@ export const PointsDashboard = ({
             <div className="w-full">
               <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">My Points</h2>
               <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
-                {points.toLocaleString()}
+                {Math.round(points).toLocaleString()}
               </div>
               <p className="text-[16px] font-sk-eliz text-[#304700]">
                 Earn more points by playing Gochi
@@ -54,7 +102,7 @@ export const PointsDashboard = ({
                 ${potentialRewards.toFixed(2)}
               </div>
               <p className="text-[16px] font-sk-eliz text-[#304700]">
-                Token price × Points = ${tokenPrice.toFixed(2)} × {points}
+                Token price × Points = ${tokenPrice.toFixed(2)} × {Math.round(points)}
               </p>
             </div>
           </PixelatedContainer>
@@ -65,7 +113,7 @@ export const PointsDashboard = ({
               <div>
                 <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">Claimed Points</h2>
                 <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
-                  {claimedPoints.toLocaleString()}
+                  {Math.round(claimedPoints).toLocaleString()}
                 </div>
                 <p className="text-[16px] font-sk-eliz text-[#304700]">
                   Total points converted to rewards

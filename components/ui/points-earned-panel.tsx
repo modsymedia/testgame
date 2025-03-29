@@ -11,6 +11,7 @@ interface PointsEarnedPanelProps {
   progress: number;
 }
 
+// Static task rewards data - will not change with game state
 const TASK_REWARDS = [
   { icon: '/assets/icons/foods/food-fish.png', name: 'Feed', points: 15 },
   { icon: '/assets/icons/games/game-ball.png', name: 'Play', points: 20 },
@@ -31,7 +32,7 @@ export const PointsEarnedPanel = ({
         <div className="w-full">
           {/* Header */}
           <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-4 border-[#304700]">
-            <span className="text-md font-bold font-sk-eliz">Points Earned</span>
+            <span className="text-lg font-bold font-sk-eliz">Points Earned</span>
             <div className="flex items-center">
               <Image
                 src="/assets/icons/info.svg"
@@ -45,36 +46,36 @@ export const PointsEarnedPanel = ({
 
           {/* Body */}
           <div className="bg-[#CADA9B] p-4">
-            {/* Current Points */}
-            <div className="text-[24px] font-sk-eliz text-[#304700] mb-4">
-              {currentPoints}
+            {/* Current Points - Dynamic based on game */}
+            <div className="text-[28px] font-bold font-sk-eliz text-[#304700] mb-4">
+              {Math.round(currentPoints)}
             </div>
 
-            {/* Points Rate */}
+            {/* Points Rate - Dynamic based on game */}
             <div className="mb-4">
-              <div className="flex justify-between text-[12px] font-sk-eliz text-[#304700] mb-2">
+              <div className="flex justify-between text-[14px] font-sk-eliz text-[#304700] mb-2">
                 <span>+ {pointsPerSecond}/sec</span>
-                <span>{timeUntilUpdate} until next update</span>
+                <span>{timeUntilUpdate}s until update</span>
               </div>
               <ProgressSlider progress={progress} />
             </div>
 
-            {/* Points Range */}
-            <div className="flex justify-between mb-8">
+            {/* Points Range - Dynamic based on game */}
+            <div className="flex justify-between mb-6">
               <div>
-                <div className="text-[12px] font-sk-eliz text-[#72795F] mb-1">Current</div>
-                <div className="text-[16px] font-sk-eliz text-[#304700]">{currentPoints}</div>
+                <div className="text-[13px] font-sk-eliz text-[#72795F] mb-1">Current</div>
+                <div className="text-[18px] font-bold font-sk-eliz text-[#304700]">{Math.round(currentPoints)}</div>
               </div>
               <div className="text-right">
-                <div className="text-[12px] font-sk-eliz text-[#72795F] mb-1">Next</div>
-                <div className="text-[16px] font-sk-eliz text-[#304700]">{nextPoints}</div>
+                <div className="text-[13px] font-sk-eliz text-[#72795F] mb-1">Next</div>
+                <div className="text-[18px] font-bold font-sk-eliz text-[#304700]">{Math.round(nextPoints)}</div>
               </div>
             </div>
 
-            {/* Task Rewards Section */}
+            {/* Task Rewards Section - Static, doesn't change with game state */}
             <div>
-              <div className="text-[16px] font-sk-eliz text-[#304700] mb-4">Task Rewards</div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="text-[18px] font-bold font-sk-eliz text-[#304700] mb-3 border-t-2 border-[#304700] pt-4">Task Rewards</div>
+              <div className="grid grid-cols-2 gap-3">
                 {TASK_REWARDS.map((task, index) => (
                   <div key={index} className="border-2 border-[#304700]">
                     <div className="bg-[#ebffb7] p-2">
@@ -94,11 +95,11 @@ export const PointsEarnedPanel = ({
                               }}
                             />
                           </div>
-                          <span className="text-[12px] font-sk-eliz text-[#304700]">
+                          <span className="text-[13px] font-medium font-sk-eliz text-[#304700]">
                             {task.name}
                           </span>
                         </div>
-                        <span className="text-[12px] font-sk-eliz text-[#304700]">
+                        <span className="text-[13px] font-bold font-sk-eliz text-[#304700]">
                           +{task.points}
                         </span>
                       </div>
