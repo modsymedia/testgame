@@ -9,6 +9,7 @@ interface PointsEarnedPanelProps {
   pointsPerSecond: number;
   timeUntilUpdate: number;
   progress: number;
+  pointsMultiplier?: number; // Add multiplier from database
 }
 
 // Static task rewards data - will not change with game state
@@ -24,7 +25,8 @@ export const PointsEarnedPanel = ({
   nextPoints,
   pointsPerSecond,
   timeUntilUpdate,
-  progress
+  progress,
+  pointsMultiplier = 1.0
 }: PointsEarnedPanelProps) => {
   return (
     <div className="w-full">
@@ -51,13 +53,16 @@ export const PointsEarnedPanel = ({
               {Math.round(currentPoints)}
             </div>
 
-            {/* Points Rate - Dynamic based on game */}
+            {/* Points Rate and Multiplier - Dynamic based on game */}
             <div className="mb-4">
               <div className="flex justify-between text-[14px] font-sk-eliz text-[#304700] mb-2">
                 <span>+ {pointsPerSecond}/sec</span>
                 <span>{timeUntilUpdate}s until update</span>
               </div>
               <ProgressSlider progress={progress} />
+              <div className="text-right text-[13px] font-bold font-sk-eliz text-[#304700] mt-1">
+                {pointsMultiplier > 1 ? `${pointsMultiplier}x multiplier active` : ''}
+              </div>
             </div>
 
             {/* Points Range - Dynamic based on game */}

@@ -21,19 +21,19 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
         backgroundColor: bgcolor, // Use bgcolor prop instead of hardcoded color
       }}
     >
-      {/* Corner squares - outside corners */}
-      <div className="absolute top-0 left-0 w-2 h-2 bg-[#304700]" />
-      <div className="absolute top-0 right-0 w-2 h-2 bg-[#304700]" />
-      <div className="absolute bottom-0 left-0 w-2 h-2 bg-[#304700]" />
-      <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#304700]" />
+      {/* Corner squares - outside corners (reduced by 15% from 2px to 1.5px) */}
+      <div className="absolute top-0 left-0 w-1.5 h-1.5 bg-[#304700]" />
+      <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-[#304700]" />
+      <div className="absolute bottom-0 left-0 w-1.5 h-1.5 bg-[#304700]" />
+      <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#304700]" />
 
-      {/* Edge extensions - vertical */}
-      <div className="absolute top-[8px] -left-2 w-2 h-[calc(100%-16px)] bg-[#304700]" />
-      <div className="absolute top-[8px] -right-2 w-2 h-[calc(100%-16px)] bg-[#304700]" />
+      {/* Edge extensions - vertical (reduced by 15% from 2px to 1.5px) */}
+      <div className="absolute top-[6px] -left-1.5 w-1.5 h-[calc(100%-12px)] bg-[#304700]" />
+      <div className="absolute top-[6px] -right-1.5 w-1.5 h-[calc(100%-12px)] bg-[#304700]" />
 
-      {/* Edge extensions - horizontal */}
-      <div className="absolute -top-2 left-[8px] w-[calc(100%-16px)] h-2 bg-[#304700]" />
-      <div className="absolute -bottom-2 left-[8px] w-[calc(100%-16px)] h-2 bg-[#304700]" />
+      {/* Edge extensions - horizontal (reduced by 15% from 2px to 1.5px) */}
+      <div className="absolute -top-1.5 left-[6px] w-[calc(100%-12px)] h-1.5 bg-[#304700]" />
+      <div className="absolute -bottom-1.5 left-[6px] w-[calc(100%-12px)] h-1.5 bg-[#304700]" />
 
       {/* Inner content */}
       <div className={`relative `}>{children}</div>

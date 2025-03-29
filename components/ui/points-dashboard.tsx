@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import PixelatedContainer from '@/components/PixelatedContainer';
 import { PointsEarnedPanel } from './points-earned-panel';
+import { useWallet } from '@/context/WalletContext';
 
 interface PointsDashboardProps {
   points: number;
@@ -17,63 +18,83 @@ export const PointsDashboard = ({
   dollarsCollected,
   publicKey,
 }: PointsDashboardProps) => {
+  const { walletData } = useWallet();
   const potentialRewards = points * tokenPrice;
   
-  // Dynamic state for points earned panel
+  // State for points earned panel - using real data from wallet
   const [pointsPerSecond, setPointsPerSecond] = useState(1.3);
   const [timeUntilUpdate, setTimeUntilUpdate] = useState(30.0);
   const [progress, setProgress] = useState(0);
   const [nextPoints, setNextPoints] = useState(points + 10);
   
-  // Simulate dynamic updates based on game state
-  useEffect(() => {
-    // Fixed values
-    const MAX_TIMER = 30.0;
-    const UPDATE_INTERVAL = 1000; // 1 second
-    const PROGRESS_INCREMENT = 100 / (MAX_TIMER); // Progress increment per second
-    
-    // Update progress every second
-    const progressInterval = setInterval(() => {
-      // Update progress bar
-      setProgress((prev) => {
-        const newProgress = prev + PROGRESS_INCREMENT;
-        if (newProgress >= 100) {
-          return 0; // Reset progress when it reaches 100%
-        }
-        return newProgress;
-      });
-      
-      // Update time until next update
-      setTimeUntilUpdate((prev) => {
-        const newTime = parseFloat((prev - 1).toFixed(1));
-        if (newTime <= 0) {
-          // When timer reaches 0, update points and reset timer
-          setNextPoints(points + Math.round(10 + Math.random() * 5));
-          return MAX_TIMER;
-        }
-        return newTime;
-      });
-    }, UPDATE_INTERVAL);
-    
-    // Update points per second occasionally (every 15 seconds)
-    const rateInterval = setInterval(() => {
-      // Random fluctuation in points per second between 1.0 and 2.5
-      setPointsPerSecond(parseFloat((1 + Math.random() * 1.5).toFixed(1)));
-    }, 15000);
-    
-    return () => {
-      clearInterval(progressInterval);
-      clearInterval(rateInterval);
-    };
-  }, [points]);
+  // Get user multiplier from wallet data
+  const pointsMultiplier = walletData?.multiplier || 1.0;
   
-  // Points earned section data - dynamic except for task rewards
+  // Calculate next update time based on real-world data
+  const calculateTimeUntilNextUpdate = useCallback(() => {
+    if (!walletData?.lastLogin) return 30.0;
+    
+    // Points update every 30 seconds in the real system
+    const POINTS_UPDATE_INTERVAL = 30 * 1000; // 30 seconds in milliseconds
+    const lastUpdate = walletData.lastLogin;
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdate;
+    const timeRemaining = Math.max(0, POINTS_UPDATE_INTERVAL - (timeSinceLastUpdate % POINTS_UPDATE_INTERVAL));
+    
+    return parseFloat((timeRemaining / 1000).toFixed(1)); // Convert to seconds
+  }, [walletData?.lastLogin]);
+  
+  // Calculate progress percentage
+  const calculateProgress = useCallback(() => {
+    if (!walletData?.lastLogin) return 0;
+    
+    const POINTS_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
+    const lastUpdate = walletData.lastLogin;
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdate;
+    const progress = ((timeSinceLastUpdate % POINTS_UPDATE_INTERVAL) / POINTS_UPDATE_INTERVAL) * 100;
+    
+    return Math.min(100, Math.max(0, progress)); // Ensure it's between 0-100%
+  }, [walletData?.lastLogin]);
+  
+  // Calculate points per second based on real data
+  const calculatePointsPerSecond = useCallback(() => {
+    // Base points rate from system, multiplied by user's multiplier
+    const basePointsRate = 1.2; // Points earned per second base rate
+    return parseFloat((basePointsRate * (walletData?.multiplier || 1.0)).toFixed(1));
+  }, [walletData?.multiplier]);
+  
+  // Initialize values on component mount and when wallet data changes
+  useEffect(() => {
+    if (walletData) {
+      // Initialize with real values from wallet data
+      setPointsPerSecond(calculatePointsPerSecond());
+      setTimeUntilUpdate(calculateTimeUntilNextUpdate());
+      setProgress(calculateProgress());
+      setNextPoints(points + Math.round(10 * (walletData.multiplier || 1.0)));
+    }
+  }, [walletData, points, calculatePointsPerSecond, calculateTimeUntilNextUpdate, calculateProgress]);
+  
+  // Update the timer and progress bar every second
+  useEffect(() => {
+    if (!walletData) return;
+    
+    const interval = setInterval(() => {
+      setTimeUntilUpdate(calculateTimeUntilNextUpdate());
+      setProgress(calculateProgress());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [walletData, calculateTimeUntilNextUpdate, calculateProgress]);
+  
+  // Prepare the points data to pass to the panel
   const pointsEarnedData = {
     currentPoints: points,
     nextPoints: nextPoints,
     pointsPerSecond: pointsPerSecond,
     timeUntilUpdate: timeUntilUpdate,
     progress: progress,
+    pointsMultiplier: pointsMultiplier
   };
 
   return (
@@ -137,6 +158,11 @@ export const PointsDashboard = ({
               <p className="font-mono text-[16px] text-[#304700] break-all">
                 {publicKey || "Not connected"}
               </p>
+              {walletData?.petName && (
+                <p className="text-[16px] font-sk-eliz text-[#304700] mt-2">
+                  Pet Name: {walletData.petName}
+                </p>
+              )}
             </div>
           </PixelatedContainer>
         </div>
