@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const dollarsCollected = 500;
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-6 flex items-center justify-center">
       <PointsDashboard
         points={points}
         tokenPrice={tokenPrice}

@@ -109,23 +109,23 @@ export function AIPetAdvisor({
             <div className="space-y-0">
               <div className="flex justify-between items-center">
                 <span className="text-[16px] font-sk-eliz text-[#304700]">Food:</span>
-                <span style={{ fontSize: '24px' }}>{food.toFixed(1)}%</span>
+                <span style={{ fontSize: '24px' }}>{Math.round(food)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[16px] font-sk-eliz text-[#304700]">Happiness:</span>
-                <span style={{ fontSize: '24px' }}>{happiness.toFixed(1)}%</span>
+                <span style={{ fontSize: '24px' }}>{Math.round(happiness)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[16px] font-sk-eliz text-[#304700]">Cleanliness:</span>
-                <span style={{ fontSize: '24px' }}>{cleanliness.toFixed(1)}%</span>
+                <span style={{ fontSize: '24px' }}>{Math.round(cleanliness)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[16px] font-sk-eliz text-[#304700]">Energy:</span>
-                <span style={{ fontSize: '24px' }}>{energy.toFixed(1)}%</span>
+                <span style={{ fontSize: '24px' }}>{Math.round(energy)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[16px] font-sk-eliz text-[#304700]">Health:</span>
-                <span style={{ fontSize: '24px' }}>{health.toFixed(1)}%</span>
+                <span style={{ fontSize: '24px' }}>{Math.round(health)}%</span>
               </div>
             </div>
             <div className="mt-4 text-[16px] font-sk-eliz text-[#304700]">

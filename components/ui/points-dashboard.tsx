@@ -1,7 +1,6 @@
 import React from 'react';
 import PixelatedContainer from '@/components/PixelatedContainer';
 import { PointsEarnedPanel } from './points-earned-panel';
-import { TaskRewardsPanel } from './task-rewards-panel';
 
 interface PointsDashboardProps {
   points: number;
@@ -33,7 +32,7 @@ export const PointsDashboard = ({
     <div className="max-w-7xl mx-auto flex gap-6">
       {/* Left side - Leaderboard */}
       <div className="flex-1">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* My Points */}
           <PixelatedContainer>
             <div className="w-full">
@@ -95,10 +94,9 @@ export const PointsDashboard = ({
         </div>
       </div>
 
-      {/* Right side - Points Earned and Task Rewards */}
-      <div className="w-[320px] space-y-4">
+      {/* Right side - Points Earned */}
+      <div className="w-[320px]">
         <PointsEarnedPanel {...pointsEarnedData} />
-        <TaskRewardsPanel />
       </div>
     </div>
   );

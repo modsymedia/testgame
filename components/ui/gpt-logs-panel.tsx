@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getGPTLogs, GPTLogEntry } from "@/utils/openai-service";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion, AnimatePresence } from "framer-motion";
-import PixelatedContainer from "@/components/PixelatedContainer";
 
 // No longer need a local log entry interface as we import it from openai-service
 
@@ -14,37 +12,53 @@ export const GPTLogsPanel = () => {
   >("all");
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
   const [showCount, setShowCount] = useState(10);
+  const isComponentMounted = useRef(true);
+  const previousLogsRef = useRef<string>("");
 
-  // Function to get filtered logs based on current settings
-  const getFilteredLogs = (allLogs: GPTLogEntry[]) => {
+  // Memoize the filter function to avoid recreation on each render
+  const getFilteredLogs = useCallback((allLogs: GPTLogEntry[]) => {
     if (activeFilter === "all") {
       return allLogs.slice(0, showCount);
-    } else {
-      return allLogs
-        .filter((log) => log.type === activeFilter)
-        .slice(0, showCount);
     }
-  };
+    return allLogs
+      .filter((log) => log.type === activeFilter)
+      .slice(0, showCount);
+  }, [activeFilter, showCount]);
 
-  // Initial load and setup event listener for real-time updates
+  // Separate effect for event listener setup and cleanup
   useEffect(() => {
-    // Get logs directly from client storage
-    const allLogs = getGPTLogs();
-    setLogs(getFilteredLogs(allLogs));
+    isComponentMounted.current = true;
+
+    const handleLogUpdate = () => {
+      if (!isComponentMounted.current) return;
+      
+      try {
+        const updatedLogs = getGPTLogs();
+        const filteredLogs = getFilteredLogs(updatedLogs);
+        const logsString = JSON.stringify(filteredLogs);
+        
+        // Only update state if logs actually changed
+        if (logsString !== previousLogsRef.current) {
+          previousLogsRef.current = logsString;
+          setLogs(filteredLogs);
+        }
+      } catch (error) {
+        console.error("Error updating logs:", error);
+      }
+    };
+
+    // Load initial logs
+    handleLogUpdate();
 
     // Set up event listener for real-time log updates
-    const handleLogUpdate = () => {
-      const updatedLogs = getGPTLogs();
-      setLogs(getFilteredLogs(updatedLogs));
-    };
-    
     window.addEventListener("gptLogUpdated", handleLogUpdate);
 
     // Clean up when component unmounts
     return () => {
+      isComponentMounted.current = false;
       window.removeEventListener("gptLogUpdated", handleLogUpdate);
     };
-  }, [activeFilter, showCount]); // Only re-run when filter or count changes
+  }, [getFilteredLogs]); // Only depend on the memoized function
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
@@ -131,7 +145,8 @@ export const GPTLogsPanel = () => {
               </button>
             </div>
 
-            <ScrollArea className="h-[400px]">
+            {/* Replace ScrollArea with a simple div with overflow */}
+            <div className="h-[400px] overflow-y-auto pr-1">
               <div className="space-y-4">
                 {logs.length === 0 ? (
                   <div className="text-center py-4 text-[#304700] font-sk-eliz">
@@ -155,7 +170,7 @@ export const GPTLogsPanel = () => {
                             <div className="font-bold text-[#304700] font-sk-eliz mb-1">
                               Prompt:
                             </div>
-                            <div className="text-[#304700] font-sk-eliz">
+                            <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
                               {expandedLog === index
                                 ? log.prompt
                                 : truncateText(log.prompt, 150)}
@@ -167,7 +182,7 @@ export const GPTLogsPanel = () => {
                               <div className="font-bold text-[#304700] font-sk-eliz mb-1">
                                 Response:
                               </div>
-                              <div className="text-[#304700] font-sk-eliz">
+                              <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
                                 {expandedLog === index
                                   ? typeof log.response === "string"
                                     ? log.response
@@ -187,7 +202,9 @@ export const GPTLogsPanel = () => {
                               className="bg-transparent text-[#304700] px-2 py-1 font-sk-eliz hover:underline"
                               onClick={() => toggleLogExpansion(index)}
                             >
-                              {expandedLog === index ? "View less" : "View more"}
+                              {expandedLog === index
+                                ? "View less"
+                                : "View more"}
                             </button>
                           </div>
                         </div>
@@ -207,7 +224,7 @@ export const GPTLogsPanel = () => {
                   </>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </div>
       </motion.div>
