@@ -74,7 +74,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <main className="flex-grow bg-white p-6">
+      <main className="flex-grow p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>

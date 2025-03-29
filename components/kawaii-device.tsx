@@ -490,7 +490,7 @@ export function KawaiiDevice() {
   }, [disconnect, router]);
 
   return (
-    <div className="w-full flex items-center justify-center min-h-screen bg-pink-100 p-4">
+    <div className="w-full flex items-center justify-center min-h-screen p-4">
       {/* Navigation and Dev Tools */}
       <div className="absolute top-4 right-4 flex space-x-2">
         {isConnected && (
@@ -508,7 +508,7 @@ export function KawaiiDevice() {
       {/* Three-column layout */}
       <div className="flex w-full max-w-6xl justify-between">
         {/* Left column - AI Pet Advisor and Notifications */}
-        <div className="w-1/4">
+        <div className="w-1/2">
           <AIPetAdvisor 
             show={true}
             isDead={isDead}
@@ -621,7 +621,7 @@ export function KawaiiDevice() {
           </AnimatePresence>
           
           <motion.div
-            className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative overflow-hidden"
+            className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
@@ -685,7 +685,7 @@ export function KawaiiDevice() {
         </div>
         
         {/* Right column - GPT Logs Panel */}
-        <div className="w-1/4">
+        <div className="w-1/2">
           <GPTLogsPanel />
         </div>
       </div>

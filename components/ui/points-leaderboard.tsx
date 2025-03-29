@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LeaderboardEntry, PointsLeaderboard as PointsLeaderboardType } from '@/lib/models';
 import { useWallet } from '@/context/WalletContext';
+import Image from 'next/image';
 
 interface PointsLeaderboardProps {
   walletAddress?: string;
@@ -67,7 +68,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
     return entries.map((entry, index) => (
       <div 
         key={entry.walletAddress} 
-        className={`flex items-center p-2 ${
+        className={`flex items-center justify-between p-2 text-[18px] uppercase ${
           entry.walletAddress === walletAddress 
             ? 'bg-blue-50 dark:bg-blue-900/30 rounded-md' 
             : index % 2 === 0 
@@ -75,13 +76,16 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
               : ''
         }`}
       >
-        <div className="w-10 text-center font-medium">
-          {entry.rank}
+        <div className="flex-1 flex items-center space-x-3">
+          <div className="w-12 h-12 flex items-center justify-center font-medium">
+            {entry.rank}
+          </div>
+          <div className="truncate uppercase">
+            {entry.username || entry.walletAddress.substring(0, 6) + '...'}
+          </div>
         </div>
-        <div className="flex-1 truncate px-2">
-          {entry.username || entry.walletAddress.substring(0, 6) + '...'}
-        </div>
-        <div className="font-medium">
+        <div className="font-medium flex items-center gap-2">
+          <Image src="/assets/icons/coin.png" width={24} height={24} alt="Points" className="inline-block" />
           {entry.points?.toLocaleString() || entry.score.toLocaleString()}
         </div>
       </div>
@@ -90,7 +94,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   
   if (!isConnected) {
     return (
-      <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800">
+      <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
         <p className="text-center">Sign in to view leaderboard</p>
       </div>
     );
@@ -98,7 +102,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   
   if (loading) {
     return (
-      <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800">
+      <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
         <p className="text-center">Loading leaderboard...</p>
       </div>
     );
@@ -106,7 +110,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   
   if (error) {
     return (
-      <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 border border-red-300 dark:border-red-700">
+      <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 border border-red-300 dark:border-red-700">
         <p className="text-center text-red-500">{error}</p>
       </div>
     );
@@ -114,7 +118,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   
   if (!leaderboard) {
     return (
-      <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800">
+      <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
         <p className="text-center text-gray-500 dark:text-gray-400">
           No leaderboard data available
         </p>
@@ -125,18 +129,18 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
   const userRank = getUserRank();
   
   return (
-    <div className="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 space-y-4">
+    <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800 space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="font-medium text-lg">GOCHI Leaderboard</h3>
+        <h3 className="font-medium text-[18px] uppercase">GOCHI Leaderboard</h3>
         {userRank && (
-          <div className="text-sm bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded-md">
+          <div className="text-[18px] bg-blue-100 dark:bg-blue-900 px-3 py-1 rounded-md uppercase">
             Your Rank: <span className="font-bold">{userRank}</span>
           </div>
         )}
       </div>
       
       <Tabs defaultValue="allTime" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 mb-2">
+        <TabsList className="grid grid-cols-4 mb-2 text-[18px] uppercase">
           <TabsTrigger value="allTime">All Time</TabsTrigger>
           <TabsTrigger value="weekly">Weekly</TabsTrigger>
           <TabsTrigger value="daily">Daily</TabsTrigger>
@@ -145,9 +149,11 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
         
         <TabsContent value="allTime" className="mt-0">
           <div className="space-y-1">
-            <div className="flex items-center font-medium text-sm text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="w-10 text-center">Rank</div>
-              <div className="flex-1 px-2">User</div>
+            <div className="flex items-center font-medium text-[18px] uppercase text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 flex items-center space-x-3">
+                <div className="w-12">Rank</div>
+                <div>User</div>
+              </div>
               <div>Points</div>
             </div>
             {renderLeaderboardEntries(leaderboard.allTime)}
@@ -156,9 +162,11 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
         
         <TabsContent value="weekly" className="mt-0">
           <div className="space-y-1">
-            <div className="flex items-center font-medium text-sm text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="w-10 text-center">Rank</div>
-              <div className="flex-1 px-2">User</div>
+            <div className="flex items-center font-medium text-[18px] uppercase text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 flex items-center space-x-3">
+                <div className="w-12">Rank</div>
+                <div>User</div>
+              </div>
               <div>Points</div>
             </div>
             {renderLeaderboardEntries(leaderboard.weekly)}
@@ -167,9 +175,11 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
         
         <TabsContent value="daily" className="mt-0">
           <div className="space-y-1">
-            <div className="flex items-center font-medium text-sm text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="w-10 text-center">Rank</div>
-              <div className="flex-1 px-2">User</div>
+            <div className="flex items-center font-medium text-[18px] uppercase text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 flex items-center space-x-3">
+                <div className="w-12">Rank</div>
+                <div>User</div>
+              </div>
               <div>Points</div>
             </div>
             {renderLeaderboardEntries(leaderboard.daily)}
@@ -178,9 +188,11 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
         
         <TabsContent value="referrals" className="mt-0">
           <div className="space-y-1">
-            <div className="flex items-center font-medium text-sm text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="w-10 text-center">Rank</div>
-              <div className="flex-1 px-2">User</div>
+            <div className="flex items-center font-medium text-[18px] uppercase text-gray-500 dark:text-gray-400 p-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 flex items-center space-x-3">
+                <div className="w-12">Rank</div>
+                <div>User</div>
+              </div>
               <div>Points</div>
             </div>
             {renderLeaderboardEntries(leaderboard.referrals)}

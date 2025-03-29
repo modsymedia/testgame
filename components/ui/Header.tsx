@@ -60,12 +60,10 @@ interface NavItemComponentProps extends NavItemProps {
 function NavItem({
   path,
   label,
-  width = 94, // Default width updated to 94
+  width = 94,
   icon,
   isActive,
 }: NavItemComponentProps) {
-  // Active height is 59px, inactive is 40px, difference is 19px
-  // 50% of difference is 9.5px, so hover height is 40px + 9.5px = 49.5px, rounded to 50px
   return (
     <Link href={path} className="w-full h-full group">
       <PixelatedContainer

@@ -5,20 +5,22 @@ interface PixelatedContainerProps {
   className?: string;
   style?: React.CSSProperties;
   noPadding?: boolean;
+  bgcolor?: string;
 }
 
-const PixelatedContainer: React.FC<PixelatedContainerProps> = ({ 
-  children, 
-  className = '', 
+const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
+  children,
+  className = "",
   style = {},
-  noPadding = false
+  noPadding = false,
+  bgcolor = "#EBFFB7", // Default value if bgcolor is not provided
 }) => {
   return (
-    <div 
+    <div
       className={`relative ${className}`}
       style={{
         ...style,
-        backgroundColor: '#EBFFB7',
+        backgroundColor: bgcolor, // Use bgcolor prop instead of hardcoded color
       }}
     >
       {/* Edge extensions - vertical */}

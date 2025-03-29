@@ -1,22 +1,23 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { AlertTriangle } from "lucide-react";
+import PixelatedContainer from "@/components/PixelatedContainer";
+import Image from "next/image";
 
 interface AIPetAdvisorProps {
-  show: boolean
-  isDead: boolean
-  food: number
-  happiness: number
-  cleanliness: number
-  energy: number
-  health: number
-  aiAdvice?: string
-  aiPersonality?: any
+  isDead: boolean;
+  food: number;
+  happiness: number;
+  cleanliness: number;
+  energy: number;
+  health: number;
+  aiAdvice?: string;
+  aiPersonality?: any;
 }
 
 export function AIPetAdvisor({
-  show,
   isDead,
   food,
   happiness,
@@ -24,38 +25,11 @@ export function AIPetAdvisor({
   energy,
   health,
   aiAdvice,
-  aiPersonality
+  aiPersonality,
 }: AIPetAdvisorProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [showFullStats, setShowFullStats] = useState(false)
-  
-  useEffect(() => {
-    if (show) {
-      setIsOpen(true)
-    } else {
-      setIsOpen(false)
-    }
-  }, [show])
-  
-  // Get personality traits to display
-  const getPersonalityTraits = () => {
-    if (!aiPersonality || !aiPersonality.personalityTraits) {
-      return ['Friendly', 'Playful']; // Default traits
-    }
-    
-    return aiPersonality.personalityTraits;
-  };
-  
-  // Get mood description
-  const getMoodDescription = () => {
-    if (!aiPersonality || !aiPersonality.moodDescription) {
-      return getDefaultMood();
-    }
-    
-    return aiPersonality.moodDescription;
-  };
-  
-  // Default mood based on stats
+  const [isOpen, setIsOpen] = useState(true);
+
+  // Get default mood based on stats
   const getDefaultMood = () => {
     if (isDead) return "Your pet has passed away.";
     if (food < 20) return "Your pet is very hungry!";
@@ -63,105 +37,103 @@ export function AIPetAdvisor({
     if (cleanliness < 20) return "Your pet needs cleaning!";
     if (energy < 20) return "Your pet is exhausted.";
     if (health < 20) return "Your pet is sick!";
-    
+
     const averageStats = (food + happiness + cleanliness + energy + health) / 5;
     if (averageStats > 80) return "Your pet is thriving!";
     if (averageStats > 60) return "Your pet is doing well.";
     if (averageStats > 40) return "Your pet is okay, but could use some care.";
-    return "Your pet needs attention.";
+    return "Your pet is okay, but could use some care.";
   };
-  
+
   // Get personalized advice
   const getAdvice = () => {
     if (isDead) return "Press reset to start over.";
-    
+
     if (aiAdvice) {
       return aiAdvice;
     }
-    
+
     if (food < 20) return "Feed your pet soon!";
     if (happiness < 20) return "Play with your pet to improve its mood.";
     if (cleanliness < 20) return "Time for cleaning!";
     if (energy < 20) return "Your pet needs to rest.";
     if (health < 20) return "Visit the doctor!";
-    
-    return "Keep caring for your pet regularly.";
-  };
-  
-  // Get multiplier info if available
-  const getMultiplierInfo = () => {
-    if (!aiPersonality || !aiPersonality.multiplier) {
-      return null;
-    }
-    
-    const multiplier = aiPersonality.multiplier;
-    let message = "";
-    
-    if (multiplier > 1.3) {
-      message = "Excellent care! Earning bonus points!";
-    } else if (multiplier > 1.0) {
-      message = "Good care, earning extra points";
-    } else if (multiplier < 0.9) {
-      message = "Pet care needs improvement";
-    }
-    
-    return message ? (
-      <div className="text-xs mt-2 px-2 py-1 bg-indigo-100 rounded-full text-indigo-700 font-medium">
-        {message} (×{multiplier.toFixed(1)})
-      </div>
-    ) : null;
-  };
 
-  if (!show) return null
+    return "Try engaging in activities with your pet to improve";
+  };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="rounded-lg border bg-card text-card-foreground shadow-sm max-w-xs w-full"
-        >
-          <div className="flex flex-col space-y-1.5 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold leading-none">AI Pet Advisor</h3>
-              <button 
-                onClick={() => setShowFullStats(!showFullStats)}
-                className="text-xs bg-muted rounded px-2 py-1 hover:bg-muted/80"
-              >
-                {showFullStats ? "Hide Stats" : "Show Stats"}
-              </button>
-            </div>
-            {showFullStats && (
-              <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                <div>Food: {Math.floor(food)}%</div>
-                <div>Happiness: {Math.floor(happiness)}%</div>
-                <div>Cleanliness: {Math.floor(cleanliness)}%</div>
-                <div>Energy: {Math.floor(energy)}%</div>
-                <div>Health: {Math.floor(health)}%</div>
+    <div className="flex flex-col gap-8 max-w-[320px] mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        className="max-w-xs w-full"
+      >
+        <div className="p-3 bg-[#ebffb7] border-[6px] border-[#304700]">
+          <PixelatedContainer bgcolor="#CADA9B">
+            <div className="flex items-start gap-2">
+              <div className="w-6 h-6 flex items-center justify-center">
+                <Image
+                  src="/assets/icons/info.svg"
+                  alt="Info"
+                  width={24}
+                  height={24}
+                  className="text-[#304700]"
+                />
               </div>
-            )}
-          </div>
-          <div className="p-4 pt-0">
-            <div className="mb-2">
-              <h4 className="text-xs font-semibold text-muted-foreground">Personality</h4>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {getPersonalityTraits().map((trait: string, index: number) => (
-                  <span key={index} className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                    {trait}
-                  </span>
-                ))}
+              <div className="flex-1">
+                <div className="text-[12px] font-sk-eliz text-[#304700]">
+                  {getDefaultMood()}
+                </div>
+                <div className="text-[12px] font-sk-eliz text-[#304700]">
+                  {getAdvice()}
+                </div>
               </div>
             </div>
-            
-            <div className="text-sm font-medium mb-1">{getMoodDescription()}</div>
-            <div className="text-xs text-muted-foreground">{getAdvice()}</div>
-            
-            {getMultiplierInfo()}
+          </PixelatedContainer>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        className="max-w-xs w-[225px] mx-auto"
+      >
+        <PixelatedContainer noPadding>
+          <div className="w-full p-4">
+            <div className="text-[18px] font-sk-eliz text-[#304700] uppercase pb-2 mb-2">
+              Feed:
+            </div>
+            <div className="space-y-0">
+              <div className="flex justify-between items-center">
+                <span className="text-[16px] font-sk-eliz text-[#304700]">Food:</span>
+                <span style={{ fontSize: '24px' }}>{food.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[16px] font-sk-eliz text-[#304700]">Happiness:</span>
+                <span style={{ fontSize: '24px' }}>{happiness.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[16px] font-sk-eliz text-[#304700]">Cleanliness:</span>
+                <span style={{ fontSize: '24px' }}>{cleanliness.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[16px] font-sk-eliz text-[#304700]">Energy:</span>
+                <span style={{ fontSize: '24px' }}>{energy.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[16px] font-sk-eliz text-[#304700]">Health:</span>
+                <span style={{ fontSize: '24px' }}>{health.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="mt-4 text-[16px] font-sk-eliz text-[#304700]">
+              Pet is feeling happy ^.^
+            </div>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-} 
+        </PixelatedContainer>
+      </motion.div>
+    </div>
+  );
+}
