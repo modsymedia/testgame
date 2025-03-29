@@ -26,35 +26,25 @@ export const GPTLogsPanel = () => {
     }
   };
 
-  // Load logs from client storage
-  const loadLogs = () => {
-    if (!isExpanded) return;
-
+  // Initial load and setup event listener for real-time updates
+  useEffect(() => {
     // Get logs directly from client storage
     const allLogs = getGPTLogs();
     setLogs(getFilteredLogs(allLogs));
-  };
 
-  // Initial load and setup event listener for real-time updates
-  useEffect(() => {
-    if (isExpanded) {
-      loadLogs();
+    // Set up event listener for real-time log updates
+    const handleLogUpdate = () => {
+      const updatedLogs = getGPTLogs();
+      setLogs(getFilteredLogs(updatedLogs));
+    };
+    
+    window.addEventListener("gptLogUpdated", handleLogUpdate);
 
-      // Set up event listener for real-time log updates
-      const handleLogUpdate = () => loadLogs();
-      window.addEventListener("gptLogUpdated", handleLogUpdate);
-
-      // Clean up when component unmounts or collapses
-      return () => {
-        window.removeEventListener("gptLogUpdated", handleLogUpdate);
-      };
-    }
-  }, [isExpanded, activeFilter, showCount]);
-
-  // Update filtered logs when filter or count changes
-  useEffect(() => {
-    loadLogs();
-  }, [activeFilter, showCount]);
+    // Clean up when component unmounts
+    return () => {
+      window.removeEventListener("gptLogUpdated", handleLogUpdate);
+    };
+  }, [activeFilter, showCount]); // Only re-run when filter or count changes
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
