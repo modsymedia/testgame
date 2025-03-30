@@ -25,11 +25,11 @@ export function PetAvatar({ pet }: { pet: PetState }) {
         {isHungry ? (
           <Utensils className="w-16 h-16 text-gray-400" />
         ) : isTired ? (
-          <span className="text-lg">😴</span>
+          <span className="text-xl">😴</span>
         ) : isDirty ? (
-          <span className="text-lg">🚿</span>
+          <span className="text-xl">🚿</span>
         ) : (
-          <span className="text-lg">😊</span>
+          <span className="text-xl">😊</span>
         )}
       </motion.div>
       
@@ -40,7 +40,7 @@ export function PetAvatar({ pet }: { pet: PetState }) {
           animate={{ opacity: 1, y: 0 }}
           className="absolute -top-12 right-0 bg-white px-4 py-2 rounded-xl shadow-sm"
         >
-          <p className="text-sm font-medium">I&apos;m hungry!</p>
+          <p className="text-md font-medium">I&apos;m hungry!</p>
         </motion.div>
       )}
     </div>

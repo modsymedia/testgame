@@ -2,15 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: 'SK Eliz Trial';
-  src: url('/fonts/SKEliz-Trial.woff2') format('woff2'),
-       url('/fonts/SKEliz-Trial.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 html {
   scrollbar-width: none; /* For Firefox */
 }
@@ -74,7 +65,7 @@ html {
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'SK Eliz Trial', sans-serif;
+    font-family: 'Pixelify Sans', sans-serif;
   }
 }
 

@@ -84,7 +84,7 @@ export function Header() {
               onClick={handleLogout}
               className="w-full h-full flex items-center justify-center"
             >
-              <span className="text-[#304700] font-sk-eliz text-sm">Logout</span>
+              <span className="text-[#304700] font-pixelify text-lg">Logout</span>
             </button>
           </PixelatedContainer>
         </div>
@@ -126,7 +126,7 @@ function NavItem({
               style={{ imageRendering: 'pixelated' }}
             />
           </div>
-          <span className="text-[#304700] font-sk-eliz text-md">{label}</span>
+          <span className="text-[#304700] font-pixelify text-xl">{label}</span>
         </div>
       </PixelatedContainer>
     </Link>

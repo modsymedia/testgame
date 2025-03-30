@@ -52,12 +52,12 @@ function StatusPie({ value, icon, color, bgColor }: StatusPieProps) {
 
       {/* Icon */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-md">{icon}</span>
+        <span className="text-lg">{icon}</span>
       </div>
 
       {/* Percentage */}
       <div className="absolute -bottom-6 w-full text-center">
-        <span className="text-sm font-medium text-gray-600">{value}%</span>
+        <span className="text-md font-medium text-gray-600">{value}%</span>
       </div>
     </motion.div>
   )

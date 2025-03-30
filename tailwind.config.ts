@@ -9,7 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        'sk-eliz': ['SK Eliz Trial', 'sans-serif'],
+        'pixelify': ['"Pixelify Sans"', 'sans-serif'],
+        'sans': ['"Pixelify Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
