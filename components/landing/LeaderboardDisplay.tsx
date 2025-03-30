@@ -271,7 +271,7 @@ export default function LeaderboardDisplay() {
                       alt="Points"
                       className="inline-block"
                     />
-                    <span className="text-[18px] font-medium">
+                    <span className="text-[18px] font-medium font-numbers">
                       {getUserPoints().toLocaleString()}
                     </span>
                   </div>
@@ -305,7 +305,7 @@ export default function LeaderboardDisplay() {
                             size={18}
                           />
                         ) : (
-                          <span className="text-[18px]">{entry.rank}</span>
+                          <span className="text-[18px] font-numbers">{entry.rank}</span>
                         )}
                       </div>
                       <div className="truncate uppercase">
@@ -321,7 +321,7 @@ export default function LeaderboardDisplay() {
                         alt="Points"
                         className="inline-block"
                       />
-                      {entry.score.toLocaleString()}
+                      <span className="font-numbers">{entry.score.toLocaleString()}</span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -348,7 +348,7 @@ export default function LeaderboardDisplay() {
           </button>
 
           <span className="flex items-center text-[#304700] font-medium">
-            {currentPage} / {totalPages}
+            <span className="font-numbers">{currentPage}</span> / <span className="font-numbers">{totalPages}</span>
           </span>
 
           <button

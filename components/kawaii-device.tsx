@@ -320,12 +320,12 @@ export function KawaiiDevice() {
           <div className="flex-grow flex flex-col items-center justify-center">
             {getCatEmotion()}
             <p className="text-red-500 font-bold mt-4">Your pet has died!</p>
-            <p className="text-xs mt-1 mb-2">Total tokens remaining: 100</p>
+            <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">100</span></p>
             
             {showReviveConfirm ? (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
                 <p className="text-xs mb-2">Revive your pet by burning 50% of your points?</p>
-                <p className="text-xs mb-3">Current points: {formatPoints(globalPoints)}</p>
+                <p className="text-xs mb-3">Current points: <span className="font-numbers">{formatPoints(globalPoints)}</span></p>
                 <div className="flex space-x-2 justify-center">
                   <button 
                     onClick={handleReviveConfirm} 
@@ -362,7 +362,7 @@ export function KawaiiDevice() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-[#4b6130]">⭐</span>
-                <span className="text-xs text-[#4b6130]">Points: {formatPoints(globalPoints)}</span>
+                <span className="text-xs text-[#4b6130]">Points: <span className="font-numbers">{formatPoints(globalPoints)}</span></span>
               </div>
             </div>
             <div className="flex-1 ml-2">
@@ -379,7 +379,7 @@ export function KawaiiDevice() {
               {Object.entries(isOnCooldown).map(([type, active]) => 
                 active && (
                   <div key={type} className="text-xs px-2 py-0.5 bg-gray-700 text-white rounded-full opacity-80">
-                    {type}: {Math.ceil(cooldowns[type as keyof typeof cooldowns] / 1000)}s
+                    {type}: <span className="font-numbers">{Math.ceil(cooldowns[type as keyof typeof cooldowns] / 1000)}</span>s
                   </div>
                 )
               )}

@@ -11,6 +11,7 @@ const config: Config = {
       fontFamily: {
         'pixelify': ['"Pixelify Sans"', 'sans-serif'],
         'sans': ['"Pixelify Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        'numbers': ['VT323', 'monospace'],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
@@ -22,4 +23,4 @@ const config: Config = {
   plugins: [],
 };
 
-export default config; 
+export default config;

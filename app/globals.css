@@ -67,6 +67,46 @@ html {
     @apply bg-background text-foreground;
     font-family: 'Pixelify Sans', sans-serif;
   }
+  
+  /* Apply VT323 font to numeric content */
+  .text-numbers, 
+  .font-numbers,
+  span:where([class*="text-"]):has(> span:only-child:is([class*="font-medium"], [class*="font-bold"])),
+  [class*="text-"]:is(span, div):has(+ span:is([class*="text-"])),
+  span:is([class*="text-"]):has(+ [class*="text-"]) {
+    font-family: 'VT323', monospace;
+  }
+  
+  /* Specifically target numeric values */
+  span:has(+ img[alt="Points"]),
+  span:has(~ img[alt="Points"]),
+  span:has(+ img[alt="Coins"]),
+  .text-right span,
+  [class*="leaderboard"] span:where([class*="text-"]:not(:has(img))),
+  [class*="points"] span:where([class*="text-"]:not(:has(img))) {
+    font-family: 'VT323', monospace;
+    letter-spacing: 0.02em;
+  }
+  
+  /* Additional specific numeric targets */
+  span:where([class*="font-bold"], [class*="font-medium"]):has(:not(img) + :is(span, div)),
+  span:not([class*="font-pixelify"]):has(~ span:is([class*="text-"])),
+  div:where([class*="text-2xl"], [class*="text-3xl"], [class*="text-4xl"]):has(:not(img)),
+  div:has(> span:where([class*="font-bold"], [class*="font-medium"])) > span:not([class*="font-pixelify"]),
+  [class*="text-"] span:has(+ :is(svg, img)) {
+    font-family: 'VT323', monospace;
+  }
+  
+  /* Format percentages and values */
+  span:has(+ :contains("%")),
+  span:has(~ :contains("%")),
+  span:has(:contains("$")),
+  span:has(~ :contains("$")),
+  span:has(:contains("Points")),
+  span:has(:contains("points")),
+  [class*="stats"] span:not([class*="font-pixelify"]) {
+    font-family: 'VT323', monospace;
+  }
 }
 
 /* Custom styles for pixelated containers */

@@ -59,19 +59,19 @@ export const PointsEarnedPanel = ({
           {/* Body */}
           <div className="bg-[#CADA9B] p-4">
             {/* Current Points - Dynamic based on game */}
-            <div className="text-2xl font-bold font-pixelify text-[#304700] mb-4">
+            <div className="text-2xl font-bold font-numbers text-[#304700] mb-4">
               {Math.round(currentPoints)}
             </div>
 
             {/* Points Rate and Multiplier - Dynamic based on game */}
             <div className="mb-4">
               <div className="flex justify-between text-lg font-pixelify text-[#304700] mb-2">
-                <span>+ {pointsPerSecond}/sec</span>
-                <span>{timeUntilUpdate}s until update</span>
+                <span>+ <span className="font-numbers">{pointsPerSecond}</span>/sec</span>
+                <span><span className="font-numbers">{timeUntilUpdate}</span>s until update</span>
               </div>
               <ProgressSlider progress={progress} />
               <div className="text-right text-md font-bold font-pixelify text-[#304700] mt-1">
-                {pointsMultiplier > 1 ? `${pointsMultiplier}x multiplier active` : ''}
+                {pointsMultiplier > 1 ? <span><span className="font-numbers">{pointsMultiplier}</span>x multiplier active</span> : ''}
               </div>
             </div>
 
@@ -79,11 +79,11 @@ export const PointsEarnedPanel = ({
             <div className="flex justify-between mb-6">
               <div>
                 <div className="text-md font-pixelify text-[#72795F] mb-1">Current</div>
-                <div className="text-lg font-bold font-pixelify text-[#304700]">{Math.round(currentPoints)}</div>
+                <div className="text-lg font-bold font-numbers text-[#304700]">{Math.round(currentPoints)}</div>
               </div>
               <div className="text-right">
                 <div className="text-md font-pixelify text-[#72795F] mb-1">Next</div>
-                <div className="text-lg font-bold font-pixelify text-[#304700]">{Math.round(nextPoints)}</div>
+                <div className="text-lg font-bold font-numbers text-[#304700]">{Math.round(nextPoints)}</div>
               </div>
             </div>
 
@@ -114,7 +114,7 @@ export const PointsEarnedPanel = ({
                             {task.name}
                           </span>
                         </div>
-                        <span className="text-md font-bold font-pixelify text-[#304700]">
+                        <span className="text-md font-bold font-numbers text-[#304700]">
                           +{task.points}
                         </span>
                       </div>

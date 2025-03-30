@@ -108,7 +108,7 @@ export const PointsDashboard = ({
             <div className="w-full">
               <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">My Points</h2>
               <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                {Math.round(points).toLocaleString()}
+                <span className="font-numbers">{Math.round(points).toLocaleString()}</span>
               </div>
               <p className="text-lg font-pixelify text-[#304700]">
                 Earn more points by playing Gochi
@@ -121,10 +121,10 @@ export const PointsDashboard = ({
             <div className="w-full">
               <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Potential Rewards</h2>
               <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                ${potentialRewards.toFixed(2)}
+                $<span className="font-numbers">{potentialRewards.toFixed(2)}</span>
               </div>
               <p className="text-lg font-pixelify text-[#304700]">
-                Token price × Points = ${tokenPrice.toFixed(2)} × {Math.round(points)}
+                Token price × Points = $<span className="font-numbers">{tokenPrice.toFixed(2)}</span> × <span className="font-numbers">{Math.round(points)}</span>
               </p>
             </div>
           </PixelatedContainer>
@@ -135,7 +135,7 @@ export const PointsDashboard = ({
               <div>
                 <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Claimed Points</h2>
                 <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                  {Math.round(claimedPoints).toLocaleString()}
+                  <span className="font-numbers">{Math.round(claimedPoints).toLocaleString()}</span>
                 </div>
                 <p className="text-lg font-pixelify text-[#304700]">
                   Total points converted to rewards
@@ -143,7 +143,7 @@ export const PointsDashboard = ({
               </div>
               <div className="text-right">
                 <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                  $ {dollarsCollected}
+                  $ <span className="font-numbers">{dollarsCollected}</span>
                 </div>
                 <p className="text-lg font-pixelify text-[#304700]">
                   Total USD value collected

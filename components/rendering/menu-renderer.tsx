@@ -59,7 +59,7 @@ export const MenuRenderer = ({
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-mono text-black">⭐</span>
-              <span className="text-xs text-black">Points: {Math.round(points * 100) / 100}</span>
+              <span className="text-xs text-black">Points: <span className="font-numbers">{Math.round(points * 100) / 100}</span></span>
             </div>
           </div>
           <div className="flex-1 ml-2">
