@@ -26,7 +26,8 @@ export default function LeaderboardDisplay() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
-  const { isConnected } = useWallet();
+  const { isConnected, publicKey, walletData } = useWallet();
+  const [userRank, setUserRank] = useState<number | null>(null);
 
   const ENTRIES_PER_PAGE = {
     1: 6, // First page shows 6 entries
@@ -57,6 +58,14 @@ export default function LeaderboardDisplay() {
         "entries"
       );
       setDisplayedEntries(result.entries);
+
+      // Check if the current user is in the results and set their rank
+      if (publicKey) {
+        const userEntry = result.entries.find(entry => entry.walletAddress === publicKey);
+        if (userEntry) {
+          setUserRank(userEntry.rank);
+        }
+      }
 
       // Update total entries if we have that information
       if (result.total > 0) {
@@ -155,39 +164,28 @@ export default function LeaderboardDisplay() {
             No players yet. Be the first!
           </div>
         ) : (
-          <Table>
-            {/* <TableHeader>
-                  <TableRow className="border-0">
-                    <TableHead className="w-[80px] text-center text-[#304700]">Rank</TableHead>
-                    <TableHead className="text-[#304700]">Player</TableHead>
-                    <TableHead className="text-right text-[#304700]">Score</TableHead>
-                  </TableRow>
-                </TableHeader> */}
-            <TableBody>
-              {displayedEntries.map((entry) => (
-                <TableRow
-                  key={entry.walletAddress}
-                  className="border-0 text-[18px] uppercase"
-                >
-                  <TableCell className="flex-1 flex items-center space-x-3">
-                    <div className="w-4 h-12 flex items-center justify-center text-[16px]">
-                      {entry.rank <= 3 ? (
+          <>
+            {/* User Rank Section */}
+            {userRank && (
+              <div className="mb-4 p-3 bg-[#ebffb7] rounded-md">
+                <h3 className="text-center text-[#304700] font-bold text-[20px] uppercase">Your Position</h3>
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-8 h-8">
+                      {userRank <= 3 ? (
                         <Trophy
-                          className={`inline-block ${getTrophyColor(
-                            entry.rank
-                          )}`}
-                          size={18}
+                          className={`inline-block ${getTrophyColor(userRank)}`}
+                          size={22}
                         />
                       ) : (
-                        <span className="text-[18px]">{entry.rank}</span>
+                        <span className="text-[20px] font-bold text-[#304700]">{userRank}</span>
                       )}
                     </div>
-                    <div className="truncate uppercase">
-                      {entry.username ||
-                        entry.walletAddress.substring(0, 6) + "..."}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-[#304700] flex items-center justify-start gap-2 min-w-[120px]">
+                    <span className="text-[18px] text-[#304700]">
+                      {walletData?.username || (publicKey ? publicKey.substring(0, 6) + "..." : "You")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[#304700]">
                     <Image
                       src="/assets/icons/coin.png"
                       width={24}
@@ -195,12 +193,63 @@ export default function LeaderboardDisplay() {
                       alt="Points"
                       className="inline-block"
                     />
-                    {entry.score.toLocaleString()}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    <span className="text-[18px] font-medium">
+                      {walletData?.points?.toLocaleString() || "0"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <Table>
+              {/* <TableHeader>
+                    <TableRow className="border-0">
+                      <TableHead className="w-[80px] text-center text-[#304700]">Rank</TableHead>
+                      <TableHead className="text-[#304700]">Player</TableHead>
+                      <TableHead className="text-right text-[#304700]">Score</TableHead>
+                    </TableRow>
+                  </TableHeader> */}
+              <TableBody>
+                {displayedEntries.map((entry) => (
+                  <TableRow
+                    key={entry.walletAddress}
+                    className={`border-0 text-[18px] uppercase ${
+                      entry.walletAddress === publicKey ? "bg-[#ebffb7]/30" : ""
+                    }`}
+                  >
+                    <TableCell className="flex-1 flex items-center space-x-3">
+                      <div className="w-4 h-12 flex items-center justify-center text-[16px]">
+                        {entry.rank <= 3 ? (
+                          <Trophy
+                            className={`inline-block ${getTrophyColor(
+                              entry.rank
+                            )}`}
+                            size={18}
+                          />
+                        ) : (
+                          <span className="text-[18px]">{entry.rank}</span>
+                        )}
+                      </div>
+                      <div className="truncate uppercase">
+                        {entry.username ||
+                          entry.walletAddress.substring(0, 6) + "..."}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-[#304700] flex items-center justify-start gap-2 min-w-[120px]">
+                      <Image
+                        src="/assets/icons/coin.png"
+                        width={24}
+                        height={24}
+                        alt="Points"
+                        className="inline-block"
+                      />
+                      {entry.score.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
         )}
       </PixelatedContainer>
 

@@ -4,7 +4,7 @@ import Image from "next/image"
 
 interface PixelIconProps {
   icon: "food" | "clean" | "doctor" | "play" | "fish" | "cookie" | "catFood" | "kibble" | 
-        "laser" | "feather" | "ball" | "puzzle" | "brush" | "bath" | "nails" | "styling" | "dental" |
+        "laser" | "feather" | "ball" | "puzzle" | "brush" | "bath" | "nails" | "dental" |
         "checkup" | "vitamins" | "vaccine" | "surgery"
   label?: string
   isHighlighted: boolean
@@ -43,8 +43,6 @@ export function PixelIcon({ icon, isHighlighted }: PixelIconProps) {
         return <Image src="/assets/icons/hygiene/hygiene-bath.png" alt="Bath" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "nails":
         return <Image src="/assets/icons/hygiene/hygiene-nailclipper.png" alt="Nails" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
-      case "styling":
-        return <Image src="/assets/icons/hygiene/hygiene-styling.png" alt="Styling" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated', width: 'auto', height: 'auto' }} />;
       case "dental":
         return <Image src="/assets/icons/hygiene/hygiene-tooth.png" alt="Dental" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "checkup":

@@ -454,7 +454,6 @@ export function KawaiiDevice() {
             <PixelIcon icon="brush" label="Brush" isHighlighted={selectedCleanItem === 0} />
             <PixelIcon icon="bath" label="Bath" isHighlighted={selectedCleanItem === 1} />
             <PixelIcon icon="nails" label="Nails" isHighlighted={selectedCleanItem === 2} />
-            <PixelIcon icon="styling" label="Style" isHighlighted={selectedCleanItem === 3} />
             <PixelIcon icon="dental" label="Dental" isHighlighted={selectedCleanItem === 4} />
           </div>
         </>
@@ -520,27 +519,6 @@ export function KawaiiDevice() {
             aiAdvice={aiAdvice}
             aiPersonality={aiPersonality}
           />
-          {/* Notifications and other elements */}
-          {showInteraction && currentInteraction && (
-            <motion.div 
-              className="bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs mt-4"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <h3 className="font-bold">{currentInteraction.type}</h3>
-              {currentInteraction.stats && (
-                <>
-                  <p>Food: {currentInteraction.stats.food.toFixed(1)}%</p>
-                  <p>Happiness: {currentInteraction.stats.happiness.toFixed(1)}%</p>
-                  <p>Cleanliness: {currentInteraction.stats.cleanliness.toFixed(1)}%</p>
-                  <p>Energy: {currentInteraction.stats.energy.toFixed(1)}%</p>
-                  <p>Health: {currentInteraction.stats.health.toFixed(1)}%</p>
-                </>
-              )}
-              {currentInteraction.emotion && <p>Pet is feeling {currentInteraction.emotion}</p>}
-            </motion.div>
-          )}
         </div>
         
         {/* Center column - Game device */}

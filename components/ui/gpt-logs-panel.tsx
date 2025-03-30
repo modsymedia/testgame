@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getGPTLogs, GPTLogEntry } from "@/utils/openai-service";
 import { motion, AnimatePresence } from "framer-motion";
-
-// No longer need a local log entry interface as we import it from openai-service
+import PixelatedContainer from "../PixelatedContainer";
+import Image from 'next/image';
 
 export const GPTLogsPanel = () => {
   const [logs, setLogs] = useState<GPTLogEntry[]>([]);
@@ -97,24 +97,27 @@ export const GPTLogsPanel = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="border-4 border-[#304700]">
+        <PixelatedContainer className="border-4 border-[#304700] flex flex-col p-0" noPadding>
           {/* Header */}
-          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-4 border-[#304700]">
-            <span className="text-xl font-bold font-pixelify">GPT Logs</span>
-            <button
-              className="text-[#304700] hover:text-[#71814e] font-bold"
-              onClick={() => setIsExpanded(false)}
-            >
-              𝗫
-            </button>
+          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-4 border-[#304700] w-full">
+            <span className="text-xl font-bold font-pixelify">Points Earned</span>
+            <div className="flex items-center">
+              <Image
+                src="/assets/icons/info.svg"
+                alt="Info"
+                width={24}
+                height={24}
+                className="text-[#304700]"
+              />
+            </div>
           </div>
 
           {/* Body */}
-          <div className="bg-[#CADA9B] p-2">
+          <div className="bg-[#CADA9B] p-2 w-full">
             {/* Filter Tabs */}
             <div className="flex space-x-4 mb-4">
               <button
-                className={`text-lg font-pixelify underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "all"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"
@@ -124,7 +127,7 @@ export const GPTLogsPanel = () => {
                 All
               </button>
               <button
-                className={`text-lg font-pixelify underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "petBehavior"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"
@@ -134,7 +137,7 @@ export const GPTLogsPanel = () => {
                 Behavior
               </button>
               <button
-                className={`text-lg font-pixelify underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "petMessage"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"
@@ -149,7 +152,7 @@ export const GPTLogsPanel = () => {
             <div className="h-[400px] overflow-y-auto pr-1">
               <div className="space-y-4">
                 {logs.length === 0 ? (
-                  <div className="text-center py-4 text-[#304700] font-pixelify text-lg">
+                  <div className="text-center py-4 text-[#304700] font-sk-eliz">
                     No logs available yet
                   </div>
                 ) : (
@@ -158,19 +161,19 @@ export const GPTLogsPanel = () => {
                       <div key={index} className="mb-4">
                         <div className="bg-[#ebffb7] border-2 border-[#304700] p-2">
                           <div className="flex justify-between items-start mb-2">
-                            <span className="font-pixelify text-lg text-[#304700]">
+                            <span className="font-sk-eliz text-[#304700]">
                               {log.type === "petBehavior" ? "Behavior" : "Msgs"}
                             </span>
-                            <span className="text-[#304700] font-pixelify text-lg">
+                            <span className="text-[#304700] font-sk-eliz">
                               {formatTimestamp(log.timestamp)}
                             </span>
                           </div>
 
                           <div className="mb-2">
-                            <div className="font-bold text-[#304700] font-pixelify text-lg mb-1">
+                            <div className="font-bold text-[#304700] font-sk-eliz mb-1">
                               Prompt:
                             </div>
-                            <div className="text-[#304700] font-pixelify text-md break-words whitespace-pre-wrap">
+                            <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
                               {expandedLog === index
                                 ? log.prompt
                                 : truncateText(log.prompt, 150)}
@@ -179,10 +182,10 @@ export const GPTLogsPanel = () => {
 
                           {log.response && (
                             <div>
-                              <div className="font-bold text-[#304700] font-pixelify text-lg mb-1">
+                              <div className="font-bold text-[#304700] font-sk-eliz mb-1">
                                 Response:
                               </div>
-                              <div className="text-[#304700] font-pixelify text-md break-words whitespace-pre-wrap">
+                              <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
                                 {expandedLog === index
                                   ? typeof log.response === "string"
                                     ? log.response
@@ -199,7 +202,7 @@ export const GPTLogsPanel = () => {
 
                           <div className="flex justify-end mt-2">
                             <button
-                              className="bg-transparent text-[#304700] px-2 py-1 font-pixelify text-lg hover:underline"
+                              className="bg-transparent text-[#304700] px-2 py-1 font-sk-eliz hover:underline"
                               onClick={() => toggleLogExpansion(index)}
                             >
                               {expandedLog === index
@@ -214,7 +217,7 @@ export const GPTLogsPanel = () => {
                     {logs.length >= showCount && (
                       <div className="flex justify-center mt-4">
                         <button
-                          className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-4 py-1 hover:bg-[#d1e599] font-pixelify text-lg"
+                          className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-4 py-1 hover:bg-[#d1e599] font-sk-eliz"
                           onClick={loadMoreLogs}
                         >
                           View more
@@ -226,7 +229,7 @@ export const GPTLogsPanel = () => {
               </div>
             </div>
           </div>
-        </div>
+        </PixelatedContainer>
       </motion.div>
     </AnimatePresence>
   );

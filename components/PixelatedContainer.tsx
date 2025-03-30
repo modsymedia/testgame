@@ -17,7 +17,7 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
 }) => {
   return (
     <div
-      className={`relative ${className}`}
+      className={`relative ${className} w-auto`}
       style={{
         ...style,
         backgroundColor: bgcolor, // Use bgcolor prop instead of hardcoded color
@@ -32,7 +32,7 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
       <div className="absolute -bottom-[5px] left-0 w-full h-[5px] bg-[#304700]" />
       
       {/* Inner content */}
-      <div className={`relative w-full h-full flex items-center justify-center ${noPadding ? '' : 'p-4'}`}>
+      <div className={`relative w-full h-full flex flex-col items-center justify-center ${noPadding ? '' : 'p-4'}`}>
         {children}
       </div>
     </div>

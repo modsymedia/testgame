@@ -84,7 +84,7 @@ export function Header() {
               onClick={handleLogout}
               className="w-full h-full flex items-center justify-center"
             >
-              <span className="text-[#304700] font-pixelify text-lg">Logout</span>
+              <span className="text-[#304700] font-pixelify text-md">Logout</span>
             </button>
           </PixelatedContainer>
         </div>
@@ -105,9 +105,9 @@ function NavItem({
   isActive,
 }: NavItemComponentProps) {
   return (
-    <Link href={path} className="w-full h-full group">
+    <Link href={path} className="w-auto h-full group">
       <PixelatedContainer
-        className={`w-full transition-all duration-300 ease-in-out 
+        className={`w-auto transition-all duration-300 ease-in-out 
           ${isActive 
             ? "h-[54px]" 
             : "h-[40px] hover:h-[50px] group-hover:h-[44px]"
@@ -115,7 +115,7 @@ function NavItem({
         style={{ width: `${width}px` }}
         noPadding
       >
-        <div className="flex items-center justify-center gap-2 py-2 px-3">
+        <div className="flex items-center justify-center gap-2 py-2 px-5">
           <div className="w-5 h-5 relative flex-shrink-0">
             <Image 
               src={iconPath} 
@@ -126,7 +126,7 @@ function NavItem({
               style={{ imageRendering: 'pixelated' }}
             />
           </div>
-          <span className="text-[#304700] font-pixelify text-xl">{label}</span>
+          <span className="text-[#304700] font-pixelify text-lg">{label}</span>
         </div>
       </PixelatedContainer>
     </Link>
