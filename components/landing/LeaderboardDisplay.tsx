@@ -64,6 +64,20 @@ export default function LeaderboardDisplay() {
         const userEntry = result.entries.find(entry => entry.walletAddress === publicKey);
         if (userEntry) {
           setUserRank(userEntry.rank);
+        } else if (page === 1) {
+          // If user is not in the first page, fetch their rank separately
+          try {
+            // Make a separate API call to get the user's rank
+            const response = await fetch(`/api/leaderboard/rank?wallet=${publicKey}`);
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.rank) {
+                setUserRank(data.rank);
+              }
+            }
+          } catch (error) {
+            console.error("Error fetching user rank:", error);
+          }
         }
       }
 
@@ -116,6 +130,27 @@ export default function LeaderboardDisplay() {
       setIsLoading(false);
     }
   }, [isConnected]);
+
+  // Add a separate effect to load user rank when component mounts
+  useEffect(() => {
+    const fetchUserRank = async () => {
+      if (isConnected && publicKey && !userRank) {
+        try {
+          const response = await fetch(`/api/leaderboard/rank?wallet=${publicKey}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.rank) {
+              setUserRank(data.rank);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching user rank:", error);
+        }
+      }
+    };
+    
+    fetchUserRank();
+  }, [isConnected, publicKey, userRank]);
 
   // Helper function to retry loading the leaderboard
   const handleRefresh = () => {
@@ -194,7 +229,7 @@ export default function LeaderboardDisplay() {
                       className="inline-block"
                     />
                     <span className="text-[18px] font-medium">
-                      {walletData?.points?.toLocaleString() || "0"}
+                      {walletData?.petStats?.points?.toLocaleString() || walletData?.points?.toLocaleString() || "0"}
                     </span>
                   </div>
                 </div>

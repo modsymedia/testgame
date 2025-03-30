@@ -97,9 +97,9 @@ export const GPTLogsPanel = () => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <PixelatedContainer className="border-4 border-[#304700] flex flex-col p-0" noPadding>
+        <PixelatedContainer className="flex flex-col p-0" noPadding>
           {/* Header */}
-          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-4 border-[#304700] w-full">
+          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between  w-full">
             <span className="text-xl font-bold font-pixelify">Points Earned</span>
             <div className="flex items-center">
               <Image
