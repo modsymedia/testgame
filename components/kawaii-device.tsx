@@ -13,6 +13,7 @@ import { formatPoints } from "@/utils/stats-helpers";
 import { AIPetAdvisor } from "@/components/ui/ai-pet-advisor";
 import { PointAnimation } from "@/components/ui/point-animation";
 import { useWallet } from "@/context/WalletContext";
+import { usePoints } from "@/context/PointsContext";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
@@ -22,6 +23,7 @@ import { updateUserScore } from "@/utils/leaderboard";
 export function KawaiiDevice() {
   const router = useRouter();
   const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
+  const { globalPoints, setGlobalPoints } = usePoints();
   
   // Redirect to landing if not connected
   useEffect(() => {
@@ -103,47 +105,55 @@ export function KawaiiDevice() {
   const lastInteractionUpdateRef = useRef<number>(0);
   const INTERACTION_UPDATE_THROTTLE = 3000; // 3 seconds between lastInteraction updates
 
+  // Update global points when local points change
+  useEffect(() => {
+    if (points > 0) {
+      setGlobalPoints(points);
+    }
+  }, [points, setGlobalPoints]);
+
   // Update wallet points whenever game points change (with debouncing)
   useEffect(() => {
-    const updateWalletData = async () => {
-      if (isConnected && points > 0 && points !== lastUpdatedPointsRef.current) {
-        // Only update if points have actually changed significantly
-        if (Math.abs(points - lastUpdatedPointsRef.current) >= 5) {
-          try {
-            await updatePoints(points);
-            lastUpdatedPointsRef.current = points;
-            
-            // Update leaderboard with the user's current score (debounced)
-            if (publicKey) {
-              // Clear any existing timer
-              if (leaderboardUpdateTimerRef.current) {
-                clearTimeout(leaderboardUpdateTimerRef.current);
-              }
-              
-              // Set a new timer to debounce the leaderboard update
-              leaderboardUpdateTimerRef.current = setTimeout(() => {
-                console.log("Debounced update: Updating leaderboard after delay");
-                updateUserScore(publicKey, points)
-                  .catch(err => console.error('Error updating leaderboard:', err));
-                leaderboardUpdateTimerRef.current = null;
-              }, LEADERBOARD_UPDATE_DELAY);
-            }
-          } catch (error) {
-            console.error('Error updating wallet points:', error);
+    if (!isConnected || !publicKey) return;
+    
+    // Don't update if points haven't changed
+    if (lastUpdatedPointsRef.current === globalPoints) return;
+    
+    // Clear any existing timer
+    if (leaderboardUpdateTimerRef.current) {
+      clearTimeout(leaderboardUpdateTimerRef.current);
+    }
+    
+    // Set a new timer to update points after delay
+    leaderboardUpdateTimerRef.current = setTimeout(async () => {
+      console.log(`Updating wallet with points: ${globalPoints}`);
+      
+      // Update wallet data with current points
+      await updatePoints(globalPoints);
+      
+      // Update leaderboard
+      if (globalPoints > 0) {
+        try {
+          const updated = await updateUserScore(publicKey, globalPoints);
+          if (updated) {
+            console.log('Leaderboard updated successfully');
           }
+        } catch (e) {
+          console.error('Error updating leaderboard:', e);
         }
       }
-    };
+      
+      // Update our reference to prevent loops
+      lastUpdatedPointsRef.current = globalPoints;
+    }, LEADERBOARD_UPDATE_DELAY);
     
-    updateWalletData();
-    
+    // Clean up timer on unmount
     return () => {
-      // Clean up timer on component unmount
       if (leaderboardUpdateTimerRef.current) {
         clearTimeout(leaderboardUpdateTimerRef.current);
       }
     };
-  }, [points, isConnected, updatePoints, publicKey]);
+  }, [globalPoints, isConnected, publicKey, updatePoints]);
 
   // Update leaderboard when pet dies (this can remain immediate since it's a one-time event)
   useEffect(() => {
@@ -315,7 +325,7 @@ export function KawaiiDevice() {
             {showReviveConfirm ? (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
                 <p className="text-xs mb-2">Revive your pet by burning 50% of your points?</p>
-                <p className="text-xs mb-3">Current points: {formatPoints(points)}</p>
+                <p className="text-xs mb-3">Current points: {formatPoints(globalPoints)}</p>
                 <div className="flex space-x-2 justify-center">
                   <button 
                     onClick={handleReviveConfirm} 
@@ -352,7 +362,7 @@ export function KawaiiDevice() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-[#4b6130]">⭐</span>
-                <span className="text-xs text-[#4b6130]">Points: {formatPoints(points)}</span>
+                <span className="text-xs text-[#4b6130]">Points: {formatPoints(globalPoints)}</span>
               </div>
             </div>
             <div className="flex-1 ml-2">
@@ -403,10 +413,10 @@ export function KawaiiDevice() {
           <div className="text-xs mb-2">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="fish" label="Fish" isHighlighted={selectedFoodItem === 0} />
-            <PixelIcon icon="cookie" label="Cookie" isHighlighted={selectedFoodItem === 1} />
-            <PixelIcon icon="catFood" label="Cat Food" isHighlighted={selectedFoodItem === 2} />
-            <PixelIcon icon="kibble" label="Kibble" isHighlighted={selectedFoodItem === 3} />
+            <PixelIcon icon="fish" isHighlighted={selectedFoodItem === 0} />
+            <PixelIcon icon="cookie" isHighlighted={selectedFoodItem === 1} />
+            <PixelIcon icon="catFood" isHighlighted={selectedFoodItem === 2} />
+            <PixelIcon icon="kibble" isHighlighted={selectedFoodItem === 3} />
           </div>
         </>
       );
@@ -427,10 +437,10 @@ export function KawaiiDevice() {
           <div className="text-xs mb-2">Choose a game to play:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="laser" label="Laser" isHighlighted={selectedPlayItem === 0} />
-            <PixelIcon icon="feather" label="Feather" isHighlighted={selectedPlayItem === 1} />
-            <PixelIcon icon="ball" label="Ball" isHighlighted={selectedPlayItem === 2} />
-            <PixelIcon icon="puzzle" label="Puzzle" isHighlighted={selectedPlayItem === 3} />
+            <PixelIcon icon="laser" isHighlighted={selectedPlayItem === 0} />
+            <PixelIcon icon="feather" isHighlighted={selectedPlayItem === 1} />
+            <PixelIcon icon="ball" isHighlighted={selectedPlayItem === 2} />
+            <PixelIcon icon="puzzle" isHighlighted={selectedPlayItem === 3} />
           </div>
         </>
       );
@@ -451,10 +461,10 @@ export function KawaiiDevice() {
           <div className="text-xs mb-2">Choose grooming method:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="brush" label="Brush" isHighlighted={selectedCleanItem === 0} />
-            <PixelIcon icon="bath" label="Bath" isHighlighted={selectedCleanItem === 1} />
-            <PixelIcon icon="nails" label="Nails" isHighlighted={selectedCleanItem === 2} />
-            <PixelIcon icon="dental" label="Dental" isHighlighted={selectedCleanItem === 4} />
+            <PixelIcon icon="brush" isHighlighted={selectedCleanItem === 0} />
+            <PixelIcon icon="bath" isHighlighted={selectedCleanItem === 1} />
+            <PixelIcon icon="nails" isHighlighted={selectedCleanItem === 2} />
+            <PixelIcon icon="dental" isHighlighted={selectedCleanItem === 4} />
           </div>
         </>
       );
@@ -473,10 +483,10 @@ export function KawaiiDevice() {
           <div className="text-xs mb-2">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="checkup" label="Check-up" isHighlighted={selectedDoctorItem === 0} />
-            <PixelIcon icon="vitamins" label="Vitamins" isHighlighted={selectedDoctorItem === 1} />
-            <PixelIcon icon="vaccine" label="Vaccine" isHighlighted={selectedDoctorItem === 2} />
-            <PixelIcon icon="surgery" label="Surgery" isHighlighted={selectedDoctorItem === 3} />
+            <PixelIcon icon="checkup" isHighlighted={selectedDoctorItem === 0} />
+            <PixelIcon icon="medicine" isHighlighted={selectedDoctorItem === 1} />
+            <PixelIcon icon="vaccine" isHighlighted={selectedDoctorItem === 2} />
+            <PixelIcon icon="surgery" isHighlighted={selectedDoctorItem === 3} />
           </div>
         </>
       );
@@ -666,8 +676,8 @@ export function KawaiiDevice() {
         <div className="w-1/2 flex justify-center">
           <PointsEarnedPanel 
             className="w-[300px]"
-            currentPoints={walletData?.points || 0}
-            nextPoints={(walletData?.points || 0) + 10}
+            currentPoints={globalPoints}
+            nextPoints={globalPoints + 10}
             pointsPerSecond={1.3}
             timeUntilUpdate={30.0}
             progress={0}

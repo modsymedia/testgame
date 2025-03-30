@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useWallet } from '@/context/WalletContext';
-import { getPetBehavior, getPetMessage, PetBehaviorResult, DEFAULT_BEHAVIOR, PetMessage } from '@/utils/openai-service';
+import { 
+  getPetBehavior, 
+  getPetMessage, 
+  PetBehaviorResult, 
+  DEFAULT_BEHAVIOR, 
+  PetMessage,
+  PetState,
+  PetBehaviorResponse
+} from '@/utils/openai-service';
 import { getBehaviorData, logUserActivity, UserActivity } from '@/utils/user-behavior-tracker';
 
 /**
@@ -62,41 +70,57 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
   /**
    * Get AI behavior from the server API
    */
-  const getAIBehavior = useCallback(async (force = false) => {
-    // Don't fetch if we already have behavior and not forcing
-    if (aiAdvice && !force) return;
-    
-    // Skip if not logged in
-    if (!petName) return;
+  const getAIBehavior = useCallback(async (forceUpdate = false) => {
+    if (!isConnected && !forceUpdate) return;
+    if (!petName || !walletId) return;
     
     setIsLoading(true);
-    
     try {
-      // Get user behavior data
-      const behaviorData = getBehaviorData(
-        walletId, 
+      // Prepare current pet state
+      const currentPetState: PetState = {
+        health: initialStats.health || 100,
+        happiness: initialStats.happiness || 100,
+        hunger: initialStats.hunger || 100,
+        cleanliness: initialStats.cleanliness || 100,
+        energy: initialStats.energy || 100
+      };
+      
+      // Use our updated function with fallback support
+      const aiResponse = await getPetBehavior(
         petName,
-        currentStatsRef.current
+        walletId,
+        currentPetState,
+        "idle"
       );
       
-      if (behaviorData) {
-        // Get AI behavior based on user data
-        const aiResponse = await getPetBehavior(behaviorData);
-        
-        // Update state with AI data
+      // Update state with AI data
+      if (aiResponse) {
         setDecayRates(aiResponse.decayRates);
         setCooldowns(aiResponse.cooldowns);
-        setAiPersonality(aiResponse.personality);
+        setAiPersonality(Array.isArray(aiResponse.personality) 
+          ? aiResponse.personality 
+          : [aiResponse.personality.name, aiResponse.personality.description]
+        );
         setAiAdvice(aiResponse.advice);
         setAiPointMultiplier(aiResponse.pointMultiplier);
-        setMoodDescription(aiResponse.moodDescription);
+        
+        // Only set mood description if it exists
+        const moodDesc = (aiResponse as any).moodDescription;
+        if (moodDesc) {
+          setMoodDescription(moodDesc);
+        }
+        
+        if (aiResponse.isOfflineMode) {
+          console.log('Using offline pet AI mode');
+        }
       }
     } catch (error) {
       console.error("Failed to get AI behavior:", error);
+      // We still have fallback in getPetBehavior so this should rarely happen
     } finally {
       setIsLoading(false);
     }
-  }, [aiAdvice, petName, walletId]);
+  }, [isConnected, petName, walletId, initialStats]);
 
   /**
    * Get a message from the pet's perspective based on the interaction
@@ -111,16 +135,28 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
       health: number;
     }
   ): Promise<PetMessage | null> => {
-    if (!isConnected || !petName) return null;
+    if (!petName) return null;
     
     setIsLoading(true);
     try {
-      const response = await getPetMessage(
+      // Map stats to PetState
+      const petState: PetState = {
+        health: currentStats.health,
+        happiness: currentStats.happiness,
+        hunger: currentStats.food,
+        cleanliness: currentStats.cleanliness,
+        energy: currentStats.energy
+      };
+      
+      // Use our updated function with fallback support
+      const response = await getPetBehavior(
         petName,
-        interactionType,
-        currentStats
+        walletId || 'offline-user',
+        petState,
+        interactionType
       );
       
+      // Process response
       setPetMessage(response.message);
       setPetReaction(response.reaction);
       
@@ -130,14 +166,18 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
         setPetReaction("none");
       }, 5000);
       
-      return response;
+      return {
+        message: response.message,
+        reaction: response.reaction,
+        reward: response.reward || 0
+      };
     } catch (error) {
       console.error("Error getting pet message:", error);
       return null;
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, petName]);
+  }, [petName, walletId]);
 
   /**
    * Log activity for AI to process

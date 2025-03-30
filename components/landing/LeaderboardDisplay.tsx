@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchLeaderboard } from "@/utils/leaderboard";
+import { fetchLeaderboard, fetchUserRank } from "@/utils/leaderboard";
 import { LeaderboardEntry } from "@/lib/models";
 import {
   Table,
@@ -28,6 +28,7 @@ export default function LeaderboardDisplay() {
   const [totalEntries, setTotalEntries] = useState(0);
   const { isConnected, publicKey, walletData } = useWallet();
   const [userRank, setUserRank] = useState<number | null>(null);
+  const [userData, setUserData] = useState<any>(null);
 
   const ENTRIES_PER_PAGE = {
     1: 6, // First page shows 6 entries
@@ -64,19 +65,17 @@ export default function LeaderboardDisplay() {
         const userEntry = result.entries.find(entry => entry.walletAddress === publicKey);
         if (userEntry) {
           setUserRank(userEntry.rank);
-        } else if (page === 1) {
-          // If user is not in the first page, fetch their rank separately
-          try {
-            // Make a separate API call to get the user's rank
-            const response = await fetch(`/api/leaderboard/rank?wallet=${publicKey}`);
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success && data.rank) {
-                setUserRank(data.rank);
-              }
+        } else {
+          // If user is not in the current page results, fetch their rank separately
+          const userRankResult = await fetchUserRank(publicKey);
+          if (userRankResult.success) {
+            setUserRank(userRankResult.rank);
+            
+            // Also store the user data from the server
+            if (userRankResult.userData) {
+              console.log('Got user data from server during leaderboard load:', userRankResult.userData);
+              setUserData(userRankResult.userData);
             }
-          } catch (error) {
-            console.error("Error fetching user rank:", error);
           }
         }
       }
@@ -133,14 +132,17 @@ export default function LeaderboardDisplay() {
 
   // Add a separate effect to load user rank when component mounts
   useEffect(() => {
-    const fetchUserRank = async () => {
-      if (isConnected && publicKey && !userRank) {
+    const fetchUserData = async () => {
+      if (isConnected && publicKey) {
         try {
-          const response = await fetch(`/api/leaderboard/rank?wallet=${publicKey}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.rank) {
-              setUserRank(data.rank);
+          const result = await fetchUserRank(publicKey);
+          if (result.success) {
+            setUserRank(result.rank);
+            
+            // Store the user data from the server
+            if (result.userData) {
+              console.log('Got user data from server:', result.userData);
+              setUserData(result.userData);
             }
           }
         } catch (error) {
@@ -149,8 +151,8 @@ export default function LeaderboardDisplay() {
       }
     };
     
-    fetchUserRank();
-  }, [isConnected, publicKey, userRank]);
+    fetchUserData();
+  }, [isConnected, publicKey]);
 
   // Helper function to retry loading the leaderboard
   const handleRefresh = () => {
@@ -169,6 +171,47 @@ export default function LeaderboardDisplay() {
       default:
         return "text-gray-300";
     }
+  };
+
+  // Add function to get the user's points from most reliable source
+  const getUserPoints = () => {
+    // First try to get points from API-returned userData
+    if (userData?.points) {
+      return userData.points;
+    }
+    
+    // Then try wallet data pet stats
+    if (walletData?.petStats?.points) {
+      return walletData.petStats.points;
+    }
+    
+    // Then fallback to wallet data direct points
+    if (walletData?.points) {
+      return walletData.points;
+    }
+    
+    return 0;
+  };
+  
+  // Add function to get the user's name from most reliable source
+  const getUserName = () => {
+    // First try to get username from API-returned userData
+    if (userData?.username) {
+      return userData.username;
+    }
+    
+    // Then try wallet data
+    if (walletData?.username) {
+      return walletData.username;
+    }
+    
+    // Then try pet name
+    if (walletData?.petName) {
+      return walletData.petName;
+    }
+    
+    // Fallback to wallet address
+    return publicKey ? publicKey.substring(0, 6) + "..." : "You";
   };
 
   return (
@@ -201,7 +244,7 @@ export default function LeaderboardDisplay() {
         ) : (
           <>
             {/* User Rank Section */}
-            {userRank && (
+            {userRank && currentPage === 1 && (
               <div className="mb-4 p-3 bg-[#ebffb7] rounded-md">
                 <h3 className="text-center text-[#304700] font-bold text-[20px] uppercase">Your Position</h3>
                 <div className="flex items-center justify-between py-2">
@@ -217,7 +260,7 @@ export default function LeaderboardDisplay() {
                       )}
                     </div>
                     <span className="text-[18px] text-[#304700]">
-                      {walletData?.username || (publicKey ? publicKey.substring(0, 6) + "..." : "You")}
+                      {getUserName()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[#304700]">
@@ -229,7 +272,7 @@ export default function LeaderboardDisplay() {
                       className="inline-block"
                     />
                     <span className="text-[18px] font-medium">
-                      {walletData?.petStats?.points?.toLocaleString() || walletData?.points?.toLocaleString() || "0"}
+                      {getUserPoints().toLocaleString()}
                     </span>
                   </div>
                 </div>

@@ -104,4 +104,52 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
     console.error('Error updating score:', error);
     return false;
   }
+}
+
+/**
+ * Fetch a specific user's leaderboard data and rank
+ * @param walletAddress The wallet address to check
+ * @returns Object containing user data and rank
+ */
+export async function fetchUserRank(walletAddress: string): Promise<{
+  rank: number;
+  userData: any;
+  success: boolean;
+}> {
+  try {
+    if (!walletAddress) {
+      console.warn('Cannot fetch user rank without wallet address');
+      return { rank: 0, userData: null, success: false };
+    }
+    
+    // Use relative URL to avoid port/domain issues
+    const response = await fetch(`/api/leaderboard/rank?wallet=${walletAddress}`, {
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.warn(`User rank fetch failed with status: ${response.status}`);
+      return { rank: 0, userData: null, success: false };
+    }
+    
+    // Parse the response body
+    const data = await response.json();
+    
+    if (data && data.success && data.rank) {
+      return { 
+        rank: data.rank,
+        userData: data.userData || null,
+        success: true
+      };
+    }
+    
+    console.warn('No valid user rank data in response');
+    return { rank: 0, userData: null, success: false };
+  } catch (error) {
+    console.error('Error fetching user rank:', error);
+    return { rank: 0, userData: null, success: false };
+  }
 } 

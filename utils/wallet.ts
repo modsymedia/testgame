@@ -51,66 +51,77 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     isSaving = true;
     console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
     
-    const response = await fetch('/api/wallet', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        walletAddress: publicKey,
-        score: data.petStats?.points || 0,
-        petName: data.petName,
-        petState: {
-          health: data.petStats?.health || 30,
-          happiness: data.petStats?.happiness || 40,
-          hunger: data.petStats?.food || 50,
-          cleanliness: data.petStats?.cleanliness || 40,
-          energy: data.petStats?.energy || 30,
-          qualityScore: data.petStats?.qualityScore || 0,
-          isDead: data.petStats?.isDead || false,
-          lastStateUpdate: new Date()
-        }
-      }),
+    // Always update in-memory storage immediately
+    inMemoryStorage.set(publicKey, {
+      ...data,
+      lastSaved: new Date().toISOString()
     });
     
-    isSaving = false;
+    // Try to save to localStorage as well for offline backup
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`wallet_${publicKey}`, JSON.stringify({
+          ...data,
+          lastSaved: new Date().toISOString()
+        }));
+      } catch (e) {
+        // Ignore localStorage errors
+        console.warn('Unable to save to localStorage:', e);
+      }
+    }
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API error (${response.status}): ${errorText}`);
-      
-      // Store data in memory as fallback
-      inMemoryStorage.set(publicKey, {
-        ...data,
-        lastSaved: new Date().toISOString(),
-        isTempStorage: true
+    // Try to save to server
+    try {
+      const response = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: publicKey,
+          score: data.petStats?.points || 0,
+          petName: data.petName,
+          petState: {
+            health: data.petStats?.health || 30,
+            happiness: data.petStats?.happiness || 40,
+            hunger: data.petStats?.food || 50,
+            cleanliness: data.petStats?.cleanliness || 40,
+            energy: data.petStats?.energy || 30,
+            qualityScore: data.petStats?.qualityScore || 0,
+            isDead: data.petStats?.isDead || false,
+            lastStateUpdate: new Date()
+          }
+        }),
       });
       
-      return false;
+      isSaving = false;
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        return true; // Still return true since we saved to localStorage
+      }
+      
+      const result = await response.json();
+      
+      // If there's a warning about temporary storage, log it
+      if (result.warning) {
+        console.warn(result.warning);
+      }
+      
+      console.log(`Wallet data saved successfully: ${result.message}`);
+      return true;
+    } catch (serverError) {
+      console.error('Failed to save wallet data to server:', serverError);
+      // Still return true since we already saved to in-memory and localStorage
+      return true;
     }
-    
-    const result = await response.json();
-    
-    // If there's a warning about temporary storage, log it
-    if (result.warning) {
-      console.warn(result.warning);
-    }
-    
-    console.log(`Wallet data saved successfully: ${result.message}`);
-    return true;
   } catch (error) {
     isSaving = false;
     console.error('Failed to save wallet data:', error);
-    
-    // Fall back to in-memory storage
-    inMemoryStorage.set(publicKey, {
-      ...data,
-      lastSaved: new Date().toISOString(),
-      isTempStorage: true
-    });
-    
-    console.log('Saved data to temporary storage');
     return false;
+  } finally {
+    isSaving = false;
   }
 }
 
@@ -123,102 +134,124 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       return inMemoryStorage.get(publicKey);
     }
     
-    const response = await fetch(`/api/wallet?walletAddress=${encodeURIComponent(publicKey)}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API error (${response.status}): ${errorText}`);
+    try {
+      const response = await fetch(`/api/wallet?walletAddress=${encodeURIComponent(publicKey)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
-      // Return default data
-      return {
-        petName: `Pet_${publicKey.substring(0, 4)}`,
-        points: 0,
-        multiplier: 1.0,
-        lastLogin: Date.now(),
-        daysActive: 0,
-        consecutiveDays: 0,
-        petStats: {
-          food: 50,
-          happiness: 40,
-          cleanliness: 40,
-          energy: 30,
-          health: 30,
-          isDead: false,
-          points: 0
-        }
-      };
-    }
-    
-    const { success, data } = await response.json();
-    
-    if (!success || !data) {
-      console.error('Failed to load wallet data: Invalid response format');
-      
-      // Return default data
-      return {
-        petName: `Pet_${publicKey.substring(0, 4)}`,
-        points: 0,
-        multiplier: 1.0,
-        lastLogin: Date.now(),
-        daysActive: 0,
-        consecutiveDays: 0,
-        petStats: {
-          food: 50,
-          happiness: 40,
-          cleanliness: 40,
-          energy: 30,
-          health: 30,
-          isDead: false,
-          points: 0
-        }
-      };
-    }
-    
-    // Format data for client use
-    return {
-      petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
-      points: data.points || 0,
-      multiplier: data.multiplier || 1.0,
-      lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
-      daysActive: data.daysActive || 0,
-      consecutiveDays: data.consecutiveDays || 0,
-      petStats: {
-        food: data.petState?.hunger || 50,
-        happiness: data.petState?.happiness || 40,
-        cleanliness: data.petState?.cleanliness || 40,
-        energy: data.petState?.energy || 30,
-        health: data.petState?.health || 30,
-        isDead: data.petState?.isDead || false,
-        points: data.points || 0
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API error (${response.status}): ${errorText}`);
+        throw new Error(`API error (${response.status}): ${errorText}`);
       }
-    };
+      
+      const { success, data } = await response.json();
+      
+      if (!success || !data) {
+        console.error('Failed to load wallet data: Invalid response format');
+        throw new Error('Invalid response format');
+      }
+      
+      // Format data for client use
+      const formattedData = {
+        petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
+        points: data.points || 0,
+        multiplier: data.multiplier || 1.0,
+        lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
+        daysActive: data.daysActive || 0,
+        consecutiveDays: data.consecutiveDays || 0,
+        petStats: {
+          food: data.petState?.hunger || 50,
+          happiness: data.petState?.happiness || 40,
+          cleanliness: data.petState?.cleanliness || 40,
+          energy: data.petState?.energy || 30,
+          health: data.petState?.health || 30,
+          isDead: data.petState?.isDead || false,
+          points: data.points || 0
+        }
+      };
+      
+      // Store in memory cache for future use in case server becomes unavailable
+      inMemoryStorage.set(publicKey, formattedData);
+      
+      return formattedData;
+    } catch (fetchError) {
+      // Log error but continue with fallback
+      console.error('Server connection error:', fetchError);
+      
+      // Check if localStorage is available (browser environment)
+      if (typeof window !== 'undefined') {
+        try {
+          // Try to retrieve from localStorage as second fallback
+          const localData = localStorage.getItem(`wallet_${publicKey}`);
+          if (localData) {
+            const parsedData = JSON.parse(localData);
+            console.log('Retrieved data from localStorage fallback');
+            
+            // Also store in memory for faster access
+            inMemoryStorage.set(publicKey, parsedData);
+            
+            return parsedData;
+          }
+        } catch (localStorageError) {
+          console.error('LocalStorage access error:', localStorageError);
+        }
+      }
+      
+      // Final fallback - create new default data
+      const defaultData = createDefaultWalletData(publicKey);
+      
+      // Store in memory for future use
+      inMemoryStorage.set(publicKey, defaultData);
+      
+      // Try to store in localStorage if available
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`wallet_${publicKey}`, JSON.stringify(defaultData));
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      }
+      
+      console.log('Created new default wallet data due to server unavailability');
+      return defaultData;
+    }
   } catch (error) {
     console.error('Failed to load wallet data:', error);
     
     // Return default data on error
-    return {
-      petName: `Pet_${publicKey.substring(0, 4)}`,
-      points: 0,
-      multiplier: 1.0,
-      lastLogin: Date.now(),
-      daysActive: 0,
-      consecutiveDays: 0,
-      petStats: {
-        food: 50,
-        happiness: 40,
-        cleanliness: 40,
-        energy: 30,
-        health: 30,
-        isDead: false,
-        points: 0
-      }
-    };
+    const defaultData = createDefaultWalletData(publicKey);
+    
+    // Store default data in memory
+    inMemoryStorage.set(publicKey, defaultData);
+    
+    return defaultData;
   }
+}
+
+// Helper function to create default wallet data
+function createDefaultWalletData(publicKey: string) {
+  return {
+    petName: `Pet_${publicKey.substring(0, 4)}`,
+    points: 0,
+    multiplier: 1.0,
+    lastLogin: Date.now(),
+    daysActive: 0,
+    consecutiveDays: 0,
+    petStats: {
+      food: 50,
+      happiness: 40,
+      cleanliness: 40,
+      energy: 30,
+      health: 30,
+      isDead: false,
+      points: 0
+    },
+    isOfflineMode: true
+  };
 }
 
 // Calculate point multiplier based on token holdings

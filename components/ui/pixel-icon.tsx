@@ -5,12 +5,12 @@ import Image from "next/image"
 interface PixelIconProps {
   icon: "food" | "clean" | "doctor" | "play" | "fish" | "cookie" | "catFood" | "kibble" | 
         "laser" | "feather" | "ball" | "puzzle" | "brush" | "bath" | "nails" | "dental" |
-        "checkup" | "vitamins" | "vaccine" | "surgery"
+        "checkup" | "vitamins" | "vaccine" | "surgery" | "medicine"
   label?: string
   isHighlighted: boolean
 }
 
-export function PixelIcon({ icon, isHighlighted }: PixelIconProps) {
+export function PixelIcon({ icon, isHighlighted, label }: PixelIconProps) {
   const getIcon = () => {
     switch (icon) {
       case "food":
@@ -48,11 +48,13 @@ export function PixelIcon({ icon, isHighlighted }: PixelIconProps) {
       case "checkup":
         return <Image src="/assets/icons/healings/healing.png" alt="Check-up" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "vitamins":
-        return <Image src="/assets/icons/healings/healing.png" alt="Vitamins" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return <Image src="/assets/icons/healings/medicine.png" alt="Vitamins" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "vaccine":
-        return <Image src="/assets/icons/healings/healing.png" alt="Vaccine" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return <Image src="/assets/icons/healings/vaccine.png" alt="Vaccine" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "surgery":
-        return <Image src="/assets/icons/healings/healing.png" alt="Surgery" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return <Image src="/assets/icons/healings/surgery.png" alt="Surgery" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+      case "medicine":
+        return <Image src="/assets/icons/healings/medicine.png" alt="Medicine" width={28} height={28} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       default:
         return <span className="text-xl">❓</span>;
     }

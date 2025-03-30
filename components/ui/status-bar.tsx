@@ -14,13 +14,19 @@ export function StatusBar({ value, type }: StatusBarProps) {
       case "food":
         return <Image src="/assets/icons/foods/foods.png" alt="Food" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "happiness":
-        return <Image src="/assets/icons/status/statusbar-heal(heart).png" alt="Happiness" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return <Image src="/assets/icons/healings/medicine.png" alt="Happiness" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "cleanliness":
         return <Image src="/assets/icons/hygiene/hygienes.png" alt="Cleanliness" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "energy":
-        return <Image src="/assets/icons/status/statusbar-coins(points).png" alt="Energy" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return value <= 20 
+          ? <Image src="/assets/icons/healings/medicine.png" alt="Energy Low" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />
+          : <Image src="/assets/icons/status/statusbar-coins(points).png" alt="Energy" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       case "health":
-        return <Image src="/assets/icons/status/statusbar-heal(heart).png" alt="Health" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
+        return value <= 40
+          ? <Image src="/assets/icons/healings/surgery.png" alt="Health Critical" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />
+          : value <= 70 
+            ? <Image src="/assets/icons/healings/vaccine.png" alt="Health Low" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />
+            : <Image src="/assets/icons/healings/healing.png" alt="Health" width={16} height={16} unoptimized={true} style={{ imageRendering: 'pixelated' }} />;
       default:
         return "(?)";
     }

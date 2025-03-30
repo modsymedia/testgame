@@ -100,7 +100,7 @@ export const GPTLogsPanel = () => {
         <PixelatedContainer className="flex flex-col p-0" noPadding>
           {/* Header */}
           <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between  w-full">
-            <span className="text-xl font-bold font-pixelify">Points Earned</span>
+            <span className="text-xl font-bold font-pixelify"> LLM INFO</span>
             <div className="flex items-center">
               <Image
                 src="/assets/icons/info.svg"

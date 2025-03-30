@@ -24,6 +24,16 @@ export function getHealthStatus(health: number): string {
 }
 
 /**
+ * Get the appropriate healing icon path based on health status
+ */
+export function getHealthIcon(health: number): string {
+  if (health > 80) return "/assets/icons/healings/healing.png";
+  if (health > 60) return "/assets/icons/healings/medicine.png";
+  if (health > 40) return "/assets/icons/healings/vaccine.png";
+  return "/assets/icons/healings/surgery.png";
+}
+
+/**
  * Calculate health based on various stats
  */
 export function calculateHealth(food: number, happiness: number, cleanliness: number, energy: number): number {

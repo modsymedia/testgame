@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { WalletProvider } from '@/context/WalletContext'
+import { PointsProvider } from '@/context/PointsContext'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -22,9 +23,11 @@ export default function RootLayout({
       </head>
       <body className="font-pixelify">
         <WalletProvider>
-          <main>
-            {children}
-          </main>
+          <PointsProvider>
+            <main>
+              {children}
+            </main>
+          </PointsProvider>
         </WalletProvider>
       </body>
     </html>

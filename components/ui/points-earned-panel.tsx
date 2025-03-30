@@ -18,8 +18,16 @@ const TASK_REWARDS = [
   { icon: '/assets/icons/foods/food-fish.png', name: 'Feed', points: 15 },
   { icon: '/assets/icons/games/game-ball.png', name: 'Play', points: 20 },
   { icon: '/assets/icons/hygiene/hygiene-bath.png', name: 'Clean', points: 18 },
-  { icon: '/assets/icons/healings/healing.png', name: 'Heal', points: 25 },
+  { icon: '/assets/icons/healings/vaccine.png', name: 'Heal', points: 25 },
 ];
+
+// Helper function to get health icon based on points value
+const getHealthIcon = (points: number) => {
+  if (points <= 15) return '/assets/icons/healings/healing.png';
+  if (points <= 20) return '/assets/icons/healings/medicine.png';
+  if (points <= 25) return '/assets/icons/healings/vaccine.png';
+  return '/assets/icons/healings/surgery.png';
+};
 
 export const PointsEarnedPanel = ({
   currentPoints,
@@ -79,7 +87,7 @@ export const PointsEarnedPanel = ({
               </div>
             </div>
 
-            {/* Task Rewards Section - Static, doesn't change with game state */}
+            {/* Task Rewards Section - Dynamic based on point values */}
             <div>
               <div className="text-xl font-bold font-pixelify text-[#304700] mb-3 border-t-2 border-[#304700] pt-4">Task Rewards</div>
               <div className="grid grid-cols-2 gap-3">
@@ -90,7 +98,7 @@ export const PointsEarnedPanel = ({
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 relative">
                             <Image
-                              src={task.icon}
+                              src={index === 3 ? getHealthIcon(task.points) : task.icon}
                               alt={task.name}
                               width={22}
                               height={22}

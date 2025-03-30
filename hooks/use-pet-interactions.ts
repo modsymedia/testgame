@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { Interaction } from "@/types/interaction"
 import { capStat } from "@/utils/stats-helpers"
 import { useWallet } from "@/context/WalletContext"
+import { usePoints } from "@/context/PointsContext"
 import { saveWalletData } from "@/utils/wallet"
 import { usePetAI } from "@/hooks/use-pet-ai"
 
@@ -54,6 +55,7 @@ export interface CooldownTimers {
 
 export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   const { isConnected, publicKey, walletData } = useWallet();
+  const { setGlobalPoints } = usePoints();
   const petName = walletData?.petName || 'Pet';
   
   // Get AI-driven behavior
@@ -202,19 +204,21 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
   
-  // Add this helper function to award points
+  // Award points to the pet (updates local state and triggers useEffect for wallet update)
   const awardPoints = useCallback((amount: number) => {
-    setPoints((prev: number) => prev + amount)
+    setPoints((prev: number) => {
+      const newPoints = prev + amount;
+      // Also update global points context
+      setGlobalPoints(newPoints);
+      return newPoints;
+    });
+    
+    // Record the recent point gain for animation
     setRecentPointGain({
       amount,
       timestamp: Date.now()
-    })
-    
-    // Clear point gain notification after 2 seconds
-    setTimeout(() => {
-      setRecentPointGain(null)
-    }, 2000)
-  }, [])
+    });
+  }, [setGlobalPoints]);
   
   // Apply decay rates from AI or use defaults
   useEffect(() => {

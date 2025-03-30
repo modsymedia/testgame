@@ -159,42 +159,201 @@ export function processApiResponseLogs(response: any): void {
   }
 }
 
+// Add type definitions at the top of the file 
+export interface PetState {
+  health: number;
+  happiness: number;
+  hunger: number;
+  cleanliness: number;
+  energy?: number;
+}
+
+export interface PetBehaviorResponse {
+  personality: {
+    name: string;
+    traits: string[];
+    likes: string[];
+    dislikes: string[];
+    description: string;
+  };
+  advice: string;
+  message: string;
+  reaction: string;
+  reward: number;
+  updatedStats: any;
+  pointMultiplier: number;
+  cooldowns: {
+    feed: number;
+    play: number;
+    clean: number;
+    heal: number;
+  };
+  decayRates: {
+    food: number;
+    happiness: number;
+    cleanliness: number;
+    energy: number;
+    health: number;
+  };
+  isOfflineMode?: boolean;
+}
+
 /**
  * Gets behavior data for pet based on OpenAI's recommendation
  */
-export async function getPetBehavior(petData: PetBehaviorData): Promise<PetBehaviorResult> {
+export async function getPetBehavior(petName: string, walletAddress: string, petState: PetState, action?: string): Promise<PetBehaviorResponse> {
   try {
-    const response = await fetch("/api/pet-behavior", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(petData),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    // Add client-side caching for AI responses using localStorage if available
+    const cacheKey = `pet_behavior_${action || 'idle'}_${Math.floor(petState.health / 10)}_${Math.floor(petState.happiness / 10)}_${Math.floor(petState.hunger / 10)}_${Math.floor(petState.cleanliness / 10)}`;
+    
+    // Check if we have this response cached
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedResponse = localStorage.getItem(cacheKey);
+        if (cachedResponse) {
+          const parsedResponse = JSON.parse(cachedResponse);
+          console.log('Using cached pet behavior response');
+          return parsedResponse;
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
     }
-
-    const data = await response.json();
     
-    // Process logs from API response
-    processApiResponseLogs(data);
-    
-    return data.fallback ? data.fallback : data;
+    // Try server request
+    try {
+      const response = await fetch('/api/pet-behavior', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          petName,
+          walletAddress,
+          petState,
+          action
+        }),
+      });
+      
+      if (!response.ok) {
+        console.error(`Server returned ${response.status}: ${await response.text()}`);
+        throw new Error(`Server returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Cache successful response in localStorage
+      if (typeof window !== 'undefined' && data) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      }
+      
+      return data;
+    } catch (serverError) {
+      console.error('OpenAI service error:', serverError);
+      // Fall back to offline mode with pre-defined responses
+      return generateOfflinePetBehavior(petName, petState, action);
+    }
   } catch (error) {
-    console.error("Error fetching pet behavior:", error);
-    
-    // Log client-side error
-    addClientLogEntry({
-      timestamp: new Date(),
-      type: "petBehavior",
-      prompt: JSON.stringify(petData),
-      error: error instanceof Error ? error.message : String(error)
-    });
-    
-    return DEFAULT_BEHAVIOR;
+    console.error('Failed to get pet behavior:', error);
+    // Return fallback behavior data
+    return generateOfflinePetBehavior(petName, petState, action);
   }
+}
+
+// Helper function to generate fallback pet behavior when server is unavailable
+function generateOfflinePetBehavior(petName: string, petState: PetState, action?: string): PetBehaviorResponse {
+  const lowHealth = petState.health < 30;
+  const lowHappiness = petState.happiness < 30;
+  const lowFood = petState.hunger < 30;
+  const lowCleanliness = petState.cleanliness < 30;
+  
+  // Default personality
+  const personality = {
+    name: petName,
+    traits: ["playful", "curious"],
+    likes: ["treats", "toys"],
+    dislikes: ["baths", "loneliness"],
+    description: "A friendly and sociable pet who enjoys company."
+  };
+  
+  // Default advice
+  let advice = "Your pet is doing fine! Regular care keeps your pet happy.";
+  let reaction = "happy";
+  
+  if (lowHealth) {
+    advice = "Your pet needs medical attention soon. Health is getting low.";
+    reaction = "sick";
+  } else if (lowFood) {
+    advice = "Your pet is hungry! Time for a meal.";
+    reaction = "hungry";
+  } else if (lowHappiness) {
+    advice = "Your pet seems a bit sad. Some playtime would help!";
+    reaction = "sad";
+  } else if (lowCleanliness) {
+    advice = "Your pet could use some grooming. Cleanliness affects health.";
+    reaction = "dirty";
+  }
+  
+  // Messages based on action
+  let message = "";
+  let updatedStats = null;
+  let reward = 0;
+  
+  switch(action) {
+    case 'feed':
+      message = `Thanks for the food! Yum!`;
+      reaction = "happy";
+      break;
+    case 'play':
+      message = `Playing games is so fun! Let's do this more often!`;
+      reaction = "excited";
+      break;
+    case 'clean':
+      message = `I feel so fresh and clean now!`;
+      reaction = "clean";
+      break;
+    case 'heal':
+      message = `I'm feeling much better after seeing the doctor.`;
+      reaction = "happy";
+      break;
+    case 'idle':
+      if (lowFood) message = `I'm getting hungry...`;
+      else if (lowHappiness) message = `I'm feeling a bit lonely...`;
+      else if (lowCleanliness) message = `I could use a bath...`;
+      else if (lowHealth) message = `I'm not feeling well...`;
+      else message = `*purrs contentedly*`;
+      break;
+    default:
+      message = `*looks at you curiously*`;
+  }
+  
+  return {
+    personality,
+    advice,
+    message,
+    reaction,
+    reward,
+    updatedStats,
+    pointMultiplier: 1.0,
+    cooldowns: {
+      feed: 10,
+      play: 15,
+      clean: 20,
+      heal: 30
+    },
+    decayRates: {
+      food: 0.5,
+      happiness: 0.4,
+      cleanliness: 0.3,
+      energy: 0.4,
+      health: 0.2
+    },
+    isOfflineMode: true
+  };
 }
 
 /**

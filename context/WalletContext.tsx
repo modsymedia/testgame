@@ -8,6 +8,7 @@ import {
   loadWalletData,
   getAvailableWallets
 } from '@/utils/wallet';
+import { fetchUserRank } from '@/utils/leaderboard';
 
 interface WalletContextType {
   isConnected: boolean;
@@ -137,7 +138,38 @@ export function WalletProvider({ children }: WalletProviderProps) {
           try {
             // Fetch wallet data asynchronously
             const data = await loadWalletData(key);
-            setWalletData(data);
+            
+            // Also fetch server data to ensure we have the latest
+            try {
+              const serverData = await fetchUserRank(key);
+              if (serverData.success && serverData.userData) {
+                console.log('Updated wallet data from server:', serverData.userData);
+                // Merge local and server data, with server data taking precedence
+                const mergedData = {
+                  ...data,
+                  petName: serverData.userData.username || data.petName,
+                  points: serverData.userData.points || data.points,
+                  petStats: {
+                    ...data.petStats,
+                    points: serverData.userData.points || data.petStats?.points || 0,
+                    ...(serverData.userData.petState ? {
+                      food: serverData.userData.petState.hunger,
+                      happiness: serverData.userData.petState.happiness,
+                      cleanliness: serverData.userData.petState.cleanliness,
+                      energy: serverData.userData.petState.energy,
+                      health: serverData.userData.petState.health,
+                      isDead: serverData.userData.petState.isDead
+                    } : {})
+                  }
+                };
+                setWalletData(mergedData);
+              } else {
+                setWalletData(data);
+              }
+            } catch (serverErr) {
+              console.error('Error fetching server data:', serverErr);
+              setWalletData(data);
+            }
           } catch (err) {
             console.error('Error loading wallet data:', err);
             // Continue with connection even if data load fails
@@ -168,7 +200,38 @@ export function WalletProvider({ children }: WalletProviderProps) {
           
           try {
             const data = await loadWalletData(key);
-            setWalletData(data);
+            
+            // Also fetch server data to ensure we have the latest
+            try {
+              const serverData = await fetchUserRank(key);
+              if (serverData.success && serverData.userData) {
+                console.log('Updated wallet data from server on connect event:', serverData.userData);
+                // Merge local and server data, with server data taking precedence
+                const mergedData = {
+                  ...data,
+                  petName: serverData.userData.username || data.petName,
+                  points: serverData.userData.points || data.points,
+                  petStats: {
+                    ...data.petStats,
+                    points: serverData.userData.points || data.petStats?.points || 0,
+                    ...(serverData.userData.petState ? {
+                      food: serverData.userData.petState.hunger,
+                      happiness: serverData.userData.petState.happiness,
+                      cleanliness: serverData.userData.petState.cleanliness,
+                      energy: serverData.userData.petState.energy,
+                      health: serverData.userData.petState.health,
+                      isDead: serverData.userData.petState.isDead
+                    } : {})
+                  }
+                };
+                setWalletData(mergedData);
+              } else {
+                setWalletData(data);
+              }
+            } catch (serverErr) {
+              console.error('Error fetching server data on connect event:', serverErr);
+              setWalletData(data);
+            }
           } catch (dataErr) {
             console.error('Error loading wallet data after connect:', dataErr);
             // Continue with default data if needed
@@ -324,7 +387,38 @@ export function WalletProvider({ children }: WalletProviderProps) {
           
           if (walletData) {
             console.log(`Loaded wallet data for ${key.substring(0, 8)}...`);
-            setWalletData(walletData);
+            
+            // Fetch server data to ensure we have the latest
+            try {
+              const serverData = await fetchUserRank(key);
+              if (serverData.success && serverData.userData) {
+                console.log('Updated wallet data from server after login:', serverData.userData);
+                // Merge local and server data, with server data taking precedence
+                const mergedData = {
+                  ...walletData,
+                  petName: serverData.userData.username || walletData.petName,
+                  points: serverData.userData.points || walletData.points,
+                  petStats: {
+                    ...walletData.petStats,
+                    points: serverData.userData.points || walletData.petStats?.points || 0,
+                    ...(serverData.userData.petState ? {
+                      food: serverData.userData.petState.hunger,
+                      happiness: serverData.userData.petState.happiness,
+                      cleanliness: serverData.userData.petState.cleanliness,
+                      energy: serverData.userData.petState.energy,
+                      health: serverData.userData.petState.health,
+                      isDead: serverData.userData.petState.isDead
+                    } : {})
+                  }
+                };
+                setWalletData(mergedData);
+              } else {
+                setWalletData(walletData);
+              }
+            } catch (serverErr) {
+              console.error('Error fetching server data after login:', serverErr);
+              setWalletData(walletData);
+            }
             setIsNewUser(false);
           } else {
             console.log('No existing wallet data found, initializing with defaults');

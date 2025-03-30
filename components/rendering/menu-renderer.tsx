@@ -94,10 +94,10 @@ export const MenuRenderer = ({
         <div className="text-xs mb-2">Select treatment option:</div>
         <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
         <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-          <PixelIcon icon="checkup" label="Check-up" isHighlighted={selectedDoctorItem === 0} />
-          <PixelIcon icon="vitamins" label="Vitamins" isHighlighted={selectedDoctorItem === 1} />
-          <PixelIcon icon="vaccine" label="Vaccine" isHighlighted={selectedDoctorItem === 2} />
-          <PixelIcon icon="surgery" label="Surgery" isHighlighted={selectedDoctorItem === 3} />
+          <PixelIcon icon="checkup" isHighlighted={selectedDoctorItem === 0} />
+          <PixelIcon icon="vitamins" isHighlighted={selectedDoctorItem === 1} />
+          <PixelIcon icon="vaccine" isHighlighted={selectedDoctorItem === 2} />
+          <PixelIcon icon="surgery" isHighlighted={selectedDoctorItem === 3} />
         </div>
       </>
     );
