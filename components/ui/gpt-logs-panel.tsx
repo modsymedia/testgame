@@ -114,7 +114,7 @@ export const GPTLogsPanel = () => {
             {/* Filter Tabs */}
             <div className="flex space-x-4 mb-4">
               <button
-                className={`text-md font-sk-eliz underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "all"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"
@@ -124,7 +124,7 @@ export const GPTLogsPanel = () => {
                 All
               </button>
               <button
-                className={`text-md font-sk-eliz underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "petBehavior"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"
@@ -134,7 +134,7 @@ export const GPTLogsPanel = () => {
                 Behavior
               </button>
               <button
-                className={`text-md font-sk-eliz underline ${
+                className={`text-sm font-sk-eliz underline ${
                   activeFilter === "petMessage"
                     ? "text-[#304700] font-bold"
                     : "text-[#304700]"

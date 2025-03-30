@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PixelatedContainer from '@/components/PixelatedContainer';
 import { PointsEarnedPanel } from './points-earned-panel';
+import { GPTLogsPanel } from './gpt-logs-panel';
 import { useWallet } from '@/context/WalletContext';
 
 interface PointsDashboardProps {
@@ -105,11 +106,11 @@ export const PointsDashboard = ({
           {/* My Points */}
           <PixelatedContainer>
             <div className="w-full">
-              <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">My Points</h2>
-              <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
+              <h2 className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">My Points</h2>
+              <div className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">
                 {Math.round(points).toLocaleString()}
               </div>
-              <p className="text-[16px] font-sk-eliz text-[#304700]">
+              <p className="text-sm font-sk-eliz text-[#304700]">
                 Earn more points by playing Gochi
               </p>
             </div>
@@ -118,11 +119,11 @@ export const PointsDashboard = ({
           {/* Potential Rewards */}
           <PixelatedContainer>
             <div className="w-full">
-              <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">Potential Rewards</h2>
-              <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
+              <h2 className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">Potential Rewards</h2>
+              <div className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">
                 ${potentialRewards.toFixed(2)}
               </div>
-              <p className="text-[16px] font-sk-eliz text-[#304700]">
+              <p className="text-sm font-sk-eliz text-[#304700]">
                 Token price × Points = ${tokenPrice.toFixed(2)} × {Math.round(points)}
               </p>
             </div>
@@ -132,19 +133,19 @@ export const PointsDashboard = ({
           <PixelatedContainer className="md:col-span-2">
             <div className="w-full flex justify-between items-start">
               <div>
-                <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">Claimed Points</h2>
-                <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
+                <h2 className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">Claimed Points</h2>
+                <div className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">
                   {Math.round(claimedPoints).toLocaleString()}
                 </div>
-                <p className="text-[16px] font-sk-eliz text-[#304700]">
+                <p className="text-sm font-sk-eliz text-[#304700]">
                   Total points converted to rewards
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-[32px] font-sk-eliz text-[#304700] mb-2">
+                <div className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">
                   $ {dollarsCollected}
                 </div>
-                <p className="text-[16px] font-sk-eliz text-[#304700]">
+                <p className="text-sm font-sk-eliz text-[#304700]">
                   Total USD value collected
                 </p>
               </div>
@@ -154,12 +155,12 @@ export const PointsDashboard = ({
           {/* Wallet Information */}
           <PixelatedContainer className="md:col-span-2">
             <div className="w-full">
-              <h2 className="text-[24px] font-sk-eliz text-[#304700] mb-2">Wallet Information</h2>
-              <p className="font-mono text-[16px] text-[#304700] break-all">
+              <h2 className="text-lg font-sk-eliz text-[#304700] mb-2 font-bold">Wallet Information</h2>
+              <p className="font-mono text-sm text-[#304700] break-all">
                 {publicKey || "Not connected"}
               </p>
               {walletData?.petName && (
-                <p className="text-[16px] font-sk-eliz text-[#304700] mt-2">
+                <p className="text-sm font-sk-eliz text-[#304700] mt-2">
                   Pet Name: {walletData.petName}
                 </p>
               )}
@@ -168,9 +169,9 @@ export const PointsDashboard = ({
         </div>
       </div>
 
-      {/* Right side - Points Earned */}
+      {/* Right side - GPT Logs */}
       <div className="w-[320px]">
-        <PointsEarnedPanel {...pointsEarnedData} />
+        <GPTLogsPanel />
       </div>
     </div>
   );

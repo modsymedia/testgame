@@ -16,6 +16,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
+import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
 
 export function KawaiiDevice() {
@@ -309,22 +310,22 @@ export function KawaiiDevice() {
           <div className="flex-grow flex flex-col items-center justify-center">
             {getCatEmotion()}
             <p className="text-red-500 font-bold mt-4">Your pet has died!</p>
-            <p className="text-sm mt-1 mb-2">Total tokens remaining: 100</p>
+            <p className="text-xs mt-1 mb-2">Total tokens remaining: 100</p>
             
             {showReviveConfirm ? (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
-                <p className="text-sm mb-2">Revive your pet by burning 50% of your points?</p>
+                <p className="text-xs mb-2">Revive your pet by burning 50% of your points?</p>
                 <p className="text-xs mb-3">Current points: {formatPoints(points)}</p>
                 <div className="flex space-x-2 justify-center">
                   <button 
                     onClick={handleReviveConfirm} 
-                    className="bg-green-500 text-white py-1 px-3 rounded-md text-sm"
+                    className="bg-green-500 text-white py-1 px-3 rounded-md text-xs"
                   >
                     Confirm
                   </button>
                   <button 
                     onClick={handleReviveCancel} 
-                    className="bg-red-500 text-white py-1 px-3 rounded-md text-sm"
+                    className="bg-red-500 text-white py-1 px-3 rounded-md text-xs"
                   >
                     Cancel
                   </button>
@@ -506,11 +507,10 @@ export function KawaiiDevice() {
       </div>
       
       {/* Three-column layout */}
-      <div className="flex w-full max-w-6xl justify-between">
+      <div className="flex w-full max-w-10xl justify-between">
         {/* Left column - AI Pet Advisor and Notifications */}
         <div className="w-1/2">
           <AIPetAdvisor 
-            show={true}
             isDead={isDead}
             food={food}
             happiness={happiness}
@@ -684,9 +684,17 @@ export function KawaiiDevice() {
           </motion.div>
         </div>
         
-        {/* Right column - GPT Logs Panel */}
-        <div className="w-1/2">
-          <GPTLogsPanel />
+        {/* Right column - Points Earned Panel */}
+        <div className="w-1/2 flex justify-center">
+          <PointsEarnedPanel 
+            className="w-[300px]"
+            currentPoints={walletData?.points || 0}
+            nextPoints={(walletData?.points || 0) + 10}
+            pointsPerSecond={1.3}
+            timeUntilUpdate={30.0}
+            progress={0}
+            pointsMultiplier={walletData?.multiplier || 1.0}
+          />
         </div>
       </div>
     </div>

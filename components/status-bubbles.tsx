@@ -52,7 +52,7 @@ function StatusPie({ value, icon, color, bgColor }: StatusPieProps) {
 
       {/* Icon */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xl">{icon}</span>
+        <span className="text-md">{icon}</span>
       </div>
 
       {/* Percentage */}

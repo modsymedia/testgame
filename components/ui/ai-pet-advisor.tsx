@@ -41,8 +41,8 @@ export function AIPetAdvisor({
     const averageStats = (food + happiness + cleanliness + energy + health) / 5;
     if (averageStats > 80) return "Your pet is thriving!";
     if (averageStats > 60) return "Your pet is doing well.";
-    if (averageStats > 40) return "Your pet is okay, but could use some care.";
-    return "Your pet is okay, but could use some care.";
+    if (averageStats > 40) return "Your pet needs attention.";
+    return "Your pet needs more care.";
   };
 
   // Get personalized advice
@@ -83,10 +83,10 @@ export function AIPetAdvisor({
                 />
               </div>
               <div className="flex-1">
-                <div className="text-[12px] font-sk-eliz text-[#304700]">
+                <div className="text-xs font-sk-eliz text-[#304700]">
                   {getDefaultMood()}
                 </div>
-                <div className="text-[12px] font-sk-eliz text-[#304700]">
+                <div className="text-xs font-sk-eliz text-[#304700]">
                   {getAdvice()}
                 </div>
               </div>
@@ -103,32 +103,32 @@ export function AIPetAdvisor({
       >
         <PixelatedContainer noPadding>
           <div className="w-full p-4">
-            <div className="text-[18px] font-sk-eliz text-[#304700] uppercase pb-2 mb-2">
+            <div className="text-md font-sk-eliz text-[#304700] uppercase pb-2 mb-2">
               Feed:
             </div>
             <div className="space-y-0">
               <div className="flex justify-between items-center">
-                <span className="text-[16px] font-sk-eliz text-[#304700]">Food:</span>
-                <span style={{ fontSize: '24px' }}>{Math.round(food)}%</span>
+                <span className="text-sm font-sk-eliz text-[#304700]">Food:</span>
+                <span className="text-md font-medium">{Math.round(food)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[16px] font-sk-eliz text-[#304700]">Happiness:</span>
-                <span style={{ fontSize: '24px' }}>{Math.round(happiness)}%</span>
+                <span className="text-sm font-sk-eliz text-[#304700]">Happiness:</span>
+                <span className="text-md font-medium">{Math.round(happiness)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[16px] font-sk-eliz text-[#304700]">Cleanliness:</span>
-                <span style={{ fontSize: '24px' }}>{Math.round(cleanliness)}%</span>
+                <span className="text-sm font-sk-eliz text-[#304700]">Cleanliness:</span>
+                <span className="text-md font-medium">{Math.round(cleanliness)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[16px] font-sk-eliz text-[#304700]">Energy:</span>
-                <span style={{ fontSize: '24px' }}>{Math.round(energy)}%</span>
+                <span className="text-sm font-sk-eliz text-[#304700]">Energy:</span>
+                <span className="text-md font-medium">{Math.round(energy)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[16px] font-sk-eliz text-[#304700]">Health:</span>
-                <span style={{ fontSize: '24px' }}>{Math.round(health)}%</span>
+                <span className="text-sm font-sk-eliz text-[#304700]">Health:</span>
+                <span className="text-md font-medium">{Math.round(health)}%</span>
               </div>
             </div>
-            <div className="mt-4 text-[16px] font-sk-eliz text-[#304700]">
+            <div className="mt-4 text-sm font-sk-eliz text-[#304700]">
               Pet is feeling happy ^.^
             </div>
           </div>

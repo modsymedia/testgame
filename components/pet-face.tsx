@@ -36,7 +36,7 @@ export function PetFace({ stats, className }: PetFaceProps) {
 
   return (
     <motion.div
-      className={cn("font-mono text-6xl whitespace-pre leading-tight text-center cursor-pointer", className)}
+      className={cn("font-mono text-lg whitespace-pre leading-tight text-center cursor-pointer", className)}
       animate={{
         y: isBouncing ? [0, -20, 0] : 0,
       }}

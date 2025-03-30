@@ -25,11 +25,11 @@ export function PetAvatar({ pet }: { pet: PetState }) {
         {isHungry ? (
           <Utensils className="w-16 h-16 text-gray-400" />
         ) : isTired ? (
-          <span className="text-6xl">😴</span>
+          <span className="text-lg">😴</span>
         ) : isDirty ? (
-          <span className="text-6xl">🚿</span>
+          <span className="text-lg">🚿</span>
         ) : (
-          <span className="text-6xl">😊</span>
+          <span className="text-lg">😊</span>
         )}
       </motion.div>
       

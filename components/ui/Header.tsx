@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import PixelatedContainer from "../PixelatedContainer";
 import { useWallet } from "@/context/WalletContext";
@@ -11,7 +12,7 @@ interface NavItemProps {
   path: string;
   label: string;
   width?: number;
-  icon?: React.ReactNode;
+  iconPath: string;
 }
 
 export function Header() {
@@ -28,22 +29,25 @@ export function Header() {
     {
       path: "/console/gotchi",
       label: "Gochi",
-      width: 94, // 118 * 0.8 = 94.4 rounded to 94
+      width: 94,
+      iconPath: "/assets/icons/header/gochi.png",
     },
     {
       path: "/console/dashboard",
       label: "Dashboard",
-      width: 137, // 171 * 0.8 = 136.8 rounded to 137
+      width: 137,
+      iconPath: "/assets/icons/header/dashbaord.svg",
     },
     {
       path: "/console/leaderboard",
       label: "Leaderboard",
-      width: 155, // 194 * 0.8 = 155.2 rounded to 155
+      width: 155,
+      iconPath: "/assets/icons/header/leaderboard.svg",
     },
   ];
 
   return (
-    <header className="fixed top-0 left-0 w-full z-50 h-[81px] flex items-top gap-[5px] px-0">
+    <header className="fixed top-0 left-0 w-full z-50 h-[48px] flex items-top gap-[5px] px-0">
       {/* Left side navigation */}
       <div className="flex items-start gap-[5px] -ml-[5px]">
         {navItems.map((item) => (
@@ -52,7 +56,7 @@ export function Header() {
             path={item.path}
             label={item.label}
             width={item.width}
-            icon={item.icon}
+            iconPath={item.iconPath}
             isActive={pathname === item.path}
           />
         ))}
@@ -80,7 +84,7 @@ export function Header() {
               onClick={handleLogout}
               className="w-full h-full flex items-center justify-center"
             >
-              <span className="text-[#304700] font-sk-eliz text-[15px]">Logout</span>
+              <span className="text-[#304700] font-sk-eliz text-sm">Logout</span>
             </button>
           </PixelatedContainer>
         </div>
@@ -97,7 +101,7 @@ function NavItem({
   path,
   label,
   width = 94,
-  icon,
+  iconPath,
   isActive,
 }: NavItemComponentProps) {
   return (
@@ -111,11 +115,19 @@ function NavItem({
         style={{ width: `${width}px` }}
         noPadding
       >
-        {icon && (
-          <div className=" z-10">{icon}</div>
-        )}
-        <span className="text-[#304700] font-sk-eliz text-[18px]">{label}</span>{" "}
-        {/* 22 * 0.8 = 17.6 rounded to 18 */}
+        <div className="flex items-center justify-center gap-2 py-2 px-3">
+          <div className="w-5 h-5 relative flex-shrink-0">
+            <Image 
+              src={iconPath} 
+              alt={`${label} icon`} 
+              width={20} 
+              height={20} 
+              className="object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+          <span className="text-[#304700] font-sk-eliz text-md">{label}</span>
+        </div>
       </PixelatedContainer>
     </Link>
   );
