@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PetNameSetup } from '@/components/PetNameSetup';
 import { WalletSelectModal } from '@/components/WalletSelectModal';
 import Image from 'next/image';
 
@@ -41,7 +40,6 @@ export default function LandingPage() {
       </div>
 
       {/* Show PetNameSetup for new users */}
-      {isNewUser && <PetNameSetup />}
 
       <div className="relative z-10 w-full max-w-md mx-auto text-center px-4">
         <div className="mb-8 space-y-4">

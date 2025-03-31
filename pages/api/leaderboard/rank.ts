@@ -115,18 +115,32 @@ export default async function handler(
 
     // Count how many users have more points than this user
     const rankResult = await sql`
-      SELECT COUNT(*) as higher_rank 
-      FROM users 
-      WHERE points > ${userScore}
+      WITH user_ranks AS (
+        SELECT 
+          wallet_address,
+          points,
+          ROW_NUMBER() OVER (ORDER BY points DESC) as rank,
+          RANK() OVER (ORDER BY points DESC) as dense_rank
+        FROM users 
+        WHERE points > 0
+      )
+      SELECT 
+        rank,
+        dense_rank,
+        (SELECT COUNT(*) FROM users WHERE points > 0) as total_users
+      FROM user_ranks
+      WHERE wallet_address = ${wallet}
     `;
 
-    // Rank is the count + 1 (since ranks start at 1)
-    const rank = (rankResult[0].higher_rank || 0) + 1;
+    // Use dense_rank for position (handles ties better)
+    const rank = rankResult[0]?.dense_rank || 0;
+    const totalUsers = rankResult[0]?.total_users || 0;
 
     // Return the user's rank, score, and complete data
     return res.status(200).json({
       success: true,
       rank,
+      totalUsers,
       userData: {
         walletAddress: userData.wallet_address,
         username: userData.username || `Pet_${wallet.substring(0, 4)}`,

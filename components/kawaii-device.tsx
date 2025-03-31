@@ -449,7 +449,7 @@ export function KawaiiDevice() {
               {getCatEmotion()}
             </div>
           </div>
-          <div className="flex justify-around w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex justify-around w-full px-2 pt-2">
             {["food", "clean", "doctor", "play"].map((icon, index) => (
               <PixelIcon
                 key={index}
@@ -477,7 +477,7 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-12 left-0 right-0 text-xs text-center">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex justify-between w-full px-2 pt-2">
             {["fish", "cookie", "catFood", "kibble"].map((foodItem, index) => (
               <PixelIcon 
                 key={index}
@@ -505,7 +505,7 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose a game to play:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex justify-between w-full px-2 pt-2">
             {["laser", "feather", "ball", "puzzle"].map((playItem, index) => (
               <PixelIcon 
                 key={index}
@@ -533,7 +533,7 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose grooming method:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex justify-between w-full px-2 pt-2">
             {["brush", "bath", "nails", "dental"].map((cleanItem, index) => (
               <PixelIcon 
                 key={index}
@@ -561,7 +561,7 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-12 left-0 right-0 text-xs text-center">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
+          <div className="flex justify-between w-full px-2 pt-2">
             {["checkup", "medicine", "vaccine", "surgery"].map((doctorItem, index) => (
               <PixelIcon 
                 key={index}
@@ -590,12 +590,12 @@ export function KawaiiDevice() {
   }, [disconnect, router]);
 
   return (
-    <div className="w-full min-h-screen p-4">
+    <div className="flex w-full min-h-screen p-4 items-center justify-center">
       
       {/* Responsive layout container */}
-      <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-6 items-start justify-center">
+      <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-6 items-center justify-center">
         {/* Left column - AI Pet Advisor */}
-        <div className="w-full lg:w-1/4 order-2 lg:order-1">
+        <div className="flexw-full lg:w-1/4 order-2 lg:order-1">
           <AIPetAdvisor 
             isDead={isDead}
             food={food}

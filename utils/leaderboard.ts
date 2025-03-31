@@ -115,11 +115,12 @@ export async function fetchUserRank(walletAddress: string): Promise<{
   rank: number;
   userData: any;
   success: boolean;
+  totalUsers: number;
 }> {
   try {
     if (!walletAddress) {
       console.warn('Cannot fetch user rank without wallet address');
-      return { rank: 0, userData: null, success: false };
+      return { rank: 0, userData: null, success: false, totalUsers: 0 };
     }
     
     // Use relative URL to avoid port/domain issues
@@ -132,7 +133,7 @@ export async function fetchUserRank(walletAddress: string): Promise<{
     
     if (!response.ok) {
       console.warn(`User rank fetch failed with status: ${response.status}`);
-      return { rank: 0, userData: null, success: false };
+      return { rank: 0, userData: null, success: false, totalUsers: 0 };
     }
     
     // Parse the response body
@@ -142,14 +143,15 @@ export async function fetchUserRank(walletAddress: string): Promise<{
       return { 
         rank: data.rank,
         userData: data.userData || null,
-        success: true
+        success: true,
+        totalUsers: data.totalUsers || 0
       };
     }
     
     console.warn('No valid user rank data in response');
-    return { rank: 0, userData: null, success: false };
+    return { rank: 0, userData: null, success: false, totalUsers: 0 };
   } catch (error) {
     console.error('Error fetching user rank:', error);
-    return { rank: 0, userData: null, success: false };
+    return { rank: 0, userData: null, success: false, totalUsers: 0 };
   }
 } 

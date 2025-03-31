@@ -29,10 +29,19 @@ export default function LeaderboardDisplay() {
   const { isConnected, publicKey, walletData } = useWallet();
   const [userRank, setUserRank] = useState<number | null>(null);
   const [userData, setUserData] = useState<any>(null);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
 
   const ENTRIES_PER_PAGE = {
     1: 6, // First page shows 6 entries
     other: 15, // Other pages show 15 entries
+  };
+
+  // Calculate which page the user should be on based on their rank
+  const calculateUserPage = (rank: number) => {
+    if (rank <= ENTRIES_PER_PAGE[1]) return 1;
+    
+    const remainingEntries = rank - ENTRIES_PER_PAGE[1];
+    return Math.ceil(remainingEntries / ENTRIES_PER_PAGE.other) + 1;
   };
 
   const loadLeaderboard = async (page: number) => {
@@ -70,11 +79,18 @@ export default function LeaderboardDisplay() {
           const userRankResult = await fetchUserRank(publicKey);
           if (userRankResult.success) {
             setUserRank(userRankResult.rank);
+            setTotalUsers(userRankResult.totalUsers);
             
             // Also store the user data from the server
             if (userRankResult.userData) {
               console.log('Got user data from server during leaderboard load:', userRankResult.userData);
               setUserData(userRankResult.userData);
+            }
+
+            // If we're not on the user's page, suggest navigating to it
+            const userPage = calculateUserPage(userRankResult.rank);
+            if (userPage !== page) {
+              console.log(`User is on page ${userPage}, current page is ${page}`);
             }
           }
         }
@@ -138,11 +154,18 @@ export default function LeaderboardDisplay() {
           const result = await fetchUserRank(publicKey);
           if (result.success) {
             setUserRank(result.rank);
+            setTotalUsers(result.totalUsers);
             
             // Store the user data from the server
             if (result.userData) {
               console.log('Got user data from server:', result.userData);
               setUserData(result.userData);
+            }
+
+            // Calculate which page the user should be on
+            const userPage = calculateUserPage(result.rank);
+            if (userPage !== currentPage) {
+              console.log(`User is on page ${userPage}, current page is ${currentPage}`);
             }
           }
         } catch (error) {

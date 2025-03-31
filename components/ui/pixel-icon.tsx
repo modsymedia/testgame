@@ -110,10 +110,10 @@ export function PixelIcon({
       }}
     >
       <motion.div
-        className={`w-12 h-12 relative flex items-center justify-center rounded-lg cursor-pointer
+        className={`w-12 h-12 relative flex items-center justify-center rounded-sm cursor-pointer
           ${isDisabled ? "opacity-50 cursor-not-allowed" : 
-            isHighlighted ? "bg-gray-100 ring-2 ring-blue-400 shadow-lg" : 
-            "bg-transparent hover:bg-gray-300/50 hover:shadow-md transition-all duration-200"
+            isHighlighted ? "bg-[#eeffc9] ring-2 ring-[#cada9b]" : 
+            "bg-transparent hover:bg-[#eeffc9] transition-all duration-200"
           }`}
         whileHover={!isDisabled ? { 
           scale: isHighlighted ? 1.1 : 1.08,
