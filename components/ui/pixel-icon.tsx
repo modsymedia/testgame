@@ -148,14 +148,40 @@ export function PixelIcon({
         {/* Cooldown overlay - circular progress */}
         {isAnimating && (
           <div className="absolute inset-0 flex items-center justify-center">
+            {/* Outer glow effect */}
+            <motion.div
+              className="absolute inset-0 rounded-lg"
+              initial={{ opacity: 0 }}
+              animate={{ 
+                opacity: [0.3, 0.5, 0.3],
+                scale: [1, 1.02, 1],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              style={{
+                background: 'radial-gradient(circle, rgba(48,71,0,0.3) 0%, rgba(48,71,0,0) 70%)'
+              }}
+            />
+
             {/* Circular cooldown indicator */}
             <motion.svg 
               className="w-full h-full absolute"
               viewBox="0 0 100 100"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, scale: 0.8, rotate: -90 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                rotate: -90
+              }}
+              transition={{ 
+                duration: 0.3,
+                ease: "easeOut"
+              }}
             >
+              {/* Background circle */}
               <circle 
                 cx="50" 
                 cy="50" 
@@ -163,23 +189,65 @@ export function PixelIcon({
                 fill="none" 
                 stroke="#304700" 
                 strokeWidth="8"
+                className="opacity-20"
+              />
+              {/* Progress circle */}
+              <motion.circle 
+                cx="50" 
+                cy="50" 
+                r="45" 
+                fill="none" 
+                stroke="#304700" 
+                strokeWidth="8"
                 strokeDasharray="283"
-                strokeDashoffset={283 - (283 * progress) / 100}
-                transform="rotate(-90 50 50)"
+                initial={{ strokeDashoffset: 283 }}
+                animate={{ 
+                  strokeDashoffset: 283 - (283 * progress) / 100,
+                  transition: {
+                    duration: 0.5,
+                    ease: "easeInOut"
+                  }
+                }}
                 className="opacity-60"
               />
             </motion.svg>
             
             {/* Cooldown timer */}
             <motion.div 
-              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded-lg"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
+              className="absolute inset-0 flex items-center justify-center rounded-lg"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                background: [
+                  'rgba(0,0,0,0.4)',
+                  'rgba(0,0,0,0.5)',
+                  'rgba(0,0,0,0.4)'
+                ]
+              }}
+              transition={{ 
+                duration: 0.3,
+                background: {
+                  duration: 1.5,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }
+              }}
             >
-              <span className="text-white text-xs font-bold font-numbers">
+              <motion.span 
+                className="text-white text-xs font-bold font-numbers drop-shadow-lg"
+                animate={{
+                  scale: [1, 1.1, 1],
+                  opacity: [1, 0.8, 1]
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
                 {formatTime(cooldown)}
-              </span>
+              </motion.span>
             </motion.div>
           </div>
         )}
