@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 
 export function PetNameModal() {
-  const { isConnected, publicKey, walletData, setPetName } = useWallet();
+  const { isConnected, publicKey, walletData, setPetName, isNewUser } = useWallet();
   const [open, setOpen] = useState(false);
   const [petNameInput, setPetNameInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,26 +26,25 @@ export function PetNameModal() {
     }
   }, [publicKey]);
 
-  // Show dialog when user is connected - ALWAYS show for all users for testing
+  // Show dialog only for new users
   useEffect(() => {
-    if (isConnected) {
-      console.log("Connected user, showing pet name modal");
-      // Force the modal to be open for all users
+    if (isConnected && isNewUser) {
+      console.log("New user connected, showing pet name modal");
       setOpen(true);
     }
-  }, [isConnected, walletData]);
+  }, [isConnected, isNewUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!petNameInput.trim()) {
-      setError('لطفا نام حیوان خانگی خود را وارد کنید');
+      setError('Please enter a name for your pet');
       return;
     }
     
     // Don't allow names that start with 'Pet_'
     if (petNameInput.trim().startsWith('Pet_')) {
-      setError('لطفاً یک نام سفارشی انتخاب کنید');
+      setError('Please choose a custom name');
       return;
     }
     
@@ -58,11 +57,11 @@ export function PetNameModal() {
         console.log("Successfully set pet name to:", petNameInput.trim());
         setOpen(false);
       } else {
-        setError('خطا در ذخیره نام. لطفا دوباره تلاش کنید');
+        setError('Failed to save name. Please try again');
       }
     } catch (err) {
       console.error('Error saving pet name:', err);
-      setError('خطایی رخ داد. لطفا دوباره تلاش کنید');
+      setError('An error occurred. Please try again');
     } finally {
       setIsSubmitting(false);
     }
@@ -75,7 +74,7 @@ export function PetNameModal() {
       setOpen(false);
     } else if (!newOpen) {
       // If trying to close with a default name, show an error
-      setError('لطفاً ابتدا یک نام برای حیوان خانگی خود انتخاب کنید');
+      setError('Please choose a name for your pet first');
     } else {
       setOpen(newOpen);
     }
@@ -85,22 +84,22 @@ export function PetNameModal() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>مرحله نام گذاری پت شما</DialogTitle>
+          <DialogTitle>Name Your Pet</DialogTitle>
           <DialogDescription>
-            لطفاً یک نام جدید برای حیوان خانگی خود وارد کنید
+            Please enter a name for your new pet
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="name" className="text-right col-span-1">
-                نام پت
+                Pet Name
               </label>
               <Input
                 id="name"
                 value={petNameInput}
                 onChange={(e) => setPetNameInput(e.target.value)}
-                placeholder="نام جدید پت را وارد کنید"
+                placeholder="Enter your pet's name"
                 className="col-span-3"
                 maxLength={16}
                 required
@@ -110,7 +109,7 @@ export function PetNameModal() {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || !petNameInput.trim()}>
-              {isSubmitting ? 'در حال ذخیره...' : 'ذخیره نام'}
+              {isSubmitting ? 'Saving...' : 'Save Name'}
             </Button>
           </DialogFooter>
         </form>

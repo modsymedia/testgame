@@ -101,6 +101,55 @@ export function Header() {
                 <span className="text-[#304700] font-pixelify text-lg">Logout</span>
               </button>
             )}
+            {/* Mobile Social Links */}
+            <div className="flex items-center gap-2 p-3 border-t border-[#304700]/10">
+              <a 
+                href="https://x.com/gochiGame" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#304700] hover:text-[#304700]/80"
+              >
+                <Image 
+                  src="/assets/icons/social/x.png" 
+                  alt="X (Twitter)" 
+                  width={20} 
+                  height={20}
+                  className="object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+                <span className="font-pixelify text-lg">X (Twitter)</span>
+              </a>
+              <a 
+                href="https://github.com/gochiGame" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[#304700] hover:text-[#304700]/80"
+              >
+                <Image 
+                  src="/assets/icons/social/github.png" 
+                  alt="GitHub" 
+                  width={20} 
+                  height={20}
+                  className="object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+                <span className="font-pixelify text-lg">GitHub</span>
+              </a>
+              <a 
+                href="/docs" 
+                className="flex items-center gap-2 text-[#304700] hover:text-[#304700]/80"
+              >
+                <Image 
+                  src="/assets/icons/social/doc.png" 
+                  alt="Documentation" 
+                  width={20} 
+                  height={20}
+                  className="object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+                <span className="font-pixelify text-lg">Docs</span>
+              </a>
+            </div>
           </div>
         </div>
       )}
@@ -126,6 +175,73 @@ export function Header() {
           noPadding
         >
           <div className="w-full h-full"></div>
+        </PixelatedContainer>
+      </div>
+
+      {/* Desktop Social Links */}
+      <div className="hidden lg:flex items-start gap-[5px]">
+        <PixelatedContainer
+          className="h-[40px] cursor-pointer hover:bg-[#d8ee9e] transition-colors"
+          style={{ width: '40px' }}
+          noPadding
+        >
+          <a 
+            href="https://x.com/gochiGame" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full h-full flex items-center justify-center"
+          >
+            <Image 
+              src="/assets/icons/social/x.png" 
+              alt="X (Twitter)" 
+              width={20} 
+              height={20}
+              className="object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </a>
+        </PixelatedContainer>
+
+        <PixelatedContainer
+          className="h-[40px] cursor-pointer hover:bg-[#d8ee9e] transition-colors"
+          style={{ width: '40px' }}
+          noPadding
+        >
+          <a 
+            href="https://github.com/gochiGame" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full h-full flex items-center justify-center"
+          >
+            <Image 
+              src="/assets/icons/social/github.png" 
+              alt="GitHub" 
+              width={20} 
+              height={20}
+              className="object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </a>
+        </PixelatedContainer>
+
+        <PixelatedContainer
+          className="h-[40px] cursor-pointer hover:bg-[#d8ee9e] transition-colors"
+          style={{ width: '40px' }}
+          noPadding
+        >
+          <a 
+            href="/docs" 
+            className="w-full h-full flex items-center justify-center"
+          >
+            <Image 
+              src="/assets/icons/social/doc.png" 
+              alt="Documentation" 
+              width={20} 
+              height={20}
+              className="object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </a>
         </PixelatedContainer>
       </div>
 
