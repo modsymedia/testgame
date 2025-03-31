@@ -6,6 +6,7 @@ interface PixelatedContainerProps {
   style?: React.CSSProperties;
   noPadding?: boolean;
   bgcolor?: string;
+  onClick?: () => void;
 }
 
 const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
@@ -14,6 +15,7 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
   style = {},
   noPadding = false,
   bgcolor = "#EBFFB7", // Default value if bgcolor is not provided
+  onClick,
 }) => {
   return (
     <div
@@ -22,6 +24,7 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
         ...style,
         backgroundColor: bgcolor, // Use bgcolor prop instead of hardcoded color
       }}
+      onClick={onClick}
     >
       {/* Edge extensions - vertical (reduced by 15% from 6px to 5px) */}
       <div className="absolute top-0 -left-[5px] w-[5px] h-full bg-[#304700]" />

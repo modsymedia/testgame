@@ -38,7 +38,7 @@ export interface PointGain {
 }
 
 // Default cooldown times in milliseconds
-const DEFAULT_COOLDOWNS = {
+export const DEFAULT_COOLDOWNS = {
   feed: 10000,    // 10 seconds
   play: 15000,    // 15 seconds
   clean: 20000,   // 20 seconds

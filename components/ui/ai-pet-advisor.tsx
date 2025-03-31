@@ -109,23 +109,23 @@ export function AIPetAdvisor({
             <div className="space-y-0">
               <div className="flex justify-between items-center">
                 <span className="text-md font-pixelify text-[#304700]">Food:</span>
-                <span className="text-lg font-pixelify font-medium font-numbers">{Math.round(food)}%</span>
+                <span className="text-lg font-pixelify font-medium">{Math.round(food)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-md font-pixelify text-[#304700]">Happiness:</span>
-                <span className="text-lg font-pixelify font-medium font-numbers">{Math.round(happiness)}%</span>
+                <span className="text-lg font-pixelify font-medium">{Math.round(happiness)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-md font-pixelify text-[#304700]">Cleanliness:</span>
-                <span className="text-lg font-pixelify font-medium font-numbers">{Math.round(cleanliness)}%</span>
+                <span className="text-lg font-pixelify font-medium">{Math.round(cleanliness)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-md font-pixelify text-[#304700]">Energy:</span>
-                <span className="text-lg font-pixelify font-medium font-numbers">{Math.round(energy)}%</span>
+                <span className="text-lg font-pixelify font-medium">{Math.round(energy)}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-md font-pixelify text-[#304700]">Health:</span>
-                <span className="text-lg font-pixelify font-medium font-numbers">{Math.round(health)}%</span>
+                <span className="text-lg font-pixelify font-medium">{Math.round(health)}%</span>
               </div>
             </div>
             <div className="mt-4 text-md font-pixelify text-[#304700]">

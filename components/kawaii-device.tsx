@@ -7,7 +7,7 @@ import { StatusBar } from "@/components/ui/status-bar";
 import { PixelIcon } from "@/components/ui/pixel-icon";
 import { DeviceIndicators } from "./device-indicators";
 import { HappyCat, AlertCat, SadCat, TiredCat, HungryCat, DeadCat } from "./cat-emotions";
-import { usePetInteractions } from "@/hooks/use-pet-interactions";
+import { usePetInteractions, DEFAULT_COOLDOWNS } from "@/hooks/use-pet-interactions";
 import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { formatPoints } from "@/utils/stats-helpers";
 import { AIPetAdvisor } from "@/components/ui/ai-pet-advisor";
@@ -19,6 +19,46 @@ import { Button } from "@/components/ui/button";
 import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
+import Image from "next/image";
+
+// Add this component near the top of the file, outside the KawaiiDevice component
+interface StatusHeaderProps {
+  animatedPoints: number;
+  health: number;
+}
+
+const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
+  return (
+    <div className="flex justify-between w-full mb-2">
+      <div className="flex-1">
+        <div className="flex items-center">
+          <Image 
+            src="/assets/icons/coin.png" 
+            alt="Coins" 
+            width={24} 
+            height={24} 
+            className="mr-1"
+            style={{ imageRendering: 'pixelated' }}
+          />
+          <span className="text-s text-[#4b6130] font-numbers">{formatPoints(animatedPoints)}</span>
+        </div>
+      </div>
+      <div className="flex-1 ml-2">
+        <div className="flex items-center">
+          <Image 
+            src="/assets/icons/hart.png" 
+            alt="Health" 
+            width={24} 
+            height={24} 
+            className="mr-1"
+            style={{ imageRendering: 'pixelated' }}
+          />
+          <StatusBar value={health} type="health" />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export function KawaiiDevice() {
   const router = useRouter();
@@ -165,6 +205,55 @@ export function KawaiiDevice() {
   }, [isDead, isConnected, publicKey, points]);
 
   const [showReviveConfirm, setShowReviveConfirm] = useState(false);
+
+  const [animatedPoints, setAnimatedPoints] = useState(globalPoints);
+  
+  // Add this ref to track the previous points value
+  const prevPointsRef = useRef(globalPoints);
+  
+  // Animation effect when global points change
+  useEffect(() => {
+    // Only animate if points increased
+    if (globalPoints > prevPointsRef.current) {
+      const startValue = prevPointsRef.current;
+      const endValue = globalPoints;
+      const duration = 800; // 800ms
+      const increment = 1;
+      let currentValue = startValue;
+      
+      // Update the reference immediately
+      prevPointsRef.current = globalPoints;
+      
+      // Clear any existing interval
+      const intervalId = setInterval(() => {
+        if (currentValue < endValue) {
+          currentValue = Math.min(currentValue + increment, endValue);
+          setAnimatedPoints(currentValue);
+          
+          // Apply easing - slow down as we approach the target
+          const progress = (currentValue - startValue) / (endValue - startValue);
+          const easedIncrement = increment + 2 * Math.pow(progress, 2); // Quadratic ease-out
+          
+          if (progress > 0.5) {
+            // Speed up increment to finish animation within duration
+            const remainingPoints = endValue - currentValue;
+            const remainingSteps = Math.max(1, Math.ceil(remainingPoints / easedIncrement));
+            const adjustedIncrement = Math.max(1, Math.ceil(remainingPoints / remainingSteps));
+            currentValue = Math.min(currentValue + adjustedIncrement, endValue);
+            setAnimatedPoints(currentValue);
+          }
+        } else {
+          clearInterval(intervalId);
+        }
+      }, 30); // Update roughly 33 times per second for smooth animation
+      
+      return () => clearInterval(intervalId);
+    } else {
+      // If not increasing, just set without animation
+      setAnimatedPoints(globalPoints);
+      prevPointsRef.current = globalPoints;
+    }
+  }, [globalPoints]);
 
   const getCatEmotion = () => {
     if (isDead) return <DeadCat />;
@@ -313,10 +402,7 @@ export function KawaiiDevice() {
     if (isDead) {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <StatusBar value={food} type="food" />
-            <StatusBar value={health} type="health" />
-          </div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex flex-col items-center justify-center">
             {getCatEmotion()}
             <p className="text-red-500 font-bold mt-4">Your pet has died!</p>
@@ -324,7 +410,6 @@ export function KawaiiDevice() {
             
             {showReviveConfirm ? (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
-                <p className="text-xs mb-2">Revive your pet by burning 50% of your points?</p>
                 <p className="text-xs mb-3">Current points: <span className="font-numbers">{formatPoints(globalPoints)}</span></p>
                 <div className="flex space-x-2 justify-center">
                   <button 
@@ -358,31 +443,10 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "main") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-[#4b6130]">⭐</span>
-                <span className="text-xs text-[#4b6130]">Points: <span className="font-numbers">{formatPoints(globalPoints)}</span></span>
-              </div>
-            </div>
-            <div className="flex-1 ml-2">
-              <StatusBar value={health} type="health" />
-            </div>
-          </div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex items-center justify-center relative">
-            <div className="relative w-full h-full">
+            <div className="relative w-full">
               {getCatEmotion()}
-            </div>
-            
-            {/* Cooldown indicators */}
-            <div className="absolute bottom-2 left-0 right-0 flex justify-center space-x-2">
-              {Object.entries(isOnCooldown).map(([type, active]) => 
-                active && (
-                  <div key={type} className="text-xs px-2 py-0.5 bg-gray-700 text-white rounded-full opacity-80">
-                    {type}: <span className="font-numbers">{Math.ceil(cooldowns[type as keyof typeof cooldowns] / 1000)}</span>s
-                  </div>
-                )
-              )}
             </div>
           </div>
           <div className="flex justify-around w-full px-2 pt-2 border-t-2 border-gray-400">
@@ -391,6 +455,14 @@ export function KawaiiDevice() {
                 key={index}
                 icon={icon as "food" | "clean" | "doctor" | "play"}
                 isHighlighted={selectedMenuItem === index}
+                label={icon.charAt(0).toUpperCase() + icon.slice(1)}
+                cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
+                maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
+                isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
+                onClick={() => {
+                  setSelectedMenuItem(index);
+                  handleButtonClick("a");
+                }}
               />
             ))}
           </div>
@@ -398,95 +470,113 @@ export function KawaiiDevice() {
       );
     }
     
-    // Food page - show hunger and energy stats
+    // Food page - show standard status bar, remove other status bars
     if (menuStack[menuStack.length - 1] === "food") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <div className="flex-1">
-              <StatusBar value={food} type="food" />
-            </div>
-            <div className="flex-1">
-              <StatusBar value={energy} type="energy" />
-            </div>
-          </div>
-          <div className="text-xs mb-2">Select food to feed your pet:</div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <div className="absolute top-12 left-0 right-0 text-xs text-center">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="fish" isHighlighted={selectedFoodItem === 0} />
-            <PixelIcon icon="cookie" isHighlighted={selectedFoodItem === 1} />
-            <PixelIcon icon="catFood" isHighlighted={selectedFoodItem === 2} />
-            <PixelIcon icon="kibble" isHighlighted={selectedFoodItem === 3} />
+            {["fish", "cookie", "catFood", "kibble"].map((foodItem, index) => (
+              <PixelIcon 
+                key={index}
+                icon={foodItem as any}
+                isHighlighted={selectedFoodItem === index}
+                label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
+                cooldown={cooldowns.feed}
+                maxCooldown={DEFAULT_COOLDOWNS.feed}
+                isDisabled={isOnCooldown.feed || isDead}
+                onClick={() => {
+                  setSelectedFoodItem(index);
+                  handleButtonClick("a");
+                }}
+              />
+            ))}
           </div>
         </>
       );
     }
     
-    // Play page - show happiness and energy stats
+    // Play page - show standard status bar, remove other status bars
     if (menuStack[menuStack.length - 1] === "play") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <div className="flex-1">
-              <StatusBar value={happiness} type="happiness" />
-            </div>
-            <div className="flex-1">
-              <StatusBar value={energy} type="energy" />
-            </div>
-          </div>
-          <div className="text-xs mb-2">Choose a game to play:</div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose a game to play:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="laser" isHighlighted={selectedPlayItem === 0} />
-            <PixelIcon icon="feather" isHighlighted={selectedPlayItem === 1} />
-            <PixelIcon icon="ball" isHighlighted={selectedPlayItem === 2} />
-            <PixelIcon icon="puzzle" isHighlighted={selectedPlayItem === 3} />
+            {["laser", "feather", "ball", "puzzle"].map((playItem, index) => (
+              <PixelIcon 
+                key={index}
+                icon={playItem as any}
+                isHighlighted={selectedPlayItem === index}
+                label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
+                cooldown={cooldowns.play}
+                maxCooldown={DEFAULT_COOLDOWNS.play}
+                isDisabled={isOnCooldown.play || isDead}
+                onClick={() => {
+                  setSelectedPlayItem(index);
+                  handleButtonClick("a");
+                }}
+              />
+            ))}
           </div>
         </>
       );
     }
     
-    // Clean page - show cleanliness and happiness stats
+    // Clean page - show standard status bar, remove other status bars
     if (menuStack[menuStack.length - 1] === "clean") {
       return (
         <>
-          <div className="flex justify-between w-full mb-2">
-            <div className="flex-1">
-              <StatusBar value={cleanliness} type="cleanliness" />
-            </div>
-            <div className="flex-1">
-              <StatusBar value={happiness} type="happiness" />
-            </div>
-          </div>
-          <div className="text-xs mb-2">Choose grooming method:</div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose grooming method:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="brush" isHighlighted={selectedCleanItem === 0} />
-            <PixelIcon icon="bath" isHighlighted={selectedCleanItem === 1} />
-            <PixelIcon icon="nails" isHighlighted={selectedCleanItem === 2} />
-            <PixelIcon icon="dental" isHighlighted={selectedCleanItem === 4} />
+            {["brush", "bath", "nails", "dental"].map((cleanItem, index) => (
+              <PixelIcon 
+                key={index}
+                icon={cleanItem as any}
+                isHighlighted={selectedCleanItem === index}
+                label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
+                cooldown={cooldowns.clean}
+                maxCooldown={DEFAULT_COOLDOWNS.clean}
+                isDisabled={isOnCooldown.clean || isDead}
+                onClick={() => {
+                  setSelectedCleanItem(index);
+                  handleButtonClick("a");
+                }}
+              />
+            ))}
           </div>
         </>
       );
     }
     
-    // Doctor page - show all stats
+    // Doctor page - show standard status bar, remove other status bars
     if (menuStack[menuStack.length - 1] === "doctor") {
       return (
         <>
-          <div className="grid grid-cols-2 gap-2 w-full mb-2">
-            <StatusBar value={food} type="food" />
-            <StatusBar value={energy} type="energy" />
-              <StatusBar value={happiness} type="happiness" />
-            <StatusBar value={cleanliness} type="cleanliness" />
-          </div>
-          <div className="text-xs mb-2">Select treatment option:</div>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <div className="absolute top-12 left-0 right-0 text-xs text-center">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
           <div className="flex justify-between w-full px-2 pt-2 border-t-2 border-gray-400">
-            <PixelIcon icon="checkup" isHighlighted={selectedDoctorItem === 0} />
-            <PixelIcon icon="medicine" isHighlighted={selectedDoctorItem === 1} />
-            <PixelIcon icon="vaccine" isHighlighted={selectedDoctorItem === 2} />
-            <PixelIcon icon="surgery" isHighlighted={selectedDoctorItem === 3} />
+            {["checkup", "medicine", "vaccine", "surgery"].map((doctorItem, index) => (
+              <PixelIcon 
+                key={index}
+                icon={doctorItem as any}
+                isHighlighted={selectedDoctorItem === index}
+                label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
+                cooldown={cooldowns.heal}
+                maxCooldown={DEFAULT_COOLDOWNS.heal}
+                isDisabled={isOnCooldown.heal || isDead}
+                onClick={() => {
+                  setSelectedDoctorItem(index);
+                  handleButtonClick("a");
+                }}
+              />
+            ))}
           </div>
         </>
       );
@@ -500,25 +590,12 @@ export function KawaiiDevice() {
   }, [disconnect, router]);
 
   return (
-    <div className="w-full flex items-center justify-center min-h-screen p-4">
-      {/* Navigation and Dev Tools */}
-      <div className="absolute top-4 right-4 flex space-x-2">
-        {isConnected && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleLogout}
-            className="text-xs"
-          >
-            Logout
-          </Button>
-        )}
-      </div>
+    <div className="w-full min-h-screen p-4">
       
-      {/* Three-column layout */}
-      <div className="flex w-full max-w-10xl justify-between">
-        {/* Left column - AI Pet Advisor and Notifications */}
-        <div className="w-1/2">
+      {/* Responsive layout container */}
+      <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-6 items-start justify-center">
+        {/* Left column - AI Pet Advisor */}
+        <div className="w-full lg:w-1/4 order-2 lg:order-1">
           <AIPetAdvisor 
             isDead={isDead}
             food={food}
@@ -530,84 +607,9 @@ export function KawaiiDevice() {
             aiPersonality={aiPersonality}
           />
         </div>
-        
+
         {/* Center column - Game device */}
-        <div className="relative flex flex-col items-center justify-center">
-          {/* Display pet message in a cute speech bubble when available */}
-          <AnimatePresence>
-            {petMessage && (
-              <motion.div 
-                id="ainotification"
-                className={`absolute left-0 right-0 bg-white p-3 rounded-lg shadow-md mb-2 max-w-[300px] text-center ${
-                  petReaction === "happy" || petReaction === "excited" ? "border-green-300" :
-                  petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "border-blue-300" :
-                  petReaction === "angry" || petReaction === "sick" ? "border-red-300" :
-                  petReaction === "clean" ? "border-cyan-300" :
-                  petReaction === "dirty" ? "border-amber-300" :
-                  "border-gray-200"
-                }`}
-                style={{ 
-                  top: '-10px',
-                  transform: 'translateY(-100%)',
-                  border: "2px solid",
-                  boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-                  zIndex: 100,
-                }}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  x: petReaction === "excited" ? [0, -5, 5, -5, 0] : 0,
-                  rotate: petReaction === "happy" ? [0, -2, 2, -2, 0] : 0
-                }}
-                transition={{ 
-                  duration: 0.5,
-                  x: { duration: 0.5, repeat: petReaction === "excited" ? 2 : 0 },
-                  rotate: { duration: 0.5, repeat: petReaction === "happy" ? 2 : 0 }
-                }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                {/* Pet message content */}
-                <div className="text-sm font-medium text-gray-800">
-                  {petMessage}
-                </div>
-                
-                {/* Reaction emoji */}
-                <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md">
-                  {petReaction === "happy" && "😊"}
-                  {petReaction === "sad" && "😢"}
-                  {petReaction === "excited" && "🤩"}
-                  {petReaction === "sleepy" && "😴"}
-                  {petReaction === "hungry" && "🍽️"}
-                  {petReaction === "angry" && "😠"}
-                  {petReaction === "sick" && "🤒"}
-                  {petReaction === "clean" && "✨"}
-                  {petReaction === "dirty" && "🧹"}
-                  {petReaction === "none" && "😐"}
-                </div>
-                
-                {/* Speech bubble tail */}
-                <div 
-                  className={`absolute w-4 h-4 bg-white rotate-45 ${
-                    petReaction === "happy" || petReaction === "excited" ? "bg-green-100" :
-                    petReaction === "sad" || petReaction === "hungry" || petReaction === "sleepy" ? "bg-blue-100" :
-                    petReaction === "angry" || petReaction === "sick" ? "bg-red-100" :
-                    petReaction === "clean" ? "bg-cyan-100" :
-                    petReaction === "dirty" ? "bg-amber-100" :
-                    "bg-white"
-                  }`}
-                  style={{
-                    bottom: "-8px",
-                    left: "50%",
-                    marginLeft: "-8px",
-                    boxShadow: "2px 2px 0 0 #e9e9e9",
-                    zIndex: -1
-                  }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
+        <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2">
           <motion.div
             className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative"
             initial={{ scale: 0.9, opacity: 0 }}
@@ -618,21 +620,9 @@ export function KawaiiDevice() {
             <div className="absolute top-2 left-0 right-0 flex justify-center">
               <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
             </div>
-            <div className="bg-[#eff8cb]  rounded-[1.5rem] p-2 mb-4 relative">
-              <div className="relative  p-3 flex flex-col items-center justify-between h-[320px]">
-                
-                {/* Game Boy-like color filter */}
+            <div className="bg-[#eff8cb] rounded-[1.5rem] p-2 mb-4 relative">
+              <div className="relative p-3 flex flex-col items-center justify-between h-[320px]">
                 <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
-                
-                {/* Point animation */}
-                {recentPointGain && !pointAnimationComplete && (
-                  <PointAnimation 
-                    points={recentPointGain.amount}
-                    show={true}
-                    onComplete={handlePointAnimationComplete}
-                  />
-                )}
-                
                 {renderMenuContent()}
               </div>
             </div>
@@ -644,26 +634,18 @@ export function KawaiiDevice() {
                     onClick={() => handleButtonClick(label.toLowerCase() as "previous" | "next" | "a" | "b")}
                     className={`w-10 h-10 rounded-full relative group overflow-hidden ${index < 2 ? "bg-gray-300" : "bg-red-500"}`}
                     whileTap={{ scale: 0.95 }}
-                    aria-label={label}>
+                    aria-label={label}
+                  >
                     <div className={`absolute inset-0 rounded-full ${index < 2 ? "bg-gradient-to-br from-gray-200 to-gray-400" : "bg-gradient-to-br from-red-400 to-red-600"}`} />
-
-                    <div
-                      className={`absolute inset-[2px] rounded-full ${
-                        index < 2 ? "bg-gradient-to-tl from-gray-300 to-gray-200" : "bg-gradient-to-tl from-red-500 to-red-400"
-                      } flex items-center justify-center`}>
+                    <div className={`absolute inset-[2px] rounded-full ${index < 2 ? "bg-gradient-to-tl from-gray-300 to-gray-200" : "bg-gradient-to-tl from-red-500 to-red-400"} flex items-center justify-center`}>
                       {index < 2 ? (
                         <div className={`w-5 h-5 flex items-center justify-center ${index === 0 ? "-translate-x-0.5" : "translate-x-0.5"}`}>
-                          <div
-                            className={`w-0 h-0 ${
-                              index === 0 ? "border-r-[8px] border-r-gray-500 border-y-[5px] border-y-transparent" : "border-l-[8px] border-l-gray-500 border-y-[5px] border-y-transparent"
-                            }`}
-                          />
+                          <div className={`w-0 h-0 ${index === 0 ? "border-r-[8px] border-r-gray-500 border-y-[5px] border-y-transparent" : "border-l-[8px] border-l-gray-500 border-y-[5px] border-y-transparent"}`} />
                         </div>
                       ) : (
                         <span className="text-sm font-bold text-white">{label}</span>
                       )}
                     </div>
-
                     <div className="absolute inset-0 rounded-full opacity-0 group-active:opacity-100 bg-black/10 transition-opacity" />
                   </motion.button>
                 </div>
@@ -671,17 +653,19 @@ export function KawaiiDevice() {
             </div>
           </motion.div>
         </div>
-        
+
         {/* Right column - Points Earned Panel */}
-        <div className="w-1/2 flex justify-center">
+        <div className="w-full lg:w-1/4 flex justify-center order-3">
           <PointsEarnedPanel 
-            className="w-[300px]"
+            className="w-full"
             currentPoints={globalPoints}
-            nextPoints={globalPoints + 10}
-            pointsPerSecond={1.3}
-            timeUntilUpdate={30.0}
-            progress={0}
             pointsMultiplier={walletData?.multiplier || 1.0}
+            onPointsEarned={(points) => {
+              console.log(`Points earned from timer: ${points}`);
+              const newPoints = globalPoints + points;
+              setGlobalPoints(newPoints);
+              lastUpdatedPointsRef.current = newPoints;
+            }}
           />
         </div>
       </div>
