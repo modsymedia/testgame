@@ -244,9 +244,10 @@ export default function LeaderboardDisplay() {
           <div className="text-center p-6 text-[#304700]">
             Sign in to view leaderboard
           </div>
-        ) : isLoading && displayedEntries.length === 0 ? (
-          <div className="flex justify-center items-center h-64">
+        ) : isLoading ? (
+          <div className="flex flex-col items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-0"></div>
+            <div className="mt-4 text-[#304700] text-sm">Loading leaderboard...</div>
           </div>
         ) : error ? (
           <div className="text-center p-6">
@@ -267,7 +268,7 @@ export default function LeaderboardDisplay() {
         ) : (
           <>
             {/* User Rank Section */}
-            {userRank && currentPage === 1 && (
+            {userRank && currentPage === 1 && !isLoading && (
               <div className="mb-4 p-3 bg-[#ebffb7] rounded-md">
                 <h3 className="text-center text-[#304700] font-bold text-[20px] uppercase">Your Position</h3>
                 <div className="flex items-center justify-between py-2">
@@ -344,7 +345,7 @@ export default function LeaderboardDisplay() {
                         alt="Points"
                         className="inline-block"
                       />
-                      <span className="font-numbers">{entry.score.toLocaleString()}</span>
+                      <span className="text-[18px] font-numbers">{entry.score.toLocaleString()}</span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -354,7 +355,7 @@ export default function LeaderboardDisplay() {
         )}
       </PixelatedContainer>
 
-      {displayedEntries.length > 0 && totalPages > 1 && (
+      {displayedEntries.length > 0 && totalPages > 1 && !isLoading && (
         <div className="flex justify-center mt-8 space-x-8 items-center">
           <button
             onClick={() => handlePageChange("prev")}
