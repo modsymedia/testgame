@@ -45,6 +45,12 @@ export function Header() {
       width: 155,
       iconPath: "/assets/icons/header/leaderboard.svg",
     },
+    {
+      path: "/console/admin",
+      label: "Admin",
+      width: 100,
+      iconPath: "/assets/icons/header/admin.svg",
+    },
   ];
 
   return (

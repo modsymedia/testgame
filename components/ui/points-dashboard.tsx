@@ -99,9 +99,9 @@ export const PointsDashboard = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto flex gap-6">
+    <div className="max-w-7xl mx-auto flex gap-6 flex-wrap">
       {/* Left side - Leaderboard */}
-      <div className="flex-1">
+      <div className="flex-1 min-w-[300px]">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* My Points */}
           <PixelatedContainer>
