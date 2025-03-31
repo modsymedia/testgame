@@ -19,7 +19,7 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
 }) => {
   return (
     <div
-      className={`relative ${className} w-auto`}
+      className={`relative ${className}`}
       style={{
         ...style,
         backgroundColor: bgcolor, // Use bgcolor prop instead of hardcoded color
