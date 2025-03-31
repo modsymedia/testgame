@@ -164,7 +164,7 @@ export const GPTLogsPanel = () => {
                             <span className="font-sk-eliz text-[#304700]">
                               {log.type === "petBehavior" ? "Behavior" : "Msgs"}
                             </span>
-                            <span className="text-[#304700] font-sk-eliz">
+                            <span className="text-[#304700] font-num">
                               {formatTimestamp(log.timestamp)}
                             </span>
                           </div>

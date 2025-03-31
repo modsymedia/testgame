@@ -4,7 +4,7 @@ import { SolRewards } from '@/components/ui/sol-rewards';
 import { PointsLeaderboard } from '@/components/ui/points-leaderboard';
 import { ReferralCard } from '@/components/ui/referral-card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+// import { Input } from '@/components/ui/input';
 import { Toaster } from '@/components/ui/toaster';
 
 export default function RewardsDashboard() {
@@ -28,14 +28,7 @@ export default function RewardsDashboard() {
       {/* Wallet Connection UI */}
       <div className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
         <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            type="text"
-            placeholder="Enter wallet address"
-            value={walletAddress}
-            onChange={(e) => setWalletAddress(e.target.value)}
-            disabled={!!connectedWallet}
-            className="flex-1"
-          />
+
           
           {!connectedWallet ? (
             <Button onClick={handleConnect} disabled={!walletAddress.trim()}>

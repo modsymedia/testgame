@@ -79,14 +79,14 @@ export function AIPetAdvisor({
                   alt="Info"
                   width={24}
                   height={24}
-                  className="text-[#304700]"
+                  className=""
                 />
               </div>
               <div className="flex-1">
-                <div className="text-sm font-pixelify text-[#304700]">
+                <div className="text-sm font-pixelify ">
                   {getDefaultMood()}
                 </div>
-                <div className="text-sm font-pixelify text-[#304700]">
+                <div className="text-sm font-pixelify ">
                   {getAdvice()}
                 </div>
               </div>
@@ -102,33 +102,33 @@ export function AIPetAdvisor({
         className="max-w-xs w-[225px] mx-auto"
       >
         <PixelatedContainer noPadding>
-          <div className="w-full p-4">
-            <div className="text-lg font-pixelify text-[#304700] uppercase pb-2 mb-2">
+          <div className="w-full p-4 text-[#304700]">
+            <div className="text-lg font-pixelify  uppercase pb-2 mb-2">
               Feed:
             </div>
-            <div className="space-y-0">
+            <div className="space-y-0 ">
               <div className="flex justify-between items-center">
-                <span className="text-md font-pixelify text-[#304700]">Food:</span>
-                <span className="text-lg font-pixelify font-medium">{Math.round(food)}%</span>
+                <span className="text-md font-pixelify ">Food:</span>
+                <span className="text-xl font-number font-medium">{Math.round(food)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-md font-pixelify text-[#304700]">Happiness:</span>
-                <span className="text-lg font-pixelify font-medium">{Math.round(happiness)}%</span>
+                <span className="text-md font-pixelify ">Happiness:</span>
+                <span className="text-xl font-number font-medium">{Math.round(happiness)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-md font-pixelify text-[#304700]">Cleanliness:</span>
-                <span className="text-lg font-pixelify font-medium">{Math.round(cleanliness)}%</span>
+                <span className="text-md font-pixelify ">Cleanliness:</span>
+                <span className="text-xl font-number font-medium">{Math.round(cleanliness)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-md font-pixelify text-[#304700]">Energy:</span>
-                <span className="text-lg font-pixelify font-medium">{Math.round(energy)}%</span>
+                <span className="text-md font-pixelify ">Energy:</span>
+                <span className="text-xl font-number font-medium">{Math.round(energy)}%</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-md font-pixelify text-[#304700]">Health:</span>
-                <span className="text-lg font-pixelify font-medium">{Math.round(health)}%</span>
+                <span className="text-md font-pixelify ">Health:</span>
+                <span className="text-xl font-number font-medium">{Math.round(health)}%</span>
               </div>
             </div>
-            <div className="mt-4 text-md font-pixelify text-[#304700]">
+            <div className="mt-4 text-md font-pixelify ">
               Pet is feeling happy ^.^
             </div>
           </div>
