@@ -6,6 +6,8 @@ interface PixelatedContainerProps {
   style?: React.CSSProperties;
   noPadding?: boolean;
   bgcolor?: string;
+  borderColor?: string;
+  borderSize?: number;
   onClick?: () => void;
 }
 
@@ -15,6 +17,8 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
   style = {},
   noPadding = false,
   bgcolor = "#EBFFB7", // Default value if bgcolor is not provided
+  borderColor = "#304700",
+  borderSize = 5,
   onClick,
 }) => {
   return (
@@ -26,13 +30,41 @@ const PixelatedContainer: React.FC<PixelatedContainerProps> = ({
       }}
       onClick={onClick}
     >
-      {/* Edge extensions - vertical (reduced by 15% from 6px to 5px) */}
-      <div className="absolute top-0 -left-[5px] w-[5px] h-full bg-[#304700]" />
-      <div className="absolute top-0 -right-[5px] w-[5px] h-full bg-[#304700]" />
+      {/* Edge extensions - vertical */}
+      <div 
+        className="absolute top-0 -left-[5px] h-full" 
+        style={{
+          width: `${borderSize}px`,
+          left: `-${borderSize}px`,
+          backgroundColor: borderColor
+        }}
+      />
+      <div 
+        className="absolute top-0 -right-[5px] h-full"
+        style={{
+          width: `${borderSize}px`,
+          right: `-${borderSize}px`,
+          backgroundColor: borderColor
+        }}
+      />
       
-      {/* Edge extensions - horizontal (reduced by 15% from 6px to 5px) */}    
-      <div className="absolute -top-[5px] left-0 w-full h-[5px] bg-[#304700]" />
-      <div className="absolute -bottom-[5px] left-0 w-full h-[5px] bg-[#304700]" />
+      {/* Edge extensions - horizontal */}    
+      <div 
+        className="absolute -top-[5px] left-0 w-full"
+        style={{
+          height: `${borderSize}px`,
+          top: `-${borderSize}px`,
+          backgroundColor: borderColor
+        }}
+      />
+      <div 
+        className="absolute -bottom-[5px] left-0 w-full"
+        style={{
+          height: `${borderSize}px`,
+          bottom: `-${borderSize}px`,
+          backgroundColor: borderColor
+        }}
+      />
       
       {/* Inner content */}
       <div className={`relative w-full h-full flex flex-col items-center justify-center ${noPadding ? '' : 'p-4'}`}>

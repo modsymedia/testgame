@@ -20,6 +20,7 @@ import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
 import Image from "next/image";
+import CustomSlider from "./CustomSlider";
 
 // Add this component near the top of the file, outside the KawaiiDevice component
 interface StatusHeaderProps {
@@ -50,10 +51,16 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
             alt="Health" 
             width={24} 
             height={24} 
-            className="mr-1"
+            className="mr-2"
             style={{ imageRendering: 'pixelated' }}
           />
-          <StatusBar value={health} type="health" />
+          <CustomSlider 
+            value={health} 
+            maxValue={100}
+            backgroundColor="#EBFFB7"
+            barColor="#a7ba75"
+            className="flex-1 mb-1"
+          />
         </div>
       </div>
     </div>
@@ -147,15 +154,16 @@ export function KawaiiDevice() {
 
   // Update global points when local points change
   useEffect(() => {
-    if (points > 0 && points !== globalPoints) {
+    if (points > 0 && points !== lastUpdatedPointsRef.current) {
       // Use setTimeout to move the state update to the next tick
       const timeoutId = setTimeout(() => {
         setGlobalPoints(points);
+        lastUpdatedPointsRef.current = points;
       }, 0);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [points, globalPoints, setGlobalPoints]);
+  }, [points, setGlobalPoints]);
 
   // Update wallet points whenever game points change (with debouncing)
   useEffect(() => {
@@ -169,41 +177,24 @@ export function KawaiiDevice() {
       clearTimeout(leaderboardUpdateTimerRef.current);
     }
     
-    // Immediately update wallet data
-    const updateWalletAndLeaderboard = async () => {
-      console.log('🎯 Updating points:', {
-        current: lastUpdatedPointsRef.current,
-        new: globalPoints,
-        wallet: publicKey?.substring(0, 8)
-      });
-      
+    // Set timer for next update
+    leaderboardUpdateTimerRef.current = setTimeout(async () => {
       try {
         // Update wallet data first
         await updatePoints(globalPoints);
         console.log('💰 Wallet points updated successfully');
         
         // Then update leaderboard
-        if (globalPoints > 0) {
+        if (globalPoints > 0 && publicKey) {
           const updated = await updateUserScore(publicKey, globalPoints);
           if (updated) {
             console.log('🏆 Leaderboard updated successfully');
-          } else {
-            console.error('❌ Failed to update leaderboard');
           }
         }
-        
-        // Update our reference to prevent loops
-        lastUpdatedPointsRef.current = globalPoints;
       } catch (error) {
         console.error('❌ Error updating points:', error);
       }
-    };
-
-    // Execute update immediately and set timer for next update
-    updateWalletAndLeaderboard();
-    
-    // Set timer for next update (if needed)
-    leaderboardUpdateTimerRef.current = setTimeout(updateWalletAndLeaderboard, LEADERBOARD_UPDATE_DELAY);
+    }, LEADERBOARD_UPDATE_DELAY);
     
     // Clean up timer on unmount
     return () => {
@@ -669,12 +660,13 @@ export function KawaiiDevice() {
             className="w-full"
             currentPoints={globalPoints}
             pointsMultiplier={walletData?.multiplier || 1.0}
-            onPointsEarned={(points) => {
-              console.log(`Points earned from timer: ${points}`);
-              const newPoints = globalPoints + points;
-              setGlobalPoints(newPoints);
-              lastUpdatedPointsRef.current = newPoints;
-            }}
+            onPointsEarned={useCallback((earnedPoints: number) => {
+              const newPoints = globalPoints + earnedPoints;
+              if (newPoints !== lastUpdatedPointsRef.current) {
+                setGlobalPoints(newPoints);
+                lastUpdatedPointsRef.current = newPoints;
+              }
+            }, [globalPoints, lastUpdatedPointsRef, setGlobalPoints])}
           />
         </div>
       </div>

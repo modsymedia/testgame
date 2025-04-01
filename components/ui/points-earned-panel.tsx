@@ -63,49 +63,63 @@ export const PointsEarnedPanel = ({
   const [progress, setProgress] = useState<number>(0);
   const animationRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number>(Date.now());
+  const lastPointsUpdateRef = useRef<number>(currentPoints);
   
   // Update local points when currentPoints prop changes
   useEffect(() => {
-    setLocalPoints(currentPoints);
+    if (currentPoints !== lastPointsUpdateRef.current) {
+      setLocalPoints(currentPoints);
+      lastPointsUpdateRef.current = currentPoints;
+    }
   }, [currentPoints]);
   
   // Clear notification after delay
   useEffect(() => {
     if (lastPointsAdded !== null) {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      const timer = setTimeout(() => {
+        setLastPointsAdded(null);
+      }, 2000);
+      return () => clearTimeout(timer);
     }
   }, [lastPointsAdded]);
   
-  // Simplified timer implementation
-  useEffect(() => {
-    const animate = () => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      const remaining = TIMER_DURATION - elapsed;
+  // Memoize the animation callback
+  const animate = useCallback(() => {
+    const elapsed = (Date.now() - startTimeRef.current) / 1000;
+    const remaining = TIMER_DURATION - elapsed;
+    
+    if (remaining > 0) {
+      setTimeRemaining(Number(remaining.toFixed(1)));
+      setProgress((elapsed / TIMER_DURATION) * 100);
+      animationRef.current = requestAnimationFrame(animate);
+    } else {
+      // Complete cycle
+      const pointsToAdd = Math.round(POINTS_PER_CYCLE * pointsMultiplier);
       
-      if (remaining > 0) {
-        setTimeRemaining(Number(remaining.toFixed(1)));
-        setProgress((elapsed / TIMER_DURATION) * 100);
-        animationRef.current = requestAnimationFrame(animate);
-      } else {
-        // Complete cycle
-        const pointsToAdd = POINTS_PER_CYCLE * pointsMultiplier;
-        setLocalPoints(prev => prev + pointsToAdd);
-        setLastPointsAdded(pointsToAdd);
-        onPointsEarned?.(pointsToAdd);
-        
-        // Reset for next cycle
-        startTimeRef.current = Date.now();
-        setProgress(0);
-        setTimeRemaining(TIMER_DURATION);
-        animationRef.current = requestAnimationFrame(animate);
+      // Only add points if onPointsEarned is provided
+      if (onPointsEarned) {
+        onPointsEarned(pointsToAdd);
       }
-    };
-
+      
+      setLastPointsAdded(pointsToAdd);
+      
+      // Reset for next cycle
+      startTimeRef.current = Date.now();
+      setProgress(0);
+      setTimeRemaining(TIMER_DURATION);
+      animationRef.current = requestAnimationFrame(animate);
+    }
+  }, [TIMER_DURATION, POINTS_PER_CYCLE, pointsMultiplier, onPointsEarned]);
+  
+  // Start/cleanup animation
+  useEffect(() => {
     animationRef.current = requestAnimationFrame(animate);
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
     };
-  }, [onPointsEarned, pointsMultiplier]);
+  }, [animate]);
   
   // Calculate progress bar color based on progress
   const getProgressColor = () => {
