@@ -147,10 +147,15 @@ export function KawaiiDevice() {
 
   // Update global points when local points change
   useEffect(() => {
-    if (points > 0) {
-      setGlobalPoints(points);
+    if (points > 0 && points !== globalPoints) {
+      // Use setTimeout to move the state update to the next tick
+      const timeoutId = setTimeout(() => {
+        setGlobalPoints(points);
+      }, 0);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [points, setGlobalPoints]);
+  }, [points, globalPoints, setGlobalPoints]);
 
   // Update wallet points whenever game points change (with debouncing)
   useEffect(() => {
@@ -164,28 +169,41 @@ export function KawaiiDevice() {
       clearTimeout(leaderboardUpdateTimerRef.current);
     }
     
-    // Set a new timer to update points after delay
-    leaderboardUpdateTimerRef.current = setTimeout(async () => {
-      console.log(`Updating wallet with points: ${globalPoints}`);
+    // Immediately update wallet data
+    const updateWalletAndLeaderboard = async () => {
+      console.log('🎯 Updating points:', {
+        current: lastUpdatedPointsRef.current,
+        new: globalPoints,
+        wallet: publicKey?.substring(0, 8)
+      });
       
-      // Update wallet data with current points
-      await updatePoints(globalPoints);
-      
-      // Update leaderboard
-      if (globalPoints > 0) {
-        try {
+      try {
+        // Update wallet data first
+        await updatePoints(globalPoints);
+        console.log('💰 Wallet points updated successfully');
+        
+        // Then update leaderboard
+        if (globalPoints > 0) {
           const updated = await updateUserScore(publicKey, globalPoints);
           if (updated) {
-            console.log('Leaderboard updated successfully');
+            console.log('🏆 Leaderboard updated successfully');
+          } else {
+            console.error('❌ Failed to update leaderboard');
           }
-        } catch (e) {
-          console.error('Error updating leaderboard:', e);
         }
+        
+        // Update our reference to prevent loops
+        lastUpdatedPointsRef.current = globalPoints;
+      } catch (error) {
+        console.error('❌ Error updating points:', error);
       }
-      
-      // Update our reference to prevent loops
-      lastUpdatedPointsRef.current = globalPoints;
-    }, LEADERBOARD_UPDATE_DELAY);
+    };
+
+    // Execute update immediately and set timer for next update
+    updateWalletAndLeaderboard();
+    
+    // Set timer for next update (if needed)
+    leaderboardUpdateTimerRef.current = setTimeout(updateWalletAndLeaderboard, LEADERBOARD_UPDATE_DELAY);
     
     // Clean up timer on unmount
     return () => {

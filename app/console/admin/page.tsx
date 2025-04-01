@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWallet } from '@/context/WalletContext';
 import PixelatedContainer from '@/components/PixelatedContainer';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,30 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [pointsAmount, setPointsAmount] = useState('');
 
+  // Log wallet info when component mounts or wallet data changes
+  useEffect(() => {
+    if (walletData) {
+      console.log('👛 Wallet Data Loaded:', {
+        publicKey: publicKey,
+        petName: walletData.petName,
+        points: walletData.points,
+        stats: {
+          health: walletData.health,
+          happiness: walletData.happiness,
+          hunger: walletData.hunger,
+          cleanliness: walletData.cleanliness,
+        },
+        lastActive: walletData.lastActive,
+        consecutiveDays: walletData.consecutiveDays,
+      });
+    }
+  }, [walletData, publicKey]);
+
   const handleKillPet = async () => {
     setIsLoading(true);
     try {
-      // Set pet health to 0
+      console.log('💀 Killing Pet for wallet:', publicKey);
+      
       const response = await fetch('/api/pet/update', {
         method: 'POST',
         headers: {
@@ -34,10 +54,11 @@ export default function AdminPage() {
 
       if (!response.ok) throw new Error('Failed to kill pet');
       
+      console.log('☠️ Pet killed successfully for wallet:', publicKey);
       toast.success("Pet killed successfully");
       router.refresh();
     } catch (error) {
-      console.error('Error killing pet:', error);
+      console.error('❌ Error killing pet:', error);
       toast.error("Failed to kill pet");
     } finally {
       setIsLoading(false);
@@ -47,7 +68,8 @@ export default function AdminPage() {
   const handleDeleteAccount = async () => {
     setIsLoading(true);
     try {
-      // Delete user account and data
+      console.log('🗑️ Deleting account for wallet:', publicKey);
+      
       const response = await fetch('/api/user/delete', {
         method: 'POST',
         headers: {
@@ -58,11 +80,12 @@ export default function AdminPage() {
 
       if (!response.ok) throw new Error('Failed to delete account');
       
+      console.log('🚮 Account deleted successfully for wallet:', publicKey);
       toast.success("Account deleted successfully");
       disconnect();
       router.push('/');
     } catch (error) {
-      console.error('Error deleting account:', error);
+      console.error('❌ Error deleting account:', error);
       toast.error("Failed to delete account");
     } finally {
       setIsLoading(false);
@@ -72,7 +95,8 @@ export default function AdminPage() {
   const handleResetPet = async () => {
     setIsLoading(true);
     try {
-      // Reset pet stats to max
+      console.log('🔄 Resetting pet for wallet:', publicKey);
+      
       const response = await fetch('/api/pet/update', {
         method: 'POST',
         headers: {
@@ -89,10 +113,16 @@ export default function AdminPage() {
 
       if (!response.ok) throw new Error('Failed to reset pet');
       
+      console.log('✨ Pet reset successfully for wallet:', publicKey, {
+        health: 100,
+        happiness: 100,
+        hunger: 100,
+        cleanliness: 100,
+      });
       toast.success("Pet reset successfully");
       router.refresh();
     } catch (error) {
-      console.error('Error resetting pet:', error);
+      console.error('❌ Error resetting pet:', error);
       toast.error("Failed to reset pet");
     } finally {
       setIsLoading(false);
@@ -107,7 +137,8 @@ export default function AdminPage() {
 
     setIsLoading(true);
     try {
-      // Add points to user's account
+      console.log('🎯 Adding points for wallet:', publicKey, 'Amount:', pointsAmount);
+      
       const response = await fetch('/api/points/add', {
         method: 'POST',
         headers: {
@@ -121,11 +152,16 @@ export default function AdminPage() {
 
       if (!response.ok) throw new Error('Failed to add points');
       
+      console.log('🎉 Points added successfully:', {
+        wallet: publicKey,
+        amount: pointsAmount,
+        currentTotal: walletData?.points ? walletData.points + Number(pointsAmount) : Number(pointsAmount),
+      });
       toast.success(`Successfully gave ${pointsAmount} points`);
       setPointsAmount('');
       router.refresh();
     } catch (error) {
-      console.error('Error giving points:', error);
+      console.error('❌ Error giving points:', error);
       toast.error("Failed to give points");
     } finally {
       setIsLoading(false);
