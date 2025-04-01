@@ -10,21 +10,42 @@ interface PointsEarnedPanelProps {
   onPointsEarned?: (points: number) => void;
 }
 
-// Static task rewards data
+// Update task rewards data with category images
 const TASK_REWARDS = [
-  { icon: '/assets/icons/foods/food-fish.png', name: 'Feed', points: 15 },
-  { icon: '/assets/icons/games/game-ball.png', name: 'Play', points: 20 },
-  { icon: '/assets/icons/hygiene/hygiene-bath.png', name: 'Clean', points: 18 },
-  { icon: '/assets/icons/healings/vaccine.png', name: 'Heal', points: 25 },
+  { icon: '/assets/icons/foods.png', name: 'Feed', points: 15 },
+  { icon: '/assets/icons/games.png', name: 'Play', points: 20 },
+  { icon: '/assets/icons/hygiene.png', name: 'Clean', points: 18 },
+  { icon: '/assets/icons/healings.png', name: 'Heal', points: 25 },
 ];
 
-// Helper function to get health icon based on points value
-const getHealthIcon = (points: number) => {
-  if (points <= 15) return '/assets/icons/healings/healing.png';
-  if (points <= 20) return '/assets/icons/healings/medicine.png';
-  if (points <= 25) return '/assets/icons/healings/vaccine.png';
-  return '/assets/icons/healings/surgery.png';
+// Add detailed rewards data
+const DETAILED_REWARDS = {
+  feed: [
+    { name: 'Fish', points: 15 },
+    { name: 'Cookie', points: 10 },
+    { name: 'Cat Food', points: 20 },
+    { name: 'Kibble', points: 12 }
+  ],
+  play: [
+    { name: 'Laser', points: 20 },
+    { name: 'Feather', points: 15 },
+    { name: 'Ball', points: 18 },
+    { name: 'Puzzle', points: 25 }
+  ],
+  clean: [
+    { name: 'Brush', points: 18 },
+    { name: 'Bath', points: 25 },
+    { name: 'Nails', points: 15 },
+    { name: 'Dental', points: 20 }
+  ],
+  heal: [
+    { name: 'Checkup', points: 25 },
+    { name: 'Medicine', points: 30 },
+    { name: 'Vaccine', points: 35 },
+    { name: 'Surgery', points: 40 }
+  ]
 };
+
 
 // Points notification component 
 const PointsAddedNotification = ({ amount }: { amount: number }) => {
@@ -41,6 +62,62 @@ const PointsAddedNotification = ({ amount }: { amount: number }) => {
   );
 };
 
+// Add RewardDetailsPopup component
+const RewardDetailsPopup = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-[#EBFFB7] rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold font-pixelify text-[#304700]">Task Rewards Guide</h2>
+              <button
+                onClick={onClose}
+                className="text-[#304700] hover:text-[#709926] transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {Object.entries(DETAILED_REWARDS).map(([category, tasks]) => (
+                <div key={category} className="border-2 border-[#304700] p-4 rounded-lg">
+                  <h3 className="text-xl font-bold font-pixelify text-[#304700] mb-3 capitalize">
+                    {category}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tasks.map((task, index) => (
+                      <div
+                        key={index}
+                        className="bg-[#CADA9B] p-3 rounded-md flex justify-between items-center"
+                      >
+                        <span className="font-pixelify text-[#304700]">{task.name}</span>
+                        <span className="font-numbers font-bold text-[#304700]">+{task.points}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export const PointsEarnedPanel = ({
   currentPoints,
   className,
@@ -51,11 +128,7 @@ export const PointsEarnedPanel = ({
   const TIMER_DURATION = 10; // 10 seconds per cycle
   const POINTS_PER_CYCLE = 2; // 2 points per cycle
   
-  // Helper function to format time with one decimal place
-  const formatTime = (time: number): string => {
-    return time.toFixed(1);
-  };
-  
+
   // States
   const [localPoints, setLocalPoints] = useState(currentPoints);
   const [lastPointsAdded, setLastPointsAdded] = useState<number | null>(null);
@@ -64,6 +137,7 @@ export const PointsEarnedPanel = ({
   const animationRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number>(Date.now());
   const lastPointsUpdateRef = useRef<number>(currentPoints);
+  const [showRewardDetails, setShowRewardDetails] = useState(false);
   
   // Update local points when currentPoints prop changes
   useEffect(() => {
@@ -188,47 +262,24 @@ export const PointsEarnedPanel = ({
               </div>
             </div>
 
-            {/* Task Rewards Section - Dynamic based on point values */}
+            {/* Task Rewards Section - Updated with new design */}
             <div>
-              <div className="text-xl font-bold font-pixelify text-[#304700] mb-3 border-t-2 border-[#304700] pt-4">Task Rewards</div>
-              <div className="grid grid-cols-2 gap-3">
-                {TASK_REWARDS.map((task, index) => (
-                  <motion.div 
-                    key={index} 
-                    className="border-2 border-[#304700] overflow-hidden"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                  >
-                    <div className="bg-[#ebffb7] p-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 relative">
-                            <Image
-                              src={index === 3 ? getHealthIcon(task.points) : task.icon}
-                              alt={task.name}
-                              width={22}
-                              height={22}
-                              className="object-contain"
-                              style={{
-                                imageRendering: 'pixelated',
-                                width: '22px',
-                                height: '22px'
-                              }}
-                            />
-                          </div>
-                          <span className="text-md font-medium font-pixelify text-[#304700]">
-                            {task.name}
-                          </span>
-                        </div>
-                        <span className="text-md font-bold font-numbers text-[#304700]">
-                          +{task.points}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+              <div className="flex justify-between items-center mb-3 border-t-2 border-[#304700] pt-4">
+                <div className="text-xl font-bold font-pixelify text-[#304700]">Task Rewards</div>
+                <button
+                  onClick={() => setShowRewardDetails(true)}
+                  className="bg-[#304700] text-[#EBFFB7] px-3 py-1 rounded-md font-pixelify text-sm hover:bg-[#709926] transition-colors"
+                >
+                  Check Reward System
+                </button>
               </div>
             </div>
+
+            {/* Add RewardDetailsPopup */}
+            <RewardDetailsPopup 
+              isOpen={showRewardDetails} 
+              onClose={() => setShowRewardDetails(false)} 
+            />
           </div>
         </div>
       </PixelatedContainer>

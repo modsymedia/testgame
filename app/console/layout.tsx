@@ -15,7 +15,7 @@ export default function ConsoleLayout({
           alt="Leaderboard Background"
           fill
           priority
-          style={{ objectFit: "cover" }}
+          style={{ objectFit: "cover", imageRendering: "pixelated" }}
         />
       </div>
 
