@@ -45,12 +45,16 @@ export function Header() {
       width: 155,
       iconPath: "/assets/icons/header/leaderboard.svg",
     },
-    {
-      path: "/console/admin",
-      label: "Admin",
-      width: 100,
-      iconPath: "/assets/icons/header/admin.svg",
-    },
+    // Show admin option only on localhost
+    ...(typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+      ? [{
+          path: "/console/admin",
+          label: "Admin",
+          width: 100,
+          iconPath: "/assets/icons/header/admin.svg",
+        }] 
+      : [])
   ];
 
   return (
