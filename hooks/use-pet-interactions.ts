@@ -83,7 +83,12 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   const [energy, setEnergy] = useState(initialWalletStats.energy ?? 30)
   const [health, setHealth] = useState(initialWalletStats.health ?? 30)
   const [isDead, setIsDead] = useState(initialWalletStats.isDead ?? false)
+  
+  // Points state with safeguard against decreasing
   const [points, setPoints] = useState(initialWalletStats.points ?? 0)
+  
+  // Add a ref to track the highest points value
+  const highestPointsRef = useRef(initialWalletStats.points ?? 0);
   
   // Cooldown tracking
   const [cooldowns, setCooldowns] = useState<ActionCooldowns>({
@@ -204,21 +209,48 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
   
-  // Award points to the pet (updates local state and triggers useEffect for wallet update)
+  // Modified awardPoints function to prevent points from decreasing
   const awardPoints = useCallback((amount: number) => {
+    if (amount <= 0) return; // Only allow positive point awards
+    
     setPoints((prev: number) => {
       const newPoints = prev + amount;
-      // Also update global points context
-      setGlobalPoints(newPoints);
+      // Update highest points reference
+      highestPointsRef.current = Math.max(highestPointsRef.current, newPoints);
       return newPoints;
     });
     
-    // Record the recent point gain for animation
     setRecentPointGain({
       amount,
       timestamp: Date.now()
     });
-  }, [setGlobalPoints]);
+  }, []);
+  
+  // Effect to sync points with global state and ensure they never decrease
+  useEffect(() => {
+    if (points > 0) {
+      // Ensure we never set points lower than the highest recorded value
+      const safePoints = Math.max(points, highestPointsRef.current);
+      setGlobalPoints(safePoints);
+      
+      // Update our local state if needed
+      if (safePoints > points) {
+        setPoints(safePoints);
+      }
+    }
+  }, [points, setGlobalPoints]);
+  
+  // Effect to sync with wallet data when it loads
+  useEffect(() => {
+    if (walletData?.petStats?.points) {
+      const dbPoints = walletData.petStats.points;
+      // Only update if database points are higher
+      if (dbPoints > points) {
+        setPoints(dbPoints);
+        highestPointsRef.current = dbPoints;
+      }
+    }
+  }, [walletData?.petStats?.points]);
   
   // Apply decay rates from AI or use defaults
   useEffect(() => {

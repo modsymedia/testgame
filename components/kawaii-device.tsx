@@ -235,39 +235,30 @@ export function KawaiiDevice() {
     if (globalPoints > prevPointsRef.current) {
       const startValue = prevPointsRef.current;
       const endValue = globalPoints;
-      const duration = 800; // 800ms
-      const increment = 1;
-      let currentValue = startValue;
+      const duration = 1000; // 1 second duration
+      const startTime = performance.now();
       
       // Update the reference immediately
       prevPointsRef.current = globalPoints;
       
-      // Clear any existing interval
-      const intervalId = setInterval(() => {
-        if (currentValue < endValue) {
-          currentValue = Math.min(currentValue + increment, endValue);
-          setAnimatedPoints(currentValue);
-          
-          // Apply easing - slow down as we approach the target
-          const progress = (currentValue - startValue) / (endValue - startValue);
-          const easedIncrement = increment + 2 * Math.pow(progress, 2); // Quadratic ease-out
-          
-          if (progress > 0.5) {
-            // Speed up increment to finish animation within duration
-            const remainingPoints = endValue - currentValue;
-            const remainingSteps = Math.max(1, Math.ceil(remainingPoints / easedIncrement));
-            const adjustedIncrement = Math.max(1, Math.ceil(remainingPoints / remainingSteps));
-            currentValue = Math.min(currentValue + adjustedIncrement, endValue);
-            setAnimatedPoints(currentValue);
-          }
-        } else {
-          clearInterval(intervalId);
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic function: progress = 1 - (1 - progress)^3
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        
+        const currentValue = Math.round(startValue + (endValue - startValue) * easeOut);
+        setAnimatedPoints(currentValue);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
         }
-      }, 30); // Update roughly 33 times per second for smooth animation
+      };
       
-      return () => clearInterval(intervalId);
+      requestAnimationFrame(animate);
     } else {
-      // If not increasing, just set without animation
+      // If points decreased or stayed same, update immediately
       setAnimatedPoints(globalPoints);
       prevPointsRef.current = globalPoints;
     }
