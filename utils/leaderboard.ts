@@ -6,13 +6,13 @@ import { LeaderboardEntry } from '@/lib/models';
  * @param page Page number (1-based)
  * @returns Object containing entries array and metadata
  */
-export async function fetchLeaderboard(limit = 10, page = 1): Promise<{
+export async function fetchLeaderboard(limit = 6, page = 1): Promise<{
   entries: LeaderboardEntry[];
   total: number;
 }> {
   try {
-    // Calculate offset for pagination
-    const offset = page === 1 ? 0 : 6 + ((page - 2) * 15);
+    // Calculate offset for pagination (consistently 6 entries per page)
+    const offset = (page - 1) * limit;
     
     // Use relative URL to avoid port/domain issues
     const response = await fetch(`/api/leaderboard?limit=${limit}&offset=${offset}`, {

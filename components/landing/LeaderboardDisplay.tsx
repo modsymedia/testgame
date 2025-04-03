@@ -31,17 +31,11 @@ export default function LeaderboardDisplay() {
   const [userData, setUserData] = useState<any>(null);
   const [totalUsers, setTotalUsers] = useState<number>(0);
 
-  const ENTRIES_PER_PAGE = {
-    1: 6, // First page shows 6 entries
-    other: 15, // Other pages show 15 entries
-  };
+  const ENTRIES_PER_PAGE = 6; // All pages show 6 entries
 
   // Calculate which page the user should be on based on their rank
   const calculateUserPage = (rank: number) => {
-    if (rank <= ENTRIES_PER_PAGE[1]) return 1;
-    
-    const remainingEntries = rank - ENTRIES_PER_PAGE[1];
-    return Math.ceil(remainingEntries / ENTRIES_PER_PAGE.other) + 1;
+    return Math.ceil(rank / ENTRIES_PER_PAGE);
   };
 
   const loadLeaderboard = async (page: number) => {
@@ -56,11 +50,8 @@ export default function LeaderboardDisplay() {
       setError(null);
 
       console.log(`Fetching leaderboard data for page ${page}...`);
-      // Determine limit based on page
-      const limit = page === 1 ? ENTRIES_PER_PAGE[1] : ENTRIES_PER_PAGE.other;
-
-      // Fetch data for the current page
-      const result = await fetchLeaderboard(limit, page);
+      // Fetch data for the current page with consistent limit
+      const result = await fetchLeaderboard(ENTRIES_PER_PAGE, page);
 
       console.log(
         "Leaderboard data received:",
@@ -110,16 +101,7 @@ export default function LeaderboardDisplay() {
   };
 
   const calculateTotalPages = (total: number) => {
-    if (total <= ENTRIES_PER_PAGE[1]) {
-      setTotalPages(1);
-      return;
-    }
-
-    const remainingEntries = total - ENTRIES_PER_PAGE[1];
-    const additionalPages = Math.ceil(
-      remainingEntries / ENTRIES_PER_PAGE.other
-    );
-    setTotalPages(1 + additionalPages);
+    setTotalPages(Math.ceil(total / ENTRIES_PER_PAGE));
   };
 
   const handlePageChange = (direction: "prev" | "next") => {
@@ -268,7 +250,7 @@ export default function LeaderboardDisplay() {
         ) : (
           <>
             {/* User Rank Section */}
-            {userRank && currentPage === 1 && !isLoading && (
+            {userRank && !isLoading && (
               <div className="mb-4 p-3 bg-[#ebffb7] rounded-md">
                 <h3 className="text-center text-[#304700] font-bold text-[20px] uppercase">Your Position</h3>
                 <div className="flex items-center justify-between py-2">
