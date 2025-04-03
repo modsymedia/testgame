@@ -257,35 +257,35 @@ export function KawaiiDevice() {
 
   const getCatEmotion = () => {
     if (isDead) return <DeadCat />;
-    if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} />;
+    if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
     if (isFeeding)
       return (
         <motion.div animate={{ rotate: [0, -5, 5, -5, 0] }} transition={{ duration: 0.5 }}>
-          <HappyCat />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
         </motion.div>
       );
     if (isPlaying)
       return (
         <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: 2, duration: 0.3 }}>
-          <HappyCat />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
         </motion.div>
       );
     if (isCleaning)
       return (
         <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5 }}>
-          <HappyCat />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
         </motion.div>
       );
     if (isHealing)
       return (
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.5 }}>
-          <HappyCat />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
         </motion.div>
       );
-    if (food < 30) return <HungryCat />;
-    if (happiness < 30) return <SadCat />;
-    if (energy < 30 || food < 50 || happiness < 50) return <TiredCat />;
-    return <HappyCat />;
+    if (food < 30) return <HungryCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
+    if (happiness < 30) return <SadCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
+    if (energy < 30 || food < 50 || happiness < 50) return <TiredCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
+    return <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
   };
 
   // Define handleInteraction before it's used in handleButtonClick

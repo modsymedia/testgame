@@ -20,10 +20,12 @@ const tailAnimation = {
 interface CatEmotionProps {
   eyeExpression?: React.ReactNode;
   selectedMenuItem?: number | null;
+  hygieneTaskOnCooldown?: boolean;
+  foodTaskOnCooldown?: boolean;
 }
 
 // Modified CatBase to use an image instead of text characters
-const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression }) => (
+const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown }) => (
   <div className="relative flex justify-center items-center">
     {/* Shadow image */}
     <Image 
@@ -40,10 +42,28 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression }) => (
     
     {/* Character image */}
     <Image 
-      src="/assets/character/idle.webp" 
+      src={
+        foodTaskOnCooldown 
+          ? "/assets/character/food.webp" 
+          : hygieneTaskOnCooldown 
+            ? "/assets/character/bath.webp" 
+            : "/assets/character/idle.webp"
+      }
       alt="Pet character" 
-      width={200} 
-      height={200}
+      width={
+        foodTaskOnCooldown 
+          ? 140 
+          : hygieneTaskOnCooldown 
+            ? 120 
+            : 200
+      } 
+      height={
+        foodTaskOnCooldown 
+          ? 140 
+          : hygieneTaskOnCooldown 
+            ? 120 
+            : 200
+      }
       unoptimized={true}
       className="object-contain relative"
       style={{
@@ -75,22 +95,28 @@ const BlinkingEyes = () => (
   <></>
 )
 
-export const HappyCat = () => <CatBase />
+export const HappyCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
 
 interface AlertCatProps {
   selectedMenuItem?: number | null;
+  hygieneTaskOnCooldown?: boolean;
+  foodTaskOnCooldown?: boolean;
 }
 
-// Pass the selectedMenuItem to CatBase to potentially change the image based on menu selection
-export const AlertCat: React.FC<AlertCatProps> = ({ selectedMenuItem }) => {
-  return <CatBase selectedMenuItem={selectedMenuItem} />;
+// Pass the selectedMenuItem, hygieneTaskOnCooldown, and foodTaskOnCooldown to CatBase
+export const AlertCat: React.FC<AlertCatProps> = ({ selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown }) => {
+  return <CatBase selectedMenuItem={selectedMenuItem} hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />;
 };
 
-export const SadCat = () => <CatBase />
+export const SadCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
 
-export const TiredCat = () => <CatBase />
+export const TiredCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
 
-export const HungryCat = () => <CatBase />
+export const HungryCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
 
 export function DeadCat() {
   return (
