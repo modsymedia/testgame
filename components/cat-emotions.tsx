@@ -32,7 +32,7 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression }) => (
       width={120} 
       height={32}
       unoptimized={true}
-      className="absolute top-[95px] object-contain opacity-50"
+      className="absolute top-[120px] object-contain opacity-50"
       style={{
         imageRendering: 'pixelated'
       }}
@@ -40,10 +40,10 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression }) => (
     
     {/* Character image */}
     <Image 
-      src="/assets/character/character-default.png" 
+      src="/assets/character/idle.webp" 
       alt="Pet character" 
-      width={122} 
-      height={122}
+      width={200} 
+      height={200}
       unoptimized={true}
       className="object-contain relative"
       style={{
@@ -102,7 +102,7 @@ export function DeadCat() {
         width={120} 
         height={32}
         unoptimized={true}
-        className="absolute top-[95px] object-contain opacity-50"
+        className="absolute top-[120px] object-contain opacity-50"
         style={{
           imageRendering: 'pixelated'
         }}
@@ -110,10 +110,10 @@ export function DeadCat() {
       
       {/* Character image */}
       <Image 
-        src="/assets/character/character-default.png" 
+        src="/assets/character/idle.webp" 
         alt="Dead pet character" 
-        width={162} 
-        height={162}
+        width={200} 
+        height={200}
         unoptimized={true}
         className="object-contain relative grayscale"
         style={{

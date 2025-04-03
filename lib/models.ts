@@ -29,6 +29,8 @@ export interface User {
   lastPointGainTime?: Date;
   // Pet state metrics
   petState?: PetState;
+  // Version for sync
+  version?: number;
 }
 
 export interface PetState {
@@ -43,6 +45,7 @@ export interface PetState {
   lastReaction?: string;
   isDead?: boolean;
   lastInteractionTime?: Date;
+  version?: number;
 }
 
 export interface LeaderboardEntry {
@@ -95,4 +98,38 @@ export interface UserReward {
   multiplier: number;
   basePoints: number;
   weightedPoints: number;
+}
+
+// New interfaces for improved data synchronization
+export interface GameSession {
+  walletAddress: string;
+  sessionId: string;
+  startedAt: Date;
+  lastActive: Date;
+  gameState: any;
+  isActive: boolean;
+  version: number;
+}
+
+export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
+
+export type SyncOperation = 'create' | 'update' | 'delete';
+
+export interface SyncRecord {
+  walletAddress: string;
+  operation: SyncOperation;
+  entityType: string;
+  entityId: string;
+  timestamp: Date;
+  clientVersion: number;
+  serverVersion: number;
+  conflict: boolean;
+  resolution?: string;
+}
+
+export interface DataChangeEvent {
+  entityType: string;
+  entityId: string;
+  operation: SyncOperation;
+  data: any;
 } 

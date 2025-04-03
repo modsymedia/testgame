@@ -98,12 +98,15 @@ html {
   }
   
   /* Format percentages and values */
-  span:has(+ :contains("%")),
-  span:has(~ :contains("%")),
-  span:has(:contains("$")),
-  span:has(~ :contains("$")),
-  span:has(:contains("Points")),
-  span:has(:contains("points")),
+  span[data-content*="%"],
+  span:has(~ [data-content*="%"]),
+  span[data-content*="$"],
+  span:has(~ [data-content*="$"]),
+  span:has([data-content*="Points"]),
+  span:has([data-content*="points"]),
+  .percent-value,
+  .dollar-value,
+  .points-value,
   [class*="stats"] span:not([class*="font-pixelify"]) {
     font-family: 'VT323', monospace;
   }
