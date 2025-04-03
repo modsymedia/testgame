@@ -22,10 +22,12 @@ interface CatEmotionProps {
   selectedMenuItem?: number | null;
   hygieneTaskOnCooldown?: boolean;
   foodTaskOnCooldown?: boolean;
+  sickStatus?: boolean;
+  mostRecentTask?: string | null;
 }
 
 // Modified CatBase to use an image instead of text characters
-const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown }) => (
+const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }) => (
   <div className="relative flex justify-center items-center">
     {/* Shadow image */}
     <Image 
@@ -34,7 +36,7 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, h
       width={120} 
       height={32}
       unoptimized={true}
-      className="absolute top-[120px] object-contain opacity-50"
+      className={`absolute ${(mostRecentTask === 'clean' || hygieneTaskOnCooldown) ? 'top-[100px]' : 'top-[120px]'} object-contain opacity-50`}
       style={{
         imageRendering: 'pixelated'
       }}
@@ -43,26 +45,36 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, h
     {/* Character image */}
     <Image 
       src={
-        foodTaskOnCooldown 
-          ? "/assets/character/food.webp" 
-          : hygieneTaskOnCooldown 
-            ? "/assets/character/bath.webp" 
-            : "/assets/character/idle.webp"
+        sickStatus
+          ? "/assets/character/sick.webp"
+          : mostRecentTask === 'feed' 
+            ? "/assets/character/food.webp"
+            : mostRecentTask === 'clean'
+              ? "/assets/character/bath.webp"
+              : foodTaskOnCooldown && !mostRecentTask
+                ? "/assets/character/food.webp" 
+                : hygieneTaskOnCooldown && !mostRecentTask
+                  ? "/assets/character/bath.webp" 
+                  : "/assets/character/idle.webp"
       }
       alt="Pet character" 
       width={
-        foodTaskOnCooldown 
-          ? 140 
-          : hygieneTaskOnCooldown 
-            ? 120 
-            : 200
+        sickStatus
+          ? 120
+          : mostRecentTask === 'feed' || (foodTaskOnCooldown && !mostRecentTask)
+            ? 140 
+            : mostRecentTask === 'clean' || (hygieneTaskOnCooldown && !mostRecentTask)
+              ? 120 
+              : 190
       } 
       height={
-        foodTaskOnCooldown 
-          ? 140 
-          : hygieneTaskOnCooldown 
-            ? 120 
-            : 200
+        sickStatus
+          ? 120
+          : mostRecentTask === 'feed' || (foodTaskOnCooldown && !mostRecentTask)
+            ? 140 
+            : mostRecentTask === 'clean' || (hygieneTaskOnCooldown && !mostRecentTask)
+              ? 120 
+              : 190
       }
       unoptimized={true}
       className="object-contain relative"
@@ -95,28 +107,30 @@ const BlinkingEyes = () => (
   <></>
 )
 
-export const HappyCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
-  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
+export const HappyCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean, sickStatus?: boolean, mostRecentTask?: string | null }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} sickStatus={sickStatus} mostRecentTask={mostRecentTask} />
 
 interface AlertCatProps {
   selectedMenuItem?: number | null;
   hygieneTaskOnCooldown?: boolean;
   foodTaskOnCooldown?: boolean;
+  sickStatus?: boolean;
+  mostRecentTask?: string | null;
 }
 
-// Pass the selectedMenuItem, hygieneTaskOnCooldown, and foodTaskOnCooldown to CatBase
-export const AlertCat: React.FC<AlertCatProps> = ({ selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown }) => {
-  return <CatBase selectedMenuItem={selectedMenuItem} hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />;
+// Pass all props to CatBase
+export const AlertCat: React.FC<AlertCatProps> = ({ selectedMenuItem, hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }) => {
+  return <CatBase selectedMenuItem={selectedMenuItem} hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} sickStatus={sickStatus} mostRecentTask={mostRecentTask} />;
 };
 
-export const SadCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
-  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
+export const SadCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean, sickStatus?: boolean, mostRecentTask?: string | null }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} sickStatus={sickStatus} mostRecentTask={mostRecentTask} />
 
-export const TiredCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
-  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
+export const TiredCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean, sickStatus?: boolean, mostRecentTask?: string | null }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} sickStatus={sickStatus} mostRecentTask={mostRecentTask} />
 
-export const HungryCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean }) => 
-  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} />
+export const HungryCat = ({ hygieneTaskOnCooldown, foodTaskOnCooldown, sickStatus, mostRecentTask }: { hygieneTaskOnCooldown?: boolean, foodTaskOnCooldown?: boolean, sickStatus?: boolean, mostRecentTask?: string | null }) => 
+  <CatBase hygieneTaskOnCooldown={hygieneTaskOnCooldown} foodTaskOnCooldown={foodTaskOnCooldown} sickStatus={sickStatus} mostRecentTask={mostRecentTask} />
 
 export function DeadCat() {
   return (
@@ -138,8 +152,8 @@ export function DeadCat() {
       <Image 
         src="/assets/character/idle.webp" 
         alt="Dead pet character" 
-        width={200} 
-        height={200}
+        width={190} 
+        height={190}
         unoptimized={true}
         className="object-contain relative grayscale"
         style={{

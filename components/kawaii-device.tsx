@@ -72,6 +72,9 @@ export function KawaiiDevice() {
   const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
   const { globalPoints, setGlobalPoints } = usePoints();
   
+  // Add state to track the most recent task type
+  const [mostRecentTask, setMostRecentTask] = useState<string | null>(null);
+  
   // Redirect to landing if not connected
   useEffect(() => {
     if (!isConnected) {
@@ -256,40 +259,74 @@ export function KawaiiDevice() {
   }, [globalPoints]);
 
   const getCatEmotion = () => {
+    // Consider the pet sick when health is below 20
+    const isSick = health < 20 && !isDead;
+    
     if (isDead) return <DeadCat />;
-    if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
+    if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} 
+                                      hygieneTaskOnCooldown={isOnCooldown.clean} 
+                                      foodTaskOnCooldown={isOnCooldown.feed}
+                                      sickStatus={isSick}
+                                      mostRecentTask={mostRecentTask} />;
     if (isFeeding)
       return (
         <motion.div animate={{ rotate: [0, -5, 5, -5, 0] }} transition={{ duration: 0.5 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                   foodTaskOnCooldown={isOnCooldown.feed}
+                   sickStatus={isSick}
+                   mostRecentTask={mostRecentTask} />
         </motion.div>
       );
     if (isPlaying)
       return (
         <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: 2, duration: 0.3 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                   foodTaskOnCooldown={isOnCooldown.feed}
+                   sickStatus={isSick}
+                   mostRecentTask={mostRecentTask} />
         </motion.div>
       );
     if (isCleaning)
       return (
         <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                   foodTaskOnCooldown={isOnCooldown.feed}
+                   sickStatus={isSick}
+                   mostRecentTask={mostRecentTask} />
         </motion.div>
       );
     if (isHealing)
       return (
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.5 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />
+          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                   foodTaskOnCooldown={isOnCooldown.feed}
+                   sickStatus={isSick}
+                   mostRecentTask={mostRecentTask} />
         </motion.div>
       );
-    if (food < 30) return <HungryCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
-    if (happiness < 30) return <SadCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
-    if (energy < 30 || food < 50 || happiness < 50) return <TiredCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
-    return <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} foodTaskOnCooldown={isOnCooldown.feed} />;
+    if (food < 30) return <HungryCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                                    foodTaskOnCooldown={isOnCooldown.feed}
+                                    sickStatus={isSick}
+                                    mostRecentTask={mostRecentTask} />;
+    if (happiness < 30) return <SadCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                                      foodTaskOnCooldown={isOnCooldown.feed}
+                                      sickStatus={isSick}
+                                      mostRecentTask={mostRecentTask} />;
+    if (energy < 30 || food < 50 || happiness < 50) return <TiredCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                                                                    foodTaskOnCooldown={isOnCooldown.feed}
+                                                                    sickStatus={isSick}
+                                                                    mostRecentTask={mostRecentTask} />;
+    return <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                    foodTaskOnCooldown={isOnCooldown.feed}
+                    sickStatus={isSick}
+                    mostRecentTask={mostRecentTask} />;
   };
 
   // Define handleInteraction before it's used in handleButtonClick
   const handleInteraction = async (type: string) => {
+    // Set the most recent task type
+    setMostRecentTask(type);
+    
     switch (type) {
       case 'feed':
         await handleFeeding(); // Handle async operation
@@ -588,6 +625,16 @@ export function KawaiiDevice() {
     disconnect();
     router.push('/');
   }, [disconnect, router]);
+
+  // Add an effect to reset mostRecentTask when cooldowns finish
+  useEffect(() => {
+    // If there's a most recent task but its cooldown is finished, reset it
+    if (mostRecentTask === 'feed' && !isOnCooldown.feed) {
+      setMostRecentTask(null);
+    } else if (mostRecentTask === 'clean' && !isOnCooldown.clean) {
+      setMostRecentTask(null);
+    }
+  }, [isOnCooldown.feed, isOnCooldown.clean, mostRecentTask]);
 
   return (
     <div className="flex w-full min-h-screen p-4 items-center justify-center">
