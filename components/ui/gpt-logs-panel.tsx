@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getGPTLogs, GPTLogEntry } from "@/utils/openai-service";
 import { motion, AnimatePresence } from "framer-motion";
-import PixelatedContainer from "../PixelatedContainer";
+import PixelatedContainer from "@/components/game/PixelatedContainer";
 import Image from 'next/image';
 
 export const GPTLogsPanel = () => {

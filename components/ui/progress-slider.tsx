@@ -1,5 +1,5 @@
 import React from 'react';
-import PixelatedContainer from '@/components/PixelatedContainer';
+import PixelatedContainer from '@/components/game/PixelatedContainer';
 
 interface ProgressSliderProps {
   progress: number; // 0 to 100

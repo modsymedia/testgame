@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/forms/button';
+import { Input } from '@/components/ui/forms/input';
 import { toast } from '@/components/ui/use-toast';
 
-interface ReferralCardProps {
+export interface ReferralCardProps {
+  referralCode?: string | null;
+  referralCount?: number;
+  walletConnected?: boolean;
   walletAddress?: string;
 }
 

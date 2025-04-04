@@ -1,4 +1,4 @@
-import { Progress } from "@/components/ui/progress"
+import { Progress } from "@/components/ui/data-display/progress"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
@@ -31,4 +31,5 @@ export function StatBar({ value, label, color, icon, className }: StatBarProps) 
     </motion.div>
   )
 }
+
 

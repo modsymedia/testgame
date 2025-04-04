@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLeaderboard } from '../hooks/useLeaderboard';
+import { useLeaderboard } from '../../hooks/useLeaderboard';
 
 interface LeaderboardProps {
   limit?: number;

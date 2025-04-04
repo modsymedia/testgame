@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getGPTLogs, GPTLogEntry } from '@/utils/openai-service';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/forms/button';
+import { Card } from '@/components/ui/layout/card';
+import { ScrollArea } from '@/components/ui/layout/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/layout/tabs';
 import { useRouter } from 'next/router';
 import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 

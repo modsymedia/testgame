@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/context/WalletContext';
-import PixelatedContainer from '@/components/PixelatedContainer';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import PixelatedContainer from '@/components/game/PixelatedContainer';
+import { Button } from '@/components/ui/forms/button';
+import { Input } from '@/components/ui/forms/input';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 

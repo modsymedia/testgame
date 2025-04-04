@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
-import PixelatedContainer from "@/components/PixelatedContainer";
+import PixelatedContainer from "@/components/game/PixelatedContainer";
 import Image from "next/image";
 
 interface AIPetAdvisorProps {
@@ -137,3 +137,4 @@ export function AIPetAdvisor({
     </div>
   );
 }
+

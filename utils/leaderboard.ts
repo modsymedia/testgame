@@ -65,7 +65,8 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
   try {
     console.log(`Updating leaderboard for ${walletAddress.substring(0, 8)}... with score ${score}`);
     
-    const response = await fetch('/api/leaderboard', {
+    // Use the new dedicated API endpoint for leaderboard updates
+    const response = await fetch('/api/leaderboard/update', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,29 +81,41 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
     if (response.ok) {
       const data = await response.json();
       
-      // If we got a warning about temporary storage, log it but still consider it a success
+      // If we got a warning, log it but still consider it a success
       if (data.warning) {
         console.warn(`Leaderboard update warning: ${data.warning}`);
       }
       
       console.log('Score update successful');
-      return true;
-    } else {
-      const errorData = await response.text();
-      console.error(`Score update failed: ${errorData}`);
       
-      // We'll still return true if it's just a database permission issue
-      // This way the game continues working even if leaderboard updates fail
-      if (errorData.includes('SQLITE_READONLY')) {
-        console.warn('Using local score tracking due to server database being read-only');
-        return true;
+      // Return the new rank if available
+      if (data.rank) {
+        console.log(`New rank: ${data.rank}`);
       }
       
-      return false;
+      return true;
+    } else {
+      // Try to parse error response
+      let errorMessage = 'Unknown error';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || 'Unknown error';
+      } catch (e) {
+        // If JSON parse fails, use text
+        errorMessage = await response.text();
+      }
+      
+      console.error(`Score update failed: ${errorMessage}`);
+      
+      // Always return true for non-critical features to ensure game continues
+      // But add a console warning
+      console.warn('Continuing without leaderboard update');
+      return true;
     }
   } catch (error) {
     console.error('Error updating score:', error);
-    return false;
+    // Don't fail the game just because leaderboard update failed
+    return true;
   }
 }
 

@@ -1,24 +1,21 @@
-import React, { useState } from 'react';
-import { PointsDisplay } from '@/components/ui/points-display';
+import React from 'react';
+import { PointsDisplay } from '@/components/game/PointsDisplay';
 import { SolRewards } from '@/components/ui/sol-rewards';
 import { PointsLeaderboard } from '@/components/ui/points-leaderboard';
 import { ReferralCard } from '@/components/ui/referral-card';
-import { Button } from '@/components/ui/button';
-// import { Input } from '@/components/ui/input';
-import { Toaster } from '@/components/ui/toaster';
+import { Button } from '@/components/ui/forms/button';
+// import { Input } from '@/components/ui/forms/input';
+import { Toaster } from '@/components/ui/feedback/toaster';
+import { useUserData } from '@/context/UserDataContext';
+import { useWallet } from '@/context/WalletContext';
 
 export default function RewardsDashboard() {
-  const [walletAddress, setWalletAddress] = useState<string>('');
-  const [connectedWallet, setConnectedWallet] = useState<string | undefined>(undefined);
+  const { isConnected, connect, disconnect, publicKey } = useWallet();
+  const { userData, isLoading, error, syncWithServer } = useUserData();
   
-  const handleConnect = () => {
-    if (walletAddress.trim()) {
-      setConnectedWallet(walletAddress.trim());
-    }
-  };
-  
-  const handleDisconnect = () => {
-    setConnectedWallet(undefined);
+  // Manual sync function for user-triggered refresh
+  const handleRefresh = async () => {
+    await syncWithServer();
   };
   
   return (
@@ -28,22 +25,31 @@ export default function RewardsDashboard() {
       {/* Wallet Connection UI */}
       <div className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
         <div className="flex flex-col sm:flex-row gap-2">
-
-          
-          {!connectedWallet ? (
-            <Button onClick={handleConnect} disabled={!walletAddress.trim()}>
+          {!isConnected ? (
+            <Button onClick={() => connect('phantom')}>
               Connect Wallet
             </Button>
           ) : (
-            <Button variant="destructive" onClick={handleDisconnect}>
-              Disconnect
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="destructive" onClick={disconnect}>
+                Disconnect
+              </Button>
+              <Button onClick={handleRefresh} variant="outline">
+                Refresh Data
+              </Button>
+            </div>
           )}
         </div>
         
-        {connectedWallet && (
+        {isConnected && publicKey && (
           <p className="text-sm mt-2 text-gray-500">
-            Connected: {connectedWallet.substring(0, 6)}...{connectedWallet.substring(connectedWallet.length - 4)}
+            Connected: {publicKey.substring(0, 6)}...{publicKey.substring(publicKey.length - 4)}
+          </p>
+        )}
+        
+        {error && (
+          <p className="text-sm mt-2 text-red-500">
+            {error}
           </p>
         )}
       </div>
@@ -52,14 +58,31 @@ export default function RewardsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Points and Rewards */}
         <div className="lg:col-span-1 space-y-6">
-          <PointsDisplay walletAddress={connectedWallet} />
-          <SolRewards walletAddress={connectedWallet} />
-          <ReferralCard walletAddress={connectedWallet} />
+          <PointsDisplay 
+            points={userData.points}
+            claimedPoints={userData.claimedPoints}
+            multiplier={userData.multiplier}
+            isLoading={isLoading}
+            lastUpdated={userData.lastSync}
+          />
+          <SolRewards 
+            points={userData.points}
+            walletConnected={isConnected}
+          />
+          <ReferralCard 
+            referralCode={userData.referralCode}
+            referralCount={userData.referralCount}
+            walletConnected={isConnected}
+          />
         </div>
         
         {/* Right column - Leaderboard */}
         <div className="lg:col-span-2">
-          <PointsLeaderboard walletAddress={connectedWallet} limit={15} />
+          <PointsLeaderboard 
+            userPublicKey={publicKey} 
+            userRank={userData.rank}
+            limit={15} 
+          />
         </div>
       </div>
       

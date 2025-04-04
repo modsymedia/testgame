@@ -10,11 +10,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/data-display/table";
 import { Trophy } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/forms/button";
 import { useWallet } from "@/context/WalletContext";
-import PixelatedContainer from "@/components/PixelatedContainerBig";
+import PixelatedContainer from "@/components/game/PixelatedContainerBig";
 import Image from "next/image";
 
 export default function LeaderboardDisplay() {
@@ -375,3 +375,4 @@ export default function LeaderboardDisplay() {
     </div>
   );
 }
+

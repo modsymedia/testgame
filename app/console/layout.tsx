@@ -1,4 +1,4 @@
-import { Header } from '@/components/ui/Header';
+import { Header } from '@/components/ui/navigation/Header';
 import Image from 'next/image';
 
 export default function ConsoleLayout({

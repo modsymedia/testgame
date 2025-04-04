@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/layout/tabs';
 import { LeaderboardEntry, PointsLeaderboard as PointsLeaderboardType } from '@/lib/models';
 import { useWallet } from '@/context/WalletContext';
 import Image from 'next/image';
 
-interface PointsLeaderboardProps {
-  walletAddress?: string;
+export interface PointsLeaderboardProps {
+  userPublicKey?: string | null;
+  userRank?: number | null;
   limit?: number;
+  walletAddress?: string;
 }
 
 export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboardProps) {

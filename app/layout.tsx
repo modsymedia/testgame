@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { WalletProvider } from '@/context/WalletContext'
+import { UserDataProvider } from '@/context/UserDataContext'
 import { PointsProvider } from '@/context/PointsContext'
 
 export const metadata: Metadata = {
@@ -23,11 +24,13 @@ export default function RootLayout({
       </head>
       <body className="font-pixelify">
         <WalletProvider>
-          <PointsProvider>
-            <main>
-              {children}
-            </main>
-          </PointsProvider>
+          <UserDataProvider>
+            <PointsProvider>
+              <main>
+                {children}
+              </main>
+            </PointsProvider>
+          </UserDataProvider>
         </WalletProvider>
       </body>
     </html>

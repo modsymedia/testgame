@@ -6,9 +6,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+} from '@/components/ui/feedback/dialog';
+import { Button } from '@/components/ui/forms/button';
+import { Alert, AlertDescription } from '@/components/ui/feedback/alert';
 
 export function WalletSelectModal() {
   const { connect, error, availableWallets } = useWallet();

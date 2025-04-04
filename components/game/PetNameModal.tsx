@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/context/WalletContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/forms/button';
+import { Input } from '@/components/ui/forms/input';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ui/feedback/dialog';
 
 export function PetNameModal() {
   const { isConnected, publicKey, walletData, setPetName, isNewUser } = useWallet();

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { dbService } from '../lib/database-service';
 import { WalletProvider } from '@/context/WalletContext';
-import { PetNameModal } from '@/components/PetNameModal';
+import { UserDataProvider } from '@/context/UserDataContext';
+import { PetNameModal } from '@/components/game/PetNameModal';
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -98,13 +99,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <WalletProvider>
-      {isSyncing && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-center text-xs py-1">
-          Saving your progress...
-        </div>
-      )}
-      <Component {...pageProps} />
-      <PetNameModal />
+      <UserDataProvider>
+        {isSyncing && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-center text-xs py-1">
+            Saving your progress...
+          </div>
+        )}
+        <Component {...pageProps} />
+        <PetNameModal />
+      </UserDataProvider>
     </WalletProvider>
   );
 } 

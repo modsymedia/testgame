@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import PixelatedContainer from '@/components/PixelatedContainer';
+import PixelatedContainer from '@/components/game/PixelatedContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PointsEarnedPanelProps {

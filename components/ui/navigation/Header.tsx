@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import PixelatedContainer from "../PixelatedContainer";
+import PixelatedContainer from "@/components/game/PixelatedContainer";
 import { useWallet } from "@/context/WalletContext";
 import { useRouter } from "next/navigation";
 

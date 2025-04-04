@@ -11,6 +11,7 @@ export interface User {
   // Points system additions
   points: number;
   dailyPoints: number;
+  claimedPoints?: number;
   lastPointsUpdate: Date;
   daysActive: number;
   consecutiveDays: number;
@@ -18,6 +19,8 @@ export interface User {
   referredBy?: string;
   referralCount: number;
   referralPoints: number;
+  // Referral tracking
+  hasBeenReferred?: boolean;
   // Token holdings (for post-launch)
   tokenBalance?: number;
   // Multiplier for points

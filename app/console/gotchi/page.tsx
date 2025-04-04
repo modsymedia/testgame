@@ -1,4 +1,4 @@
-import { KawaiiDevice } from "@/components/kawaii-device"
+import { KawaiiDevice } from "@/components/device/kawaii-device"
 
 export default function GotchiPage() {
   return (

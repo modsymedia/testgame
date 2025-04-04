@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/forms/button';
 import { toast } from '@/components/ui/use-toast';
 
-interface SolRewardsProps {
+export interface SolRewardsProps {
+  points?: number;
+  walletConnected?: boolean;
   walletAddress?: string;
 }
 

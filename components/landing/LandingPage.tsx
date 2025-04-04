@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/context/WalletContext';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { WalletSelectModal } from '@/components/WalletSelectModal';
+import { Button } from '@/components/ui/forms/button';
+import { Alert, AlertDescription } from '@/components/ui/feedback/alert';
+import { WalletSelectModal } from '@/components/game/WalletSelectModal';
 import Image from 'next/image';
 
 export default function LandingPage() {
@@ -27,18 +27,7 @@ export default function LandingPage() {
 
   return (
     <div className="bg-gradient-to-br from-purple-500 to-cyan-400 min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="w-full h-full relative">
-          <Image
-            src="/assets/pattern-bg.png"
-            alt="Background Pattern"
-            fill
-            style={{ objectFit: 'cover' }}
-          />
-        </div>
-      </div>
-
+t
       {/* Show PetNameSetup for new users */}
 
       <div className="relative z-10 w-full max-w-md mx-auto text-center px-4">

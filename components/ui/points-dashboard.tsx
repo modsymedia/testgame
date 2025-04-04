@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import PixelatedContainer from '@/components/PixelatedContainer';
+import PixelatedContainer from '@/components/game/PixelatedContainer';
 import { PointsEarnedPanel } from './points-earned-panel';
 import { GPTLogsPanel } from './gpt-logs-panel';
 import { useWallet } from '@/context/WalletContext';
+import { dbService } from '@/lib/database-service';
 
 interface PointsDashboardProps {
   points: number;
@@ -13,23 +14,52 @@ interface PointsDashboardProps {
 }
 
 export const PointsDashboard = ({
-  points,
+  points: initialPoints,
   tokenPrice,
-  claimedPoints,
+  claimedPoints: initialClaimedPoints,
   dollarsCollected,
   publicKey,
 }: PointsDashboardProps) => {
   const { walletData } = useWallet();
-  const potentialRewards = points * tokenPrice;
+  
+  // State for current points and claimed points
+  const [currentPoints, setCurrentPoints] = useState(initialPoints);
+  const [currentClaimedPoints, setCurrentClaimedPoints] = useState(initialClaimedPoints);
   
   // State for points earned panel - using real data from wallet
   const [pointsPerSecond, setPointsPerSecond] = useState(1.3);
   const [timeUntilUpdate, setTimeUntilUpdate] = useState(30.0);
   const [progress, setProgress] = useState(0);
-  const [nextPoints, setNextPoints] = useState(points + 10);
+  const [nextPoints, setNextPoints] = useState(currentPoints + 10);
   
   // Get user multiplier from wallet data
   const pointsMultiplier = walletData?.multiplier || 1.0;
+  
+  // Fetch latest wallet data
+  const refreshWalletData = useCallback(async () => {
+    if (!publicKey) return;
+    
+    try {
+      const freshData = await dbService.getUserData(publicKey);
+      if (freshData) {
+        setCurrentPoints(freshData.points || 0);
+        setCurrentClaimedPoints(freshData.claimedPoints || 0);
+        console.log('Dashboard data refreshed:', freshData.points);
+      }
+    } catch (error) {
+      console.error('Failed to refresh wallet data:', error);
+    }
+  }, [publicKey]);
+  
+  // Refresh data when component mounts or publicKey changes
+  useEffect(() => {
+    refreshWalletData();
+    
+    // Set up interval to periodically refresh data (every 30 seconds)
+    const refreshInterval = setInterval(refreshWalletData, 30000);
+    
+    return () => clearInterval(refreshInterval);
+  }, [refreshWalletData]);
   
   // Calculate next update time based on real-world data
   const calculateTimeUntilNextUpdate = useCallback(() => {
@@ -72,9 +102,9 @@ export const PointsDashboard = ({
       setPointsPerSecond(calculatePointsPerSecond());
       setTimeUntilUpdate(calculateTimeUntilNextUpdate());
       setProgress(calculateProgress());
-      setNextPoints(points + Math.round(10 * (walletData.multiplier || 1.0)));
+      setNextPoints(currentPoints + Math.round(10 * (walletData.multiplier || 1.0)));
     }
-  }, [walletData, points, calculatePointsPerSecond, calculateTimeUntilNextUpdate, calculateProgress]);
+  }, [walletData, currentPoints, calculatePointsPerSecond, calculateTimeUntilNextUpdate, calculateProgress]);
   
   // Update the timer and progress bar every second
   useEffect(() => {
@@ -88,9 +118,12 @@ export const PointsDashboard = ({
     return () => clearInterval(interval);
   }, [walletData, calculateTimeUntilNextUpdate, calculateProgress]);
   
+  // Calculate potential rewards based on current points
+  const potentialRewards = currentPoints * tokenPrice;
+  
   // Prepare the points data to pass to the panel
   const pointsEarnedData = {
-    currentPoints: points,
+    currentPoints: currentPoints,
     nextPoints: nextPoints,
     pointsPerSecond: pointsPerSecond,
     timeUntilUpdate: timeUntilUpdate,
@@ -108,7 +141,7 @@ export const PointsDashboard = ({
             <div className="w-full">
               <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">My Points</h2>
               <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                <span className="font-numbers">{Math.round(points).toLocaleString()}</span>
+                <span className="font-numbers">{Math.round(currentPoints).toLocaleString()}</span>
               </div>
               <p className="text-lg font-pixelify text-[#304700]">
                 Earn more points by playing Gochi
@@ -124,7 +157,7 @@ export const PointsDashboard = ({
                 $<span className="font-numbers">{potentialRewards.toFixed(2)}</span>
               </div>
               <p className="text-lg font-pixelify text-[#304700]">
-                Token price × Points = $<span className="font-numbers">{tokenPrice.toFixed(2)}</span> × <span className="font-numbers">{Math.round(points)}</span>
+                Token price × Points = $<span className="font-numbers">{tokenPrice.toFixed(2)}</span> × <span className="font-numbers">{Math.round(currentPoints)}</span>
               </p>
             </div>
           </PixelatedContainer>
@@ -135,7 +168,7 @@ export const PointsDashboard = ({
               <div>
                 <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Claimed Points</h2>
                 <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
-                  <span className="font-numbers">{Math.round(claimedPoints).toLocaleString()}</span>
+                  <span className="font-numbers">{Math.round(currentClaimedPoints).toLocaleString()}</span>
                 </div>
                 <p className="text-lg font-pixelify text-[#304700]">
                   Total points converted to rewards
