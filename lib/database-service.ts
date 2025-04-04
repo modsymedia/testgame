@@ -106,6 +106,15 @@ class DatabaseCache {
   }
 }
 
+// Add the UserActivity interface to types
+interface UserActivity {
+  id: string;
+  type: string;
+  name: string;
+  points: number;
+  timestamp: number;
+}
+
 // Singleton Database Service
 export class DatabaseService {
   private static _instance: DatabaseService;
@@ -1324,6 +1333,272 @@ export class DatabaseService {
       return true;
     } catch (error) {
       console.error('Error processing pending updates:', error);
+      return false;
+    }
+  }
+
+  // New method to save a user activity
+  async saveUserActivity(walletAddress: string, activity: UserActivity): Promise<boolean> {
+    try {
+      if (!walletAddress || !activity) {
+        console.error("Invalid walletAddress or activity data");
+        return false;
+      }
+
+      // For API-based writes, use API endpoint if in browser
+      if (typeof window !== 'undefined' && USE_API_FOR_WRITE_OPERATIONS) {
+        return this.saveUserActivityViaApi(walletAddress, activity);
+      }
+
+      // First check if the table exists to avoid errors
+      const tableCheck = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public'
+          AND table_name = 'user_activities'
+        );
+      `;
+      
+      const tableExists = tableCheck.rows[0]?.exists === true;
+      
+      if (!tableExists) {
+        console.warn("User activities table does not exist yet. Creating table...");
+        // Try to create the table
+        try {
+          await sql`
+            CREATE TABLE IF NOT EXISTS user_activities (
+              id SERIAL PRIMARY KEY,
+              wallet_address TEXT NOT NULL,
+              activity_id TEXT UNIQUE NOT NULL,
+              activity_type TEXT NOT NULL,
+              name TEXT NOT NULL,
+              points INTEGER DEFAULT 0,
+              timestamp TIMESTAMP NOT NULL
+            );
+          `;
+          console.log("User activities table created successfully");
+        } catch (err) {
+          console.error("Failed to create user_activities table:", err);
+          
+          // Add to offline queue
+          if (typeof window !== 'undefined') {
+            this.cache.markDirty(`activity:${activity.id}`);
+            // Store in local storage for later sync
+            const pendingActivities = JSON.parse(localStorage.getItem('pendingActivities') || '[]');
+            pendingActivities.push({ walletAddress, activity, timestamp: Date.now() });
+            localStorage.setItem('pendingActivities', JSON.stringify(pendingActivities));
+          }
+          
+          return false;
+        }
+      }
+
+      // Execute the query directly with the sql template
+      await sql`
+        INSERT INTO user_activities (
+          wallet_address, 
+          activity_id, 
+          activity_type, 
+          name, 
+          points, 
+          timestamp
+        ) VALUES (
+          ${walletAddress}, 
+          ${activity.id}, 
+          ${activity.type}, 
+          ${activity.name}, 
+          ${activity.points}, 
+          to_timestamp(${activity.timestamp / 1000})
+        )
+      `;
+      
+      return true;
+    } catch (error) {
+      console.error("Error saving user activity:", error);
+      
+      // Add to offline queue
+      if (typeof window !== 'undefined') {
+        this.cache.markDirty(`activity:${activity.id}`);
+        // Store in local storage for later sync
+        const pendingActivities = JSON.parse(localStorage.getItem('pendingActivities') || '[]');
+        pendingActivities.push({ walletAddress, activity, timestamp: Date.now() });
+        localStorage.setItem('pendingActivities', JSON.stringify(pendingActivities));
+      }
+      
+      return false;
+    }
+  }
+
+  // Helper method to save activity via API
+  private async saveUserActivityViaApi(walletAddress: string, activity: UserActivity): Promise<boolean> {
+    if (typeof window === 'undefined') {
+      return false; // Only run in browser
+    }
+
+    try {
+      const response = await fetch('/api/user/activity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress,
+          activity,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error saving activity via API:', errorData);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error saving activity via API:', error);
+      
+      // Store in local storage for later sync
+      const pendingActivities = JSON.parse(localStorage.getItem('pendingActivities') || '[]');
+      pendingActivities.push({ walletAddress, activity, timestamp: Date.now() });
+      localStorage.setItem('pendingActivities', JSON.stringify(pendingActivities));
+      
+      return false;
+    }
+  }
+
+  // New method to get user activities
+  async getUserActivities(walletAddress: string, limit: number = 10): Promise<UserActivity[]> {
+    try {
+      if (!walletAddress) {
+        console.error("Invalid walletAddress");
+        return [];
+      }
+
+      // First check if the table exists to avoid errors
+      const tableCheck = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public'
+          AND table_name = 'user_activities'
+        );
+      `;
+      
+      const tableExists = tableCheck.rows[0]?.exists === true;
+      
+      if (!tableExists) {
+        console.warn("User activities table does not exist yet. Creating table...");
+        // Try to create the table
+        try {
+          await sql`
+            CREATE TABLE IF NOT EXISTS user_activities (
+              id SERIAL PRIMARY KEY,
+              wallet_address TEXT NOT NULL,
+              activity_id TEXT UNIQUE NOT NULL,
+              activity_type TEXT NOT NULL,
+              name TEXT NOT NULL,
+              points INTEGER DEFAULT 0,
+              timestamp TIMESTAMP NOT NULL
+            );
+          `;
+          console.log("User activities table created successfully");
+        } catch (err) {
+          console.error("Failed to create user_activities table:", err);
+          return []; // Return empty array if table doesn't exist
+        }
+      }
+
+      // Execute the query directly with the sql template
+      const result = await sql`
+        SELECT 
+          activity_id as id, 
+          activity_type as type, 
+          name, 
+          points, 
+          extract(epoch from timestamp) * 1000 as timestamp
+        FROM user_activities 
+        WHERE wallet_address = ${walletAddress}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `;
+      
+      if (!result || !result.rows || result.rows.length === 0) {
+        return [];
+      }
+
+      // Map database rows to UserActivity objects
+      return result.rows.map((row: any) => ({
+        id: row.id,
+        type: row.type,
+        name: row.name,
+        points: parseInt(row.points),
+        timestamp: parseFloat(row.timestamp)
+      }));
+    } catch (error) {
+      console.error("Error retrieving user activities:", error);
+      return [];
+    }
+  }
+
+  // Method to process pending activities that failed to save while offline
+  async processPendingActivities(): Promise<boolean> {
+    if (typeof window === 'undefined') {
+      return false; // Only run in browser
+    }
+
+    try {
+      const pendingActivitiesJson = localStorage.getItem('pendingActivities');
+      if (!pendingActivitiesJson) {
+        return true; // No pending activities
+      }
+
+      const pendingActivities = JSON.parse(pendingActivitiesJson);
+      if (!Array.isArray(pendingActivities) || pendingActivities.length === 0) {
+        return true; // No valid pending activities
+      }
+
+      console.log(`Processing ${pendingActivities.length} pending activities...`);
+
+      // Track successful updates
+      const successfulUpdates: number[] = [];
+
+      for (let i = 0; i < pendingActivities.length; i++) {
+        const { walletAddress, activity } = pendingActivities[i];
+        
+        try {
+          // Use the API method directly to avoid circular logic
+          const success = await this.saveUserActivityViaApi(walletAddress, activity);
+          
+          if (success) {
+            successfulUpdates.push(i);
+          }
+        } catch (error) {
+          console.error(`Failed to process pending activity ${activity.id}:`, error);
+          
+          // If it's a network error, stop processing
+          if (error instanceof Error && 
+             (error.message.includes('Failed to fetch'))) {
+            break;
+          }
+        }
+      }
+
+      // Remove successful updates
+      if (successfulUpdates.length > 0) {
+        const remainingActivities = pendingActivities.filter((_, index) => 
+          !successfulUpdates.includes(index)
+        );
+        
+        // Save the remaining updates
+        localStorage.setItem('pendingActivities', 
+          remainingActivities.length > 0 ? JSON.stringify(remainingActivities) : ''
+        );
+        
+        console.log(`Processed ${successfulUpdates.length} pending activities. ${remainingActivities.length} remaining.`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error processing pending activities:', error);
       return false;
     }
   }

@@ -79,7 +79,7 @@ export function AIPetAdvisor({
 
   // Get color for stat bar
   const getStatColor = (value: number) => {
-    if (value > 70) return "#c2ff59"; // Light green
+    if (value > 70) return "#c7e376"; // Light green
     if (value > 40) return "#a7ba75"; // Medium green
     return "#304700";  // Dark olive green
   };

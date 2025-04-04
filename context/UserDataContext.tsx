@@ -9,26 +9,26 @@ import { pointsManager } from '@/lib/points-manager';
 interface UserData {
   points: number;
   claimedPoints: number;
-  petName: string | null;
   multiplier: number;
   rank: number | null;
   referralCode: string | null;
   referralCount: number;
   lastLogin: number;
   lastSync: number;
+  username: string | null;
 }
 
 // Default user data
 const defaultUserData: UserData = {
   points: 0,
   claimedPoints: 0,
-  petName: null,
   multiplier: 1.0,
   rank: null,
   referralCode: null,
   referralCount: 0,
   lastLogin: Date.now(),
-  lastSync: Date.now()
+  lastSync: Date.now(),
+  username: null
 };
 
 // Context types
@@ -39,7 +39,7 @@ interface UserDataContextType {
   updatePoints: (newPoints: number) => Promise<boolean>;
   syncWithServer: () => Promise<void>;
   claimPoints: (amount: number) => Promise<boolean>;
-  updatePetName: (name: string) => Promise<boolean>;
+  updateUsername: (username: string) => Promise<boolean>;
   resetUserData: () => void;
   getReferralData: () => Promise<{
     referralCode: string | null;
@@ -181,13 +181,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         setUserData({
           points: walletData.points || 0,
           claimedPoints: walletData.claimedPoints || 0,
-          petName: walletData.petName || null,
           multiplier: walletData.multiplier || 1.0,
           rank: walletData.rank || null,
           referralCode: walletData.referralCode || null,
           referralCount: walletData.referralCount || 0,
           lastLogin: walletData.lastLogin || Date.now(),
-          lastSync: Date.now()
+          lastSync: Date.now(),
+          username: walletData.username || null
         });
       } else {
         console.log('No wallet data found, creating new wallet');
@@ -332,25 +332,25 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Update pet name
-  const updatePetName = async (name: string): Promise<boolean> => {
+  // Update username
+  const updateUsername = async (username: string): Promise<boolean> => {
     if (!publicKey || !isConnected) return false;
     
     try {
-      // Update pet name on server
-      await dbService.updateWallet(publicKey, { petName: name });
+      // Update username on server
+      await dbService.updateWallet(publicKey, { username: username });
       
       // Update local data
       setUserData(prevData => ({
         ...prevData,
-        petName: name,
+        username: username,
         lastSync: Date.now()
       }));
       
       return true;
     } catch (err) {
-      console.error('Failed to update pet name:', err);
-      setError('Failed to update pet name. Please try again.');
+      console.error('Failed to update username:', err);
+      setError('Failed to update username. Please try again.');
       return false;
     }
   };
@@ -459,7 +459,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         updatePoints,
         syncWithServer,
         claimPoints,
-        updatePetName,
+        updateUsername,
         resetUserData,
         getReferralData,
         validateReferralCode

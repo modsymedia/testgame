@@ -192,9 +192,9 @@ export const PointsDashboard = ({
               <p className="font-mono text-lg text-[#304700] break-all">
                 {publicKey || "Not connected"}
               </p>
-              {walletData?.petName && (
+              {walletData?.username && (
                 <p className="text-lg font-pixelify text-[#304700] mt-2">
-                  Pet Name: {walletData.petName}
+                  Username: {walletData.username}
                 </p>
               )}
             </div>

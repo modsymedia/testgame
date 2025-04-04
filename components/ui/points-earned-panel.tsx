@@ -4,20 +4,31 @@ import PixelatedContainer from '@/components/game/PixelatedContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import CustomSlider from '@/components/game/CustomSlider';
 
+interface UserActivity {
+  id: string;
+  type: 'feed' | 'play' | 'clean' | 'heal' | string;
+  name: string;
+  points: number;
+  timestamp: number;
+}
+
 interface PointsEarnedPanelProps {
   currentPoints: number;
   className?: string;
   pointsMultiplier?: number;
   onPointsEarned?: (points: number) => void;
+  recentActivities?: UserActivity[];
+  isLoading?: boolean;
 }
 
-// Update task rewards data with category images
-const TASK_REWARDS = [
-  { icon: '/assets/icons/foods.png', name: 'Feed', points: 15 },
-  { icon: '/assets/icons/games.png', name: 'Play', points: 20 },
-  { icon: '/assets/icons/hygiene.png', name: 'Clean', points: 18 },
-  { icon: '/assets/icons/healings.png', name: 'Heal', points: 25 },
-];
+// Update task rewards data with category images (updated with exact filenames)
+const TASK_REWARD_ICONS: Record<string, string> = {
+  feed: '/assets/icons/foods/foods.png',
+  play: '/assets/icons/games/games.png',
+  clean: '/assets/icons/hygiene/hygienes.png',
+  heal: '/assets/icons/healings/healing.png',
+  default: '/assets/icons/coin.png'
+};
 
 // Add detailed rewards data
 const DETAILED_REWARDS = {
@@ -46,7 +57,6 @@ const DETAILED_REWARDS = {
     { name: 'Surgery', points: 40 }
   ]
 };
-
 
 // Points notification component 
 const PointsAddedNotification = ({ amount }: { amount: number }) => {
@@ -83,7 +93,7 @@ const RewardDetailsPopup = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold font-pixelify text-[#304700]">Task Rewards Guide</h2>
+              <h2 className="text-2xl font-bold font-pixelify text-[#304700]">Rewards Points Guide</h2>
               <button
                 onClick={onClose}
                 className="text-[#304700] hover:text-[#709926] transition-colors"
@@ -119,16 +129,45 @@ const RewardDetailsPopup = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   );
 };
 
+// Helper to format timestamp to a readable format
+const formatActivityTime = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  // Less than a minute
+  if (diff < 60 * 1000) {
+    return 'Just now';
+  }
+  
+  // Less than an hour
+  if (diff < 60 * 60 * 1000) {
+    const minutes = Math.floor(diff / (60 * 1000));
+    return `${minutes}m ago`;
+  }
+  
+  // Less than a day
+  if (diff < 24 * 60 * 60 * 1000) {
+    const hours = Math.floor(diff / (60 * 60 * 1000));
+    return `${hours}h ago`;
+  }
+  
+  // More than a day
+  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+  return `${days}d ago`;
+};
+
 export const PointsEarnedPanel = ({
   currentPoints,
   className,
   pointsMultiplier = 1.0,
-  onPointsEarned
+  onPointsEarned,
+  recentActivities = [], // Default to empty array
+  isLoading = false
 }: PointsEarnedPanelProps) => {
   // Fixed values
   const TIMER_DURATION = 10; // 10 seconds per cycle
   const POINTS_PER_CYCLE = 2; // 2 points per cycle
-  
+
   // States
   const [localPoints, setLocalPoints] = useState(currentPoints);
   const [lastPointsAdded, setLastPointsAdded] = useState<number | null>(null);
@@ -138,6 +177,14 @@ export const PointsEarnedPanel = ({
   const startTimeRef = useRef<number>(Date.now());
   const lastPointsUpdateRef = useRef<number>(currentPoints);
   const [showRewardDetails, setShowRewardDetails] = useState(false);
+  const [localActivities, setLocalActivities] = useState<UserActivity[]>(recentActivities);
+  
+  // Update recent activities when prop changes
+  useEffect(() => {
+    if (recentActivities && recentActivities.length > 0) {
+      setLocalActivities(recentActivities);
+    }
+  }, [recentActivities]);
   
   // Update local points when currentPoints prop changes
   useEffect(() => {
@@ -207,6 +254,11 @@ export const PointsEarnedPanel = ({
     return pts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
   
+  // Get icon for activity type
+  const getActivityIcon = (type: string): string => {
+    return TASK_REWARD_ICONS[type] || TASK_REWARD_ICONS.default;
+  };
+  
   return (
     <div className={`${className} relative`}>
       <AnimatePresence>
@@ -242,7 +294,7 @@ export const PointsEarnedPanel = ({
           <div className="bg-[#CADA9B] p-3 sm:p-4">
             {/* Points Summary */}
             <div className="mb-4 p-2 bg-[#ebffb7] rounded border border-[#304700]/20">
-              {/* Current Points with highlight on change */}
+            {/* Current Points with highlight on change */}
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-pixelify text-[#304700]">Current Points:</span>
                 <motion.div 
@@ -283,38 +335,51 @@ export const PointsEarnedPanel = ({
               </div>
             </div>
 
-            {/* Task Rewards Section */}
+            {/* Recent Activities Section */}
             <div>
               <div className="py-2 border-t border-b border-[#304700]/20 mb-3">
-                <div className="text-md font-bold font-pixelify text-[#304700]">Activity Rewards</div>
+                <div className="text-md font-bold font-pixelify text-[#304700]">Recent Activities</div>
               </div>
               
-              <div className="grid grid-cols-2 gap-2">
-                {TASK_REWARDS.slice(0, 4).map((reward, index) => (
-                  <div 
-                    key={index}
-                    className="flex flex-col items-center bg-[#ebffb7] p-2 rounded border border-[#304700]/20"
-                  >
-                    <div className="flex items-center">
-                      <Image 
-                        src={reward.icon} 
-                        alt={reward.name} 
-                        width={24} 
-                        height={24}
-                        style={{ imageRendering: 'pixelated' }}
-                      />
-                      <span className="text-xs font-pixelify ml-1 text-[#304700]">{reward.name}</span>
+              {isLoading ? (
+                <div className="text-center py-4 text-sm font-pixelify text-[#304700]/70">
+                  Loading activities...
+                </div>
+              ) : localActivities.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {localActivities.slice(0, 4).map((activity) => (
+                    <div 
+                      key={activity.id}
+                      className="flex flex-col bg-[#ebffb7] p-2 rounded border border-[#304700]/20"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center">
+                          <Image 
+                            src={getActivityIcon(activity.type)} 
+                            alt={activity.type} 
+                            width={20} 
+                            height={20}
+                            style={{ imageRendering: 'pixelated' }}
+                          />
+                          <span className="ml-1 text-xs font-pixelify text-[#304700] truncate max-w-[60px]">{activity.name}</span>
+                        </div>
+                        <span className="text-xs font-numbers font-bold text-[#304700]">+{activity.points}</span>
+                      </div>
+                      <div className="text-[10px] text-[#304700]/70 text-right">{formatActivityTime(activity.timestamp)}</div>
                     </div>
-                    <span className="text-sm font-numbers font-bold text-[#304700]">+{reward.points}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-sm font-pixelify text-[#304700]/70">
+                  No recent activities
+                </div>
+              )}
               
               <button
                 onClick={() => setShowRewardDetails(true)}
                 className="w-full mt-3 bg-[#304700] text-[#EBFFB7] py-1.5 rounded-md font-pixelify text-sm hover:bg-[#709926] transition-colors"
               >
-                View All Rewards
+                Rewards Points Guide
               </button>
             </div>
 

@@ -23,14 +23,22 @@ export async function initializeDb() {
     // Create users table
     await sql`
       CREATE TABLE IF NOT EXISTS users (
-        wallet_address TEXT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
+        wallet_address TEXT UNIQUE NOT NULL,
         username TEXT,
-        points INTEGER DEFAULT 0,
         score INTEGER DEFAULT 0,
-        multiplier REAL DEFAULT 1.0,
-        last_points_update TIMESTAMP,
         last_played TIMESTAMP,
-        created_at TIMESTAMP
+        created_at TIMESTAMP,
+        points INTEGER DEFAULT 0,
+        daily_points INTEGER DEFAULT 0,
+        last_points_update TIMESTAMP,
+        days_active INTEGER DEFAULT 0,
+        consecutive_days INTEGER DEFAULT 0,
+        referral_code TEXT UNIQUE,
+        referred_by TEXT,
+        referral_count INTEGER DEFAULT 0,
+        referral_points INTEGER DEFAULT 0,
+        multiplier REAL DEFAULT 1.0
       )
     `;
     console.log("Users table created");
@@ -39,17 +47,36 @@ export async function initializeDb() {
     await sql`
       CREATE TABLE IF NOT EXISTS pet_states (
         wallet_address TEXT PRIMARY KEY,
-        health INTEGER DEFAULT 30,
-        happiness INTEGER DEFAULT 40,
-        hunger INTEGER DEFAULT 50,
-        cleanliness INTEGER DEFAULT 40,
-        energy INTEGER DEFAULT 30,
-        quality_score INTEGER DEFAULT 0,
+        health INTEGER DEFAULT 100,
+        happiness INTEGER DEFAULT 100,
+        hunger INTEGER DEFAULT 100,
+        cleanliness INTEGER DEFAULT 100,
+        energy INTEGER DEFAULT 100,
+        last_interaction_time TIMESTAMP,
         last_state_update TIMESTAMP,
+        quality_score INTEGER DEFAULT 0,
+        last_message TEXT,
+        last_reaction TEXT,
+        is_dead BOOLEAN DEFAULT false,
         FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
       )
     `;
     console.log("Pet states table created");
+
+    // Create user activities table
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_activities (
+        id SERIAL PRIMARY KEY,
+        wallet_address TEXT NOT NULL,
+        activity_id TEXT UNIQUE NOT NULL,
+        activity_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        points INTEGER DEFAULT 0,
+        timestamp TIMESTAMP NOT NULL,
+        FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
+      );
+    `;
+    console.log("User activities table created");
 
     console.log('Database tables initialized successfully');
     return true;

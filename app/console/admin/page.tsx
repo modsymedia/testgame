@@ -19,7 +19,7 @@ export default function AdminPage() {
     if (walletData) {
       console.log('👛 Wallet Data Loaded:', {
         publicKey: publicKey,
-        petName: walletData.petName,
+        username: walletData.username,
         points: walletData.points,
         stats: {
           health: walletData.health,

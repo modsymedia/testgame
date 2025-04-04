@@ -56,7 +56,7 @@ export interface CooldownTimers {
 export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   const { isConnected, publicKey, walletData } = useWallet();
   const { setGlobalPoints } = usePoints();
-  const petName = walletData?.petName || 'Pet';
+  const username = walletData?.username || 'User';
   
   // Get AI-driven behavior
   const { 
@@ -69,7 +69,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     getPetMessageForInteraction,
     petMessage,
     petReaction
-  } = usePetAI(petName, publicKey || '', initialStats);
+  } = usePetAI(username, publicKey || '', initialStats);
   
   // Initialize stats from wallet data if available
   const initialWalletStats = isConnected && walletData?.petStats 

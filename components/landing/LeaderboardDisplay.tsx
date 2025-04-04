@@ -168,13 +168,13 @@ export default function LeaderboardDisplay() {
   const getTrophyColor = (rank: number) => {
     switch (rank) {
       case 1:
-        return "text-yellow-500";
+        return "text-yellow-400"; // Brighter gold
       case 2:
-        return "text-gray-400";
+        return "text-slate-300"; // Brighter silver
       case 3:
-        return "text-amber-700";
+        return "text-amber-600"; // Brighter bronze
       default:
-        return "text-gray-300";
+        return "text-gray-400"; // Slightly darker for other positions
     }
   };
 
@@ -208,11 +208,6 @@ export default function LeaderboardDisplay() {
     // Then try wallet data
     if (walletData?.username) {
       return walletData.username;
-    }
-    
-    // Then try pet name
-    if (walletData?.petName) {
-      return walletData.petName;
     }
     
     // Fallback to wallet address

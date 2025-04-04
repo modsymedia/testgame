@@ -10,7 +10,7 @@ export default async function handler(
 ) {
   try {
     if (req.method === 'POST') {
-      const { walletAddress, score, petState, petName } = req.body;
+      const { walletAddress, score, petState, username } = req.body;
       
       if (!walletAddress) {
         return res.status(400).json({ 
@@ -27,13 +27,13 @@ export default async function handler(
         `;
         
         if (existingUser.length > 0) {
-          // Update existing user
-          const updateQuery = petName 
+          // Update existing user with username
+          const updateQuery = username 
             ? sql`
                 UPDATE users 
                 SET points = ${score}, 
                     last_points_update = ${new Date().toISOString()},
-                    username = ${petName}
+                    username = ${username}
                 WHERE wallet_address = ${walletAddress}
               `
             : sql`
@@ -95,7 +95,8 @@ export default async function handler(
             message: 'Wallet data updated' 
           });
         } else {
-          // Create new user
+          // Create new user with username
+          const defaultUsername = `User_${walletAddress.substring(0, 4)}`;
           await sql`
             INSERT INTO users (
               wallet_address, points, last_points_update, created_at, username
@@ -104,7 +105,7 @@ export default async function handler(
               ${score || 0},
               ${new Date().toISOString()},
               ${new Date().toISOString()},
-              ${petName || `Pet_${walletAddress.substring(0, 4)}`}
+              ${username || defaultUsername}
             )
           `;
           
@@ -186,7 +187,7 @@ export default async function handler(
         // Format and return user data
         const userData = {
           walletAddress: user[0].wallet_address,
-          username: user[0].username || `Pet_${walletAddress.substring(0, 4)}`,
+          username: user[0].username || `User_${walletAddress.substring(0, 4)}`,
           points: user[0].points || 0,
           multiplier: user[0].multiplier || 1.0,
           lastUpdated: user[0].last_points_update ? new Date(user[0].last_points_update) : null,
@@ -215,7 +216,7 @@ export default async function handler(
         });
       }
     } else if (req.method === 'PUT') {
-      const { walletAddress, action, petName } = req.body;
+      const { walletAddress, action, username } = req.body;
       
       if (!walletAddress) {
         return res.status(400).json({ 
@@ -238,38 +239,21 @@ export default async function handler(
         }
         
         // Handle update actions
-        if (action === 'setPetName' && petName) {
+        if (action === 'setUsername' && username) {
           await sql`
             UPDATE users 
-            SET username = ${petName}
+            SET username = ${username}
             WHERE wallet_address = ${walletAddress}
           `;
           
           return res.status(200).json({ 
             success: true, 
-            message: 'Pet name updated' 
-          });
-        } else if (action === 'burnPoints') {
-          // Burn points operation (reduce by 50%)
-          const currentPoints = existingUser[0].points || 0;
-          const remainingPoints = Math.floor(currentPoints * 0.5);
-          
-          await sql`
-            UPDATE users 
-            SET points = ${remainingPoints},
-                last_points_update = ${new Date().toISOString()}
-            WHERE wallet_address = ${walletAddress}
-          `;
-          
-          return res.status(200).json({ 
-            success: true, 
-            message: 'Points burned successfully',
-            remainingPoints 
+            message: 'Username updated' 
           });
         } else {
           return res.status(400).json({ 
             success: false, 
-            error: 'Invalid action or missing required data' 
+            error: 'Invalid action or missing parameters' 
           });
         }
       } catch (dbError: any) {
@@ -287,12 +271,13 @@ export default async function handler(
         error: 'Method not allowed' 
       });
     }
-  } catch (error) {
-    console.error('Server error:', error);
+  } catch (error: any) {
+    console.error('Server error:', error.message);
     
     return res.status(500).json({ 
       success: false, 
-      error: 'Server error' 
+      error: 'Server error', 
+      details: error.message 
     });
   }
 } 

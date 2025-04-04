@@ -80,7 +80,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
         body: JSON.stringify({
           walletAddress: publicKey,
           score: data.petStats?.points || 0,
-          petName: data.petName,
+          username: data.username,
           petState: {
             health: data.petStats?.health || 30,
             happiness: data.petStats?.happiness || 40,
@@ -152,7 +152,7 @@ export async function loadWalletData(publicKey: string): Promise<any> {
               if (success && data) {
                 // Merge server data with local data, keeping local values if they're higher
                 const mergedData = {
-                  petName: data.username || parsedData.petName,
+                  username: data.username || parsedData.username,
                   points: Math.max(data.points || 0, parsedData.points || 0),
                   multiplier: Math.max(data.multiplier || 1.0, parsedData.multiplier || 1.0),
                   lastLogin: parsedData.lastLogin,
@@ -207,7 +207,7 @@ export async function loadWalletData(publicKey: string): Promise<any> {
       
       // Format data for client use
       const formattedData = {
-        petName: data.username || `Pet_${publicKey.substring(0, 4)}`,
+        username: data.username || `User_${publicKey.substring(0, 4)}`,
         points: data.points || 0,
         multiplier: data.multiplier || 1.0,
         lastLogin: data.lastUpdated ? new Date(data.lastUpdated).getTime() : Date.now(),
@@ -264,7 +264,7 @@ export async function loadWalletData(publicKey: string): Promise<any> {
 // Helper function to create default wallet data
 function createDefaultWalletData(publicKey: string) {
   return {
-    petName: `Pet_${publicKey.substring(0, 4)}`,
+    username: `User_${publicKey.substring(0, 4)}`,
     points: 0,
     multiplier: 1.0,
     lastLogin: Date.now(),

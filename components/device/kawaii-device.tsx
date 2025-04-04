@@ -21,6 +21,16 @@ import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
 import Image from "next/image";
 import CustomSlider from "@/components/game/CustomSlider";
+import { dbService } from "@/lib/database-service";
+
+// Add this interface for activities right after the imports
+interface UserActivity {
+  id: string;
+  type: 'feed' | 'play' | 'clean' | 'heal' | string;
+  name: string;
+  points: number;
+  timestamp: number;
+}
 
 // Add this component near the top of the file, outside the KawaiiDevice component
 interface StatusHeaderProps {
@@ -75,6 +85,46 @@ export function KawaiiDevice() {
   // Add state to track the most recent task type
   const [mostRecentTask, setMostRecentTask] = useState<string | null>(null);
   
+  // Add this new state for tracking user activities
+  const [userActivities, setUserActivities] = useState<UserActivity[]>([]);
+  const [isActivitiesLoading, setIsActivitiesLoading] = useState(true);
+  
+  // Load user activities from database on component mount
+  useEffect(() => {
+    async function loadUserActivities() {
+      if (!publicKey) return;
+      
+      try {
+        setIsActivitiesLoading(true);
+        
+        // Load activities from the database service (correct usage)
+        const activities = await dbService.getUserActivities(publicKey);
+        
+        setUserActivities(activities);
+      } catch (error) {
+        console.error("Failed to load user activities:", error);
+      } finally {
+        setIsActivitiesLoading(false);
+      }
+    }
+    
+    loadUserActivities();
+  }, [publicKey]);
+  
+  // Function to save activity to database
+  const saveActivityToDatabase = async (activity: UserActivity) => {
+    if (!publicKey) return;
+    
+    try {
+      // Save activity to the database using the service (correct usage)
+      await dbService.saveUserActivity(publicKey, activity);
+      
+      console.log("Activity saved to DB:", activity.name);
+    } catch (error) {
+      console.error("Failed to save activity to database:", error);
+    }
+  };
+
   // Redirect to landing if not connected
   useEffect(() => {
     if (!isConnected) {
@@ -357,24 +407,52 @@ export function KawaiiDevice() {
                     mostRecentTask={mostRecentTask} />;
   };
 
-  // Define handleInteraction before it's used in handleButtonClick
+  // Modify the handleInteraction function to also record activities
   const handleInteraction = async (type: string) => {
     // Set the most recent task type
     setMostRecentTask(type);
     
+    let activityPoints = 0;
+    let activityName = "";
+    
     switch (type) {
       case 'feed':
         await handleFeeding(); // Handle async operation
+        activityName = ["Fish", "Cookie", "Cat Food", "Kibble"][selectedFoodItem || 0];
+        activityPoints = [15, 10, 20, 12][selectedFoodItem || 0];
         break;
       case 'play':
         await handlePlaying(); // Handle async operation
+        activityName = ["Laser", "Feather", "Ball", "Puzzle"][selectedPlayItem || 0];
+        activityPoints = [20, 15, 18, 25][selectedPlayItem || 0];
         break;
       case 'clean':
         await handleCleaning(); // Handle async operation
+        activityName = ["Brush", "Bath", "Nails", "Dental"][selectedCleanItem || 0];
+        activityPoints = [18, 25, 15, 20][selectedCleanItem || 0];
         break;
       case 'doctor':
         await handleDoctor(); // Handle async operation
+        activityName = ["Checkup", "Medicine", "Vaccine", "Surgery"][selectedDoctorItem || 0];
+        activityPoints = [25, 30, 35, 40][selectedDoctorItem || 0];
         break;
+    }
+    
+    // Record the activity if there are points
+    if (activityPoints > 0) {
+      const newActivity: UserActivity = {
+        id: Date.now().toString(),
+        type,
+        name: activityName,
+        points: activityPoints,
+        timestamp: Date.now()
+      };
+      
+      // Update activities in state - keep only the latest 4
+      setUserActivities(prev => [newActivity, ...prev].slice(0, 4));
+      
+      // Save activity to database
+      await saveActivityToDatabase(newActivity);
     }
   };
 
@@ -677,7 +755,7 @@ export function KawaiiDevice() {
       {/* Responsive layout container */}
       <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-3 sm:gap-6 items-stretch justify-center">
         {/* Left column - AI Pet Advisor */}
-        <div className="w-full lg:w-1/4 order-2 lg:order-1 min-h-[200px] px-0">
+        <div className="w-full lg:w-1/4 order-2 lg:order-1 min-h-[200px] min-w-[280px] px-0">
           <AIPetAdvisor 
             isDead={isDead}
             food={food}
@@ -738,16 +816,20 @@ export function KawaiiDevice() {
         </div>
 
         {/* Right column - Points Earned Panel */}
-        <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] px-0">
+        <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] min-w-[280px] px-0">
           <PointsEarnedPanel 
             className="w-full h-full"
             currentPoints={userData.points}
             pointsMultiplier={walletData?.multiplier || 1.0}
+            recentActivities={userActivities} // Pass user activities
+            isLoading={isActivitiesLoading} // Pass loading state
             onPointsEarned={useCallback((earnedPoints: number) => {
               const newPoints = userData.points + earnedPoints;
               if (newPoints !== lastUpdatedPointsRef.current) {
                 updateUserDataPoints(newPoints);
                 lastUpdatedPointsRef.current = newPoints;
+                
+                // Don't create an activity for auto points - we only want to show interactions
               }
             }, [userData.points, lastUpdatedPointsRef, updateUserDataPoints])}
           />

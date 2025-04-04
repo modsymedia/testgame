@@ -20,7 +20,7 @@ interface WalletContextType {
   burnPoints: () => Promise<number | undefined>;
   error: string | null;
   isNewUser: boolean;
-  setPetName: (name: string) => Promise<boolean>;
+  setUsername: (username: string) => Promise<boolean>;
   availableWallets: Array<{name: string, label: string, icon: string}>;
   currentWalletName: string | null;
 }
@@ -35,7 +35,7 @@ const defaultContext: WalletContextType = {
   burnPoints: async () => undefined,
   error: null,
   isNewUser: false,
-  setPetName: async () => false,
+  setUsername: async () => false,
   availableWallets: [],
   currentWalletName: null
 };
@@ -147,7 +147,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
                 // Merge local and server data, with server data taking precedence
                 const mergedData = {
                   ...data,
-                  petName: serverData.userData.username || data.petName,
+                  username: serverData.userData.username || data.username,
                   points: serverData.userData.points || data.points,
                   petStats: {
                     ...data.petStats,
@@ -209,7 +209,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
                 // Merge local and server data, with server data taking precedence
                 const mergedData = {
                   ...data,
-                  petName: serverData.userData.username || data.petName,
+                  username: serverData.userData.username || data.username,
                   points: serverData.userData.points || data.points,
                   petStats: {
                     ...data.petStats,
@@ -396,7 +396,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
                 // Merge local and server data, with server data taking precedence
                 const mergedData = {
                   ...walletData,
-                  petName: serverData.userData.username || walletData.petName,
+                  username: serverData.userData.username || walletData.username,
                   points: serverData.userData.points || walletData.points,
                   petStats: {
                     ...walletData.petStats,
@@ -425,7 +425,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
             // Mark as new user so we can show pet name form
             setIsNewUser(true);
             const defaultData = {
-              petName: `Pet_${key.substring(0, 4)}`,
+              username: `User_${key.substring(0, 4)}`,
               points: 0,
               multiplier: 1.0,
               lastLogin: Date.now(),
@@ -454,7 +454,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
           console.error('Error loading wallet data:', dataError);
           // Set default values if data loading fails
           setWalletData({
-            petName: `Pet_${key.substring(0, 4)}`,
+            username: `User_${key.substring(0, 4)}`,
             points: 0,
             multiplier: 1.0,
             lastLogin: Date.now(),
@@ -561,12 +561,12 @@ export function WalletProvider({ children }: WalletProviderProps) {
     return remainingPoints;
   };
   
-  // Add function to set pet name for new users
-  const setPetName = async (petName: string): Promise<boolean> => {
+  // Add function to set username for users
+  const setUsername = async (username: string): Promise<boolean> => {
     if (!publicKey || !walletData) return false;
     
     try {
-      // Use PUT endpoint specifically for pet name update
+      // Use PUT endpoint specifically for username update
       const response = await fetch('/api/wallet', {
         method: 'PUT',
         headers: {
@@ -574,20 +574,20 @@ export function WalletProvider({ children }: WalletProviderProps) {
         },
         body: JSON.stringify({
           walletAddress: publicKey,
-          action: 'setPetName',
-          petName: petName
+          action: 'setUsername',
+          username: username
         }),
       });
       
       if (!response.ok) {
-        console.warn('Failed to save pet name to server');
+        console.warn('Failed to save username to server');
         return false;
       }
       
       // Update local state
       const updatedWalletData = {
         ...walletData,
-        petName: petName
+        username: username
       };
       
       setWalletData(updatedWalletData);
@@ -597,7 +597,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       
       return true;
     } catch (error) {
-      console.error('Error setting pet name:', error);
+      console.error('Error setting username:', error);
       return false;
     }
   };
@@ -612,7 +612,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     burnPoints,
     error,
     isNewUser,
-    setPetName,
+    setUsername,
     availableWallets,
     currentWalletName
   };

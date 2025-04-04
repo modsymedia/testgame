@@ -1,5 +1,6 @@
 import { Header } from '@/components/ui/navigation/Header';
 import Image from 'next/image';
+import WelcomeOverlay from '@/components/ui/welcome-overlay';
 
 export default function ConsoleLayout({
   children,
@@ -24,6 +25,9 @@ export default function ConsoleLayout({
         <Header />
         {children}
       </div>
+      
+      {/* Welcome Overlay */}
+      <WelcomeOverlay />
     </div>
   );
 } 
