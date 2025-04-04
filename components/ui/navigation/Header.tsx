@@ -114,7 +114,7 @@ export function Header() {
             {/* Mobile Social Links */}
             <div className="flex items-center gap-2 p-3 border-t border-[#304700]/10">
               <a 
-                href="https://x.com/gochiGame" 
+                href="https://x.com/gochionsol" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-[#304700] hover:text-[#304700]/80"
@@ -196,7 +196,7 @@ export function Header() {
           noPadding
         >
           <a 
-            href="https://x.com/gochiGame" 
+            href="https://x.com/gochionsol" 
             target="_blank" 
             rel="noopener noreferrer"
             className="w-full h-full flex items-center justify-center"
