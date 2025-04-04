@@ -28,10 +28,10 @@ const CustomSlider: React.FC<CustomSliderProps> = ({
         </div>
       )}
       <PixelatedContainer
-        className="h-3"
+        className="h-[7px]"
         bgcolor={backgroundColor}
         borderColor="#61654a"
-        borderSize={2}
+        borderSize={1}
         noPadding
       >
         <div className="w-full h-full bg-gray-200/20">

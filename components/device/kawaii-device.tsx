@@ -49,8 +49,8 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
           <Image 
             src="/assets/icons/hart.png" 
             alt="Health" 
-            width={24} 
-            height={24} 
+            width={20} 
+            height={20} 
             className="mr-2"
             style={{ imageRendering: 'pixelated' }}
           />
@@ -672,12 +672,12 @@ export function KawaiiDevice() {
   }, [isOnCooldown.feed, isOnCooldown.clean, mostRecentTask]);
 
   return (
-    <div className="flex w-full min-h-screen p-4 items-center justify-center">
+    <div className="flex w-full min-h-screen p-2 sm:p-4 items-center justify-center">
       
       {/* Responsive layout container */}
-      <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-6 items-center justify-center">
+      <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-3 sm:gap-6 items-stretch justify-center">
         {/* Left column - AI Pet Advisor */}
-        <div className="flexw-full lg:w-1/4 order-2 lg:order-1">
+        <div className="w-full lg:w-1/4 order-2 lg:order-1 min-h-[200px] px-0">
           <AIPetAdvisor 
             isDead={isDead}
             food={food}
@@ -687,11 +687,12 @@ export function KawaiiDevice() {
             health={health}
             aiAdvice={aiAdvice}
             aiPersonality={aiPersonality}
+            className="h-full"
           />
         </div>
 
         {/* Center column - Game device */}
-        <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2">
+        <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2 mx-auto">
           <motion.div
             className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative"
             initial={{ scale: 0.9, opacity: 0 }}
@@ -737,9 +738,9 @@ export function KawaiiDevice() {
         </div>
 
         {/* Right column - Points Earned Panel */}
-        <div className="w-full lg:w-1/4 flex justify-center order-3">
+        <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] px-0">
           <PointsEarnedPanel 
-            className="w-full"
+            className="w-full h-full"
             currentPoints={userData.points}
             pointsMultiplier={walletData?.multiplier || 1.0}
             onPointsEarned={useCallback((earnedPoints: number) => {

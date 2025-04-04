@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import PixelatedContainer from '@/components/game/PixelatedContainer';
 import { motion, AnimatePresence } from 'framer-motion';
+import CustomSlider from '@/components/game/CustomSlider';
 
 interface PointsEarnedPanelProps {
   currentPoints: number;
@@ -128,7 +129,6 @@ export const PointsEarnedPanel = ({
   const TIMER_DURATION = 10; // 10 seconds per cycle
   const POINTS_PER_CYCLE = 2; // 2 points per cycle
   
-
   // States
   const [localPoints, setLocalPoints] = useState(currentPoints);
   const [lastPointsAdded, setLastPointsAdded] = useState<number | null>(null);
@@ -195,12 +195,16 @@ export const PointsEarnedPanel = ({
     };
   }, [animate]);
   
-  // Calculate progress bar color based on progress
+  // Get color for progress bar based on progress
   const getProgressColor = () => {
-    if (progress > 75) return 'from-[#c2ff59] to-[#ebffb7]';
-    if (progress > 50) return 'from-[#99cc33] to-[#c2ff59]';
-    if (progress > 25) return 'from-[#709926] to-[#99cc33]';
-    return 'from-[#304700] to-[#709926]';
+    if (progress > 75) return '#c2ff59'; // Light green
+    if (progress > 40) return '#a7ba75'; // Medium green
+    return '#304700';  // Dark olive green
+  };
+  
+  // Format points with commas for thousands
+  const formatPoints = (pts: number) => {
+    return pts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
   
   return (
@@ -214,7 +218,7 @@ export const PointsEarnedPanel = ({
       <PixelatedContainer noPadding>
         <div className="w-full">
           {/* Header with highlight effect */}
-          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-4 border-[#304700] relative overflow-hidden">
+          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between border-b-[2px] border-[#304700]/30 relative overflow-hidden">
             <motion.div 
               className="absolute inset-0 bg-white opacity-0"
               animate={{ 
@@ -222,57 +226,96 @@ export const PointsEarnedPanel = ({
               }}
               transition={{ duration: 0.5 }}
             />
-            <span className="text-xl font-bold font-pixelify relative z-10">Points Earned</span>
+            <span className="text-lg font-bold font-pixelify relative z-10">Points Earned</span>
             <div className="flex items-center">
               <Image
                 src="/assets/icons/info.svg"
                 alt="Info"
-                width={24}
-                height={24}
+                width={20}
+                height={20}
                 className="text-[#304700]"
               />
             </div>
           </div>
 
           {/* Body */}
-          <div className="bg-[#CADA9B] p-4">
-            {/* Current Points with highlight on change */}
-            <motion.div 
-              className="text-2xl font-bold font-numbers text-[#304700] mb-4"
-              animate={{ 
-                scale: lastPointsAdded !== null ? [1, 1.05, 1] : 1,
-                color: lastPointsAdded !== null ? ['#304700', '#ff6600', '#304700'] : '#304700'
-              }}
-              transition={{ duration: 0.5 }}
-            >
-              {Math.round(localPoints)}
-            </motion.div>
-
-            {/* Points Rate and Timer */}
-            <div className="mb-4">
-              <div className="flex justify-between text-lg font-pixelify text-[#304700] mb-2">
-                <span>+{POINTS_PER_CYCLE} points every {TIMER_DURATION}s</span>
-                <span className="font-numbers">{timeRemaining.toFixed(1)}s</span>
+          <div className="bg-[#CADA9B] p-3 sm:p-4">
+            {/* Points Summary */}
+            <div className="mb-4 p-2 bg-[#ebffb7] rounded border border-[#304700]/20">
+              {/* Current Points with highlight on change */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-pixelify text-[#304700]">Current Points:</span>
+                <motion.div 
+                  className="text-xl font-bold font-numbers text-[#304700]"
+                  animate={{ 
+                    scale: lastPointsAdded !== null ? [1, 1.05, 1] : 1,
+                    color: lastPointsAdded !== null ? ['#304700', '#709926', '#304700'] : '#304700'
+                  }}
+                  transition={{ duration: 0.5 }}
+                >
+                  {formatPoints(Math.round(localPoints))}
+                </motion.div>
               </div>
-              <div className="h-2 bg-[#304700]/20 rounded-full">
-                <div 
-                  className="h-full bg-[#304700] transition-all duration-100"
-                  style={{ width: `${progress}%` }}
-                />
+              
+              {/* Point Multiplier */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-pixelify text-[#304700]">Multiplier:</span>
+                <span className="text-sm font-numbers font-bold text-[#304700]">
+                  {pointsMultiplier}x
+                </span>
               </div>
             </div>
 
-            {/* Task Rewards Section - Updated with new design */}
-            <div>
-              <div className="flex justify-between items-center mb-3 border-t-2 border-[#304700] pt-4">
-                <div className="text-xl font-bold font-pixelify text-[#304700]">Task Rewards</div>
-                <button
-                  onClick={() => setShowRewardDetails(true)}
-                  className="bg-[#304700] text-[#EBFFB7] px-3 py-1 rounded-md font-pixelify text-sm hover:bg-[#709926] transition-colors"
-                >
-                  Check Reward System
-                </button>
+            {/* Points Rate and Timer */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm font-pixelify text-[#304700]">Next points in:</span>
+                <span className="text-sm font-numbers font-medium">{timeRemaining.toFixed(1)}s</span>
               </div>
+              <CustomSlider 
+                value={progress} 
+                maxValue={100} 
+                backgroundColor="#ebffb7"
+                barColor={getProgressColor()}
+              />
+              <div className="mt-1 text-xs font-pixelify text-[#304700] text-right">
+                +{POINTS_PER_CYCLE * pointsMultiplier} points every {TIMER_DURATION}s
+              </div>
+            </div>
+
+            {/* Task Rewards Section */}
+            <div>
+              <div className="py-2 border-t border-b border-[#304700]/20 mb-3">
+                <div className="text-md font-bold font-pixelify text-[#304700]">Activity Rewards</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                {TASK_REWARDS.slice(0, 4).map((reward, index) => (
+                  <div 
+                    key={index}
+                    className="flex flex-col items-center bg-[#ebffb7] p-2 rounded border border-[#304700]/20"
+                  >
+                    <div className="flex items-center">
+                      <Image 
+                        src={reward.icon} 
+                        alt={reward.name} 
+                        width={24} 
+                        height={24}
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                      <span className="text-xs font-pixelify ml-1 text-[#304700]">{reward.name}</span>
+                    </div>
+                    <span className="text-sm font-numbers font-bold text-[#304700]">+{reward.points}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <button
+                onClick={() => setShowRewardDetails(true)}
+                className="w-full mt-3 bg-[#304700] text-[#EBFFB7] py-1.5 rounded-md font-pixelify text-sm hover:bg-[#709926] transition-colors"
+              >
+                View All Rewards
+              </button>
             </div>
 
             {/* Add RewardDetailsPopup */}

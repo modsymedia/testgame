@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/forms/button';
 import { Input } from '@/components/ui/forms/input';
@@ -17,6 +17,7 @@ export function PetNameModal() {
   const [petNameInput, setPetNameInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const prevConnectedRef = useRef(false);
 
   // Set initial name field
   useEffect(() => {
@@ -26,13 +27,17 @@ export function PetNameModal() {
     }
   }, [publicKey]);
 
-  // Show dialog only for new users
+  // Show dialog when user logs in by tracking connection state changes
   useEffect(() => {
-    if (isConnected && isNewUser) {
-      console.log("New user connected, showing pet name modal");
+    // Only open modal when transitioning from disconnected to connected
+    if (isConnected && !prevConnectedRef.current) {
+      console.log("User connected, showing pet name modal");
       setOpen(true);
     }
-  }, [isConnected, isNewUser]);
+    
+    // Update previous connection state
+    prevConnectedRef.current = isConnected;
+  }, [isConnected]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,13 +72,13 @@ export function PetNameModal() {
     }
   };
 
-  // Prevent closing the modal if we have a default name
+  // Modify the handleOpenChange to allow closing if the user is not new
   const handleOpenChange = (newOpen: boolean) => {
-    // Only allow closing if submitting or form has been completed
+    // Allow closing for existing users, only require input for new users
     if (!newOpen && isSubmitting) {
       setOpen(false);
-    } else if (!newOpen) {
-      // If trying to close with a default name, show an error
+    } else if (!newOpen && isNewUser) {
+      // If trying to close with a default name for new users, show an error
       setError('Please choose a name for your pet first');
     } else {
       setOpen(newOpen);
@@ -86,7 +91,9 @@ export function PetNameModal() {
         <DialogHeader>
           <DialogTitle>Name Your Pet</DialogTitle>
           <DialogDescription>
-            Please enter a name for your new pet
+            {isNewUser 
+              ? "Please enter a name for your new pet" 
+              : "Welcome back! Would you like to change your pet's name?"}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -99,7 +106,7 @@ export function PetNameModal() {
                 id="name"
                 value={petNameInput}
                 onChange={(e) => setPetNameInput(e.target.value)}
-                placeholder="Enter your pet's name"
+                placeholder={walletData?.petName || "Enter your pet's name"}
                 className="col-span-3"
                 maxLength={16}
                 required
@@ -108,6 +115,16 @@ export function PetNameModal() {
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
           </div>
           <DialogFooter>
+            {!isNewUser && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                className="mr-2"
+              >
+                Skip
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting || !petNameInput.trim()}>
               {isSubmitting ? 'Saving...' : 'Save Name'}
             </Button>
