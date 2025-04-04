@@ -8,6 +8,7 @@ interface CustomSliderProps {
   className?: string;
   barColor?: string;
   backgroundColor?: string;
+  borderWidth?: number;
 }
 
 const CustomSlider: React.FC<CustomSliderProps> = ({
@@ -16,7 +17,8 @@ const CustomSlider: React.FC<CustomSliderProps> = ({
   label,
   className = "",
   barColor = "#a7ba75",
-  backgroundColor = "#EBFFB7"
+  backgroundColor = "#EBFFB7",
+  borderWidth = 2
 }) => {
   const percentage = Math.min(100, (value / maxValue) * 100);
 
@@ -31,7 +33,7 @@ const CustomSlider: React.FC<CustomSliderProps> = ({
         className="h-[7px]"
         bgcolor={backgroundColor}
         borderColor="#61654a"
-        borderSize={1}
+        borderSize={borderWidth}
         noPadding
       >
         <div className="w-full h-full bg-gray-200/20">

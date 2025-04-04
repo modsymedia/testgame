@@ -1,0 +1,26 @@
+<svg width="937" height="1210" viewBox="0 0 937 1210" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="game device">
+<g id="game screen">
+<rect width="579.857" height="640.049" transform="translate(178.571 222.713)" fill="#A18A8A"/>
+</g>
+<rect id="Layer 2 1" width="937" height="1209.87" fill="url(#pattern0_6311_3526)"/>
+<g id="btn left">
+<rect x="188.604" y="930.98" width="122.392" height="122.392" rx="61.1959" fill="#697140"/>
+</g>
+<g id="btn right">
+<rect x="335.073" y="930.98" width="122.392" height="122.392" rx="61.1959" fill="#697140"/>
+</g>
+<g id="btn accept">
+<rect x="481.542" y="930.98" width="122.392" height="122.392" rx="61.1959" fill="#697140"/>
+</g>
+<g id="btn cancel">
+<rect x="628.011" y="930.98" width="122.392" height="122.392" rx="61.1959" fill="#697140"/>
+</g>
+</g>
+<defs>
+<pattern id="pattern0_6311_3526" patternContentUnits="objectBoundingBox" width="1" height="1">
+<use xlink:href="#image0_6311_3526" transform="matrix(0.00101912 0 0 0.000789266 0.00419984 0)"/>
+</pattern>
+<image id="image0_6311_3526" data-name="gamepad(edit).png" width="973" height="1267" preserveAspectRatio="none" xlink:href="data:..."/>
+</defs>
+</svg>

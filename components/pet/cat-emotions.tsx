@@ -150,7 +150,7 @@ export function DeadCat() {
       
       {/* Character image */}
       <Image 
-        src="/assets/character/idle.webp" 
+        src="/assets/character/Dead.png" 
         alt="Dead pet character" 
         width={190} 
         height={190}

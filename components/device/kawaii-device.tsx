@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
+import Image from "next/image";
 import { StatusBar } from "@/components/ui/status-bar";
 import { PixelIcon } from "@/components/ui/pixel-icon";
-import { DeviceIndicators } from "./device-indicators";
 import { HappyCat, AlertCat, SadCat, TiredCat, HungryCat, DeadCat } from "@/components/pet/cat-emotions";
 import { usePetInteractions, DEFAULT_COOLDOWNS } from "@/hooks/use-pet-interactions";
 import { useMenuNavigation } from "@/hooks/use-menu-navigation";
@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/forms/button";
 import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
-import Image from "next/image";
 import CustomSlider from "@/components/game/CustomSlider";
 import { dbService } from "@/lib/database-service";
 
@@ -40,18 +39,18 @@ interface StatusHeaderProps {
 
 const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
   return (
-    <div className="flex justify-between w-full mb-2">
+    <div className="flex justify-between w-full pt-2 pb-1 px-5">
       <div className="flex-1">
         <div className="flex items-center">
           <Image 
             src="/assets/icons/coin.png" 
             alt="Coins" 
-            width={24} 
-            height={24} 
+            width={25} 
+            height={25} 
             className="mr-1"
             style={{ imageRendering: 'pixelated' }}
           />
-          <span className="text-s text-[#4b6130] font-numbers">{formatPoints(animatedPoints)}</span>
+          <span className="text-base text-[#4b6130] font-numbers">{formatPoints(animatedPoints)}</span>
         </div>
       </div>
       <div className="flex-1 ml-2">
@@ -59,9 +58,9 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
           <Image 
             src="/assets/icons/hart.png" 
             alt="Health" 
-            width={20} 
-            height={20} 
-            className="mr-2"
+            width={21} 
+            height={21} 
+            className="mr-1"
             style={{ imageRendering: 'pixelated' }}
           />
           <CustomSlider 
@@ -70,6 +69,7 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
             backgroundColor="#EBFFB7"
             barColor="#a7ba75"
             className="flex-1 mb-1"
+            borderWidth={2}
           />
         </div>
       </div>
@@ -554,23 +554,25 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex flex-col items-center justify-center">
-            {getCatEmotion()}
-            <p className="text-red-500 font-bold mt-4">Your pet has died!</p>
+            <div className="transform scale-75">
+              {getCatEmotion()}
+            </div>
+            <p className="text-red-500 font-bold mt-4 text-base">Your pet has died!</p>
             <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">100</span></p>
             
             {showReviveConfirm ? (
               <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
-                <p className="text-xs mb-3">Current points: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
+                <p className="text-xs mb-2">Current points: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
                 <div className="flex space-x-2 justify-center">
                   <button 
                     onClick={handleReviveConfirm} 
-                    className="bg-green-500 text-white py-1 px-3 rounded-md text-xs"
+                    className="bg-green-500 text-white py-1 px-4 rounded-md text-xs"
                   >
                     Confirm
                   </button>
                   <button 
                     onClick={handleReviveCancel} 
-                    className="bg-red-500 text-white py-1 px-3 rounded-md text-xs"
+                    className="bg-red-500 text-white py-1 px-4 rounded-md text-xs"
                   >
                     Cancel
                   </button>
@@ -579,7 +581,7 @@ export function KawaiiDevice() {
             ) : (
               <button 
                 onClick={handleReviveRequest} 
-                className="mt-2 bg-green-500 text-white py-1 px-3 rounded-md"
+                className="mt-2 bg-green-500 text-white py-1 px-6 rounded-md text-sm"
               >
                 Revive
               </button>
@@ -594,138 +596,143 @@ export function KawaiiDevice() {
       return (
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
-          <div className="flex-grow flex items-center justify-center relative">
-            <div className="relative w-full">
+          <div className="flex-grow flex items-center justify-center relative mb-[12px]">
+            <div className="relative w-full scale-[0.9]">
               {getCatEmotion()}
             </div>
           </div>
-          <div className="flex justify-around w-full px-2 pt-2">
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["food", "clean", "doctor", "play"].map((icon, index) => (
-              <PixelIcon
-                key={index}
-                icon={icon as "food" | "clean" | "doctor" | "play"}
-                isHighlighted={selectedMenuItem === index}
-                label={icon.charAt(0).toUpperCase() + icon.slice(1)}
-                cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
-                maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
-                isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
-                onClick={() => {
-                  setSelectedMenuItem(index);
-                  handleButtonClick("a");
-                }}
-              />
+              <div key={index} className="transform scale-100">
+                <PixelIcon
+                  icon={icon as "food" | "clean" | "doctor" | "play"}
+                  isHighlighted={selectedMenuItem === index}
+                  label={icon.charAt(0).toUpperCase() + icon.slice(1)}
+                  cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
+                  maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
+                  isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
+                  onClick={() => {
+                    setSelectedMenuItem(index);
+                    handleButtonClick("a");
+                  }}
+                />
+              </div>
             ))}
           </div>
         </>
       );
     }
     
-    // Food page - show standard status bar, remove other status bars
+    // Food page
     if (menuStack[menuStack.length - 1] === "food") {
       return (
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
-          <div className="absolute top-12 left-0 right-0 text-xs text-center">Select food to feed your pet:</div>
-          <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2">
+          <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select food to feed your pet:</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["fish", "cookie", "catFood", "kibble"].map((foodItem, index) => (
-              <PixelIcon 
-                key={index}
-                icon={foodItem as any}
-                isHighlighted={selectedFoodItem === index}
-                label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
-                cooldown={cooldowns.feed}
-                maxCooldown={DEFAULT_COOLDOWNS.feed}
-                isDisabled={isOnCooldown.feed || isDead}
-                onClick={() => {
-                  setSelectedFoodItem(index);
-                  handleButtonClick("a");
-                }}
-              />
+              <div key={index} className="transform scale-100">
+                <PixelIcon 
+                  icon={foodItem as any}
+                  isHighlighted={selectedFoodItem === index}
+                  label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
+                  cooldown={cooldowns.feed}
+                  maxCooldown={DEFAULT_COOLDOWNS.feed}
+                  isDisabled={isOnCooldown.feed || isDead}
+                  onClick={() => {
+                    setSelectedFoodItem(index);
+                    handleButtonClick("a");
+                  }}
+                />
+              </div>
             ))}
           </div>
         </>
       );
     }
     
-    // Play page - show standard status bar, remove other status bars
+    // Play page
     if (menuStack[menuStack.length - 1] === "play") {
       return (
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
-          <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose a game to play:</div>
-          <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2">
+          <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose a game to play:</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["laser", "feather", "ball", "puzzle"].map((playItem, index) => (
-              <PixelIcon 
-                key={index}
-                icon={playItem as any}
-                isHighlighted={selectedPlayItem === index}
-                label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
-                cooldown={cooldowns.play}
-                maxCooldown={DEFAULT_COOLDOWNS.play}
-                isDisabled={isOnCooldown.play || isDead}
-                onClick={() => {
-                  setSelectedPlayItem(index);
-                  handleButtonClick("a");
-                }}
-              />
+              <div key={index} className="transform scale-100">
+                <PixelIcon 
+                  icon={playItem as any}
+                  isHighlighted={selectedPlayItem === index}
+                  label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
+                  cooldown={cooldowns.play}
+                  maxCooldown={DEFAULT_COOLDOWNS.play}
+                  isDisabled={isOnCooldown.play || isDead}
+                  onClick={() => {
+                    setSelectedPlayItem(index);
+                    handleButtonClick("a");
+                  }}
+                />
+              </div>
             ))}
           </div>
         </>
       );
     }
     
-    // Clean page - show standard status bar, remove other status bars
+    // Clean page
     if (menuStack[menuStack.length - 1] === "clean") {
       return (
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
-          <div className="absolute top-12 left-0 right-0 text-xs text-center">Choose grooming method:</div>
-          <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2">
+          <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose grooming method:</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["brush", "bath", "nails", "dental"].map((cleanItem, index) => (
-              <PixelIcon 
-                key={index}
-                icon={cleanItem as any}
-                isHighlighted={selectedCleanItem === index}
-                label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
-                cooldown={cooldowns.clean}
-                maxCooldown={DEFAULT_COOLDOWNS.clean}
-                isDisabled={isOnCooldown.clean || isDead}
-                onClick={() => {
-                  setSelectedCleanItem(index);
-                  handleButtonClick("a");
-                }}
-              />
+              <div key={index} className="transform scale-100">
+                <PixelIcon 
+                  icon={cleanItem as any}
+                  isHighlighted={selectedCleanItem === index}
+                  label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
+                  cooldown={cooldowns.clean}
+                  maxCooldown={DEFAULT_COOLDOWNS.clean}
+                  isDisabled={isOnCooldown.clean || isDead}
+                  onClick={() => {
+                    setSelectedCleanItem(index);
+                    handleButtonClick("a");
+                  }}
+                />
+              </div>
             ))}
           </div>
         </>
       );
     }
     
-    // Doctor page - show standard status bar, remove other status bars
+    // Doctor page
     if (menuStack[menuStack.length - 1] === "doctor") {
       return (
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
-          <div className="absolute top-12 left-0 right-0 text-xs text-center">Select treatment option:</div>
-          <div className="flex-grow flex items-center justify-center">{getCatEmotion()}</div>
-          <div className="flex justify-between w-full px-2 pt-2">
+          <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select treatment option:</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["checkup", "medicine", "vaccine", "surgery"].map((doctorItem, index) => (
-              <PixelIcon 
-                key={index}
-                icon={doctorItem as any}
-                isHighlighted={selectedDoctorItem === index}
-                label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
-                cooldown={cooldowns.heal}
-                maxCooldown={DEFAULT_COOLDOWNS.heal}
-                isDisabled={isOnCooldown.heal || isDead}
-                onClick={() => {
-                  setSelectedDoctorItem(index);
-                  handleButtonClick("a");
-                }}
-              />
+              <div key={index} className="transform scale-100">
+                <PixelIcon 
+                  icon={doctorItem as any}
+                  isHighlighted={selectedDoctorItem === index}
+                  label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
+                  cooldown={cooldowns.heal}
+                  maxCooldown={DEFAULT_COOLDOWNS.heal}
+                  isDisabled={isOnCooldown.heal || isDead}
+                  onClick={() => {
+                    setSelectedDoctorItem(index);
+                    handleButtonClick("a");
+                  }}
+                />
+              </div>
             ))}
           </div>
         </>
@@ -771,48 +778,89 @@ export function KawaiiDevice() {
 
         {/* Center column - Game device */}
         <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2 mx-auto">
-          <motion.div
-            className="w-full max-w-[320px] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-[2rem] p-4 pb-16 shadow-xl relative"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-purple-400/50" />
-            <div className="absolute top-2 left-0 right-0 flex justify-center">
-              <DeviceIndicators status={isDead ? "dead" : food < 30 ? "alert" : isFeeding || isPlaying || isCleaning || isHealing ? "active" : "idle"} />
-            </div>
-            <div className="bg-[#eff8cb] rounded-[1.5rem] p-2 mb-4 relative">
-              <div className="relative p-3 flex flex-col items-center justify-between h-[320px]">
-                <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
-                {renderMenuContent()}
+          <div className="flex justify-center items-center w-full  max-md:min-h-[100vh] max-h-[100vh]">
+            <div className="relative w-full max-w-[398px]">
+              {/* Gamepad image - base layer */}
+              <div className="relative w-[398px] h-[514px]">
+                <Image
+                  src="/assets/devices/gamepad.png"
+                  alt="Game Device"
+                  fill
+                  className="object-contain"
+                  priority
+                />
               </div>
-            </div>
-
-            <div className="relative mt-6 flex justify-around px-2 space-x-2">
-              {["Previous", "Next", "A", "B"].map((label, index) => (
-                <div key={index} className="flex flex-col items-center">
-                  <motion.button
-                    onClick={() => handleButtonClick(label.toLowerCase() as "previous" | "next" | "a" | "b")}
-                    className={`w-10 h-10 rounded-full relative group overflow-hidden ${index < 2 ? "bg-gray-300" : "bg-red-500"}`}
-                    whileTap={{ scale: 0.95 }}
-                    aria-label={label}
-                  >
-                    <div className={`absolute inset-0 rounded-full ${index < 2 ? "bg-gradient-to-br from-gray-200 to-gray-400" : "bg-gradient-to-br from-red-400 to-red-600"}`} />
-                    <div className={`absolute inset-[2px] rounded-full ${index < 2 ? "bg-gradient-to-tl from-gray-300 to-gray-200" : "bg-gradient-to-tl from-red-500 to-red-400"} flex items-center justify-center`}>
-                      {index < 2 ? (
-                        <div className={`w-5 h-5 flex items-center justify-center ${index === 0 ? "-translate-x-0.5" : "translate-x-0.5"}`}>
-                          <div className={`w-0 h-0 ${index === 0 ? "border-r-[8px] border-r-gray-500 border-y-[5px] border-y-transparent" : "border-l-[8px] border-l-gray-500 border-y-[5px] border-y-transparent"}`} />
-                        </div>
-                      ) : (
-                        <span className="text-sm font-bold text-white">{label}</span>
-                      )}
-                    </div>
-                    <div className="absolute inset-0 rounded-full opacity-0 group-active:opacity-100 bg-black/10 transition-opacity" />
-                  </motion.button>
+              
+              {/* Game screen - positioned according to SVG */}
+              <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb] rounded-lg overflow-hidden z-[-1]">
+                <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
+                  <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
+                  {renderMenuContent()}
                 </div>
-              ))}
+              </div>
+              
+              {/* Control buttons positioned according to SVG */}
+              {/* Left button */}
+              <button 
+                onClick={() => handleButtonClick("previous")}
+                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                style={{ 
+                  top: "395px", 
+                  left: "80px", 
+                  width: "52px", 
+                  height: "52px",
+                }}
+                aria-label="Previous"
+              >
+                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+              </button>
+              
+              {/* Right button */}
+              <button 
+                onClick={() => handleButtonClick("next")}
+                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                style={{ 
+                  top: "395px", 
+                  left: "142px", 
+                  width: "52px", 
+                  height: "52px",
+                }}
+                aria-label="Next"
+              >
+                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+              </button>
+              
+              {/* Accept button (A) */}
+              <button 
+                onClick={() => handleButtonClick("a")}
+                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                style={{ 
+                  top: "395px", 
+                  left: "205px", 
+                  width: "52px", 
+                  height: "52px",
+                }}
+                aria-label="A"
+              >
+                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+              </button>
+              
+              {/* Cancel button (B) */}
+              <button 
+                onClick={() => handleButtonClick("b")}
+                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                style={{ 
+                  top: "395px", 
+                  left: "267px", 
+                  width: "52px", 
+                  height: "52px",
+                }}
+                aria-label="B"
+              >
+                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+              </button>
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* Right column - Points Earned Panel */}

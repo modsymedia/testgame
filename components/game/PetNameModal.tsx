@@ -29,8 +29,11 @@ export function UsernameModal() {
   // Show dialog only for new users
   useEffect(() => {
     if (isConnected && isNewUser) {
-      console.log("New user connected, showing username modal");
+      console.log("New user connected, showing pet name modal");
       setOpen(true);
+    } else if (!isNewUser) {
+      // Close the modal if user is no longer new (e.g. after setting pet name)
+      setOpen(false);
     }
   }, [isConnected, isNewUser]);
 
@@ -38,13 +41,13 @@ export function UsernameModal() {
     e.preventDefault();
     
     if (!usernameInput.trim()) {
-      setError('Please enter a username');
+      setError('Please enter a pet name');
       return;
     }
     
     // Don't allow names that start with 'User_'
     if (usernameInput.trim().startsWith('User_')) {
-      setError('Please choose a custom username');
+      setError('Please choose a custom pet name');
       return;
     }
     
@@ -54,29 +57,32 @@ export function UsernameModal() {
     try {
       const success = await setUsername(usernameInput.trim());
       if (success) {
-        console.log("Successfully set username to:", usernameInput.trim());
+        console.log("Successfully set pet name to:", usernameInput.trim());
         setOpen(false);
       } else {
-        setError('Failed to save username. Please try again');
+        setError('Failed to save pet name. Please try again');
       }
     } catch (err) {
-      console.error('Error saving username:', err);
+      console.error('Error saving pet name:', err);
       setError('An error occurred. Please try again');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Prevent closing the modal if we have a default name
+  // Prevent closing the modal if name isn't set
   const handleOpenChange = (newOpen: boolean) => {
     // Only allow closing if submitting or form has been completed
-    if (!newOpen && isSubmitting) {
+    if (!newOpen && !isNewUser) {
       setOpen(false);
-    } else if (!newOpen) {
-      // If trying to close with a default name, show an error
-      setError('Please choose a username first');
     } else {
-      setOpen(newOpen);
+      // Keep dialog open if user is new (force them to set a name)
+      setOpen(true);
+      
+      // If trying to close without setting a name, show an error
+      if (!newOpen && isNewUser) {
+        setError('Please choose a pet name first');
+      }
     }
   };
 
@@ -84,22 +90,22 @@ export function UsernameModal() {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Choose Your Username</DialogTitle>
+          <DialogTitle>Choose Your Pet Name</DialogTitle>
           <DialogDescription>
-            Please enter a username to identify yourself
+            Please enter a name for your pet to identify yourself
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="name" className="text-right col-span-1">
-                Username
+                Pet Name
               </label>
               <Input
                 id="name"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Enter your username"
+                placeholder="Enter your pet's name"
                 className="col-span-3"
                 maxLength={16}
                 required
@@ -109,7 +115,7 @@ export function UsernameModal() {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || !usernameInput.trim()}>
-              {isSubmitting ? 'Saving...' : 'Save Username'}
+              {isSubmitting ? 'Saving...' : 'Save Pet Name'}
             </Button>
           </DialogFooter>
         </form>

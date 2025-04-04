@@ -194,7 +194,7 @@ export const PointsDashboard = ({
               </p>
               {walletData?.username && (
                 <p className="text-lg font-pixelify text-[#304700] mt-2">
-                  Username: {walletData.username}
+                  Pet Name: {walletData.username}
                 </p>
               )}
             </div>

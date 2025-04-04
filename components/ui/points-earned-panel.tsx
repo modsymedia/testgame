@@ -21,13 +21,42 @@ interface PointsEarnedPanelProps {
   isLoading?: boolean;
 }
 
-// Update task rewards data with category images (updated with exact filenames)
+// Update task rewards data with more specific activity icons
 const TASK_REWARD_ICONS: Record<string, string> = {
+  // Main categories
   feed: '/assets/icons/foods/foods.png',
   play: '/assets/icons/games/games.png',
   clean: '/assets/icons/hygiene/hygienes.png',
   heal: '/assets/icons/healings/healing.png',
-  default: '/assets/icons/coin.png'
+  doctor: '/assets/icons/healings/healing.png',
+  
+  // Specific food items
+  fish: '/assets/icons/foods/food-fish.png',
+  cookie: '/assets/icons/foods/food-donat.png',
+  catFood: '/assets/icons/foods/food-catfood.png',
+  kibble: '/assets/icons/foods/food-catnip.png',
+  
+  // Specific play items
+  laser: '/assets/icons/games/game-laser.png',
+  feather: '/assets/icons/games/game-feather.png',
+  ball: '/assets/icons/games/game-ball.png',
+  puzzle: '/assets/icons/games/game-puzzle.png',
+  
+  // Specific clean items
+  brush: '/assets/icons/hygiene/hygiene-comb.png',
+  bath: '/assets/icons/hygiene/hygiene-bath.png',
+  nails: '/assets/icons/hygiene/hygiene-nailclipper.png',
+  dental: '/assets/icons/hygiene/hygiene-tooth.png',
+  
+  // Specific heal/doctor items
+  checkup: '/assets/icons/healings/healing.png',
+  vitamins: '/assets/icons/healings/medicine.png',
+  medicine: '/assets/icons/healings/medicine.png',
+  vaccine: '/assets/icons/healings/vaccine.png',
+  surgery: '/assets/icons/healings/surgery.png',
+  
+  // Default fallback
+  default: '/assets/icons/status/statusbar-coins(points).png'
 };
 
 // Add detailed rewards data
@@ -255,7 +284,26 @@ export const PointsEarnedPanel = ({
   };
   
   // Get icon for activity type
-  const getActivityIcon = (type: string): string => {
+  const getActivityIcon = (type: string, name?: string): string => {
+    // First try to match based on activity name (converted to camelCase)
+    if (name) {
+      const normalizedName = name.toLowerCase().replace(/\s+/g, '');
+      const specificKey = normalizedName as keyof typeof TASK_REWARD_ICONS;
+      
+      if (TASK_REWARD_ICONS[specificKey]) {
+        return TASK_REWARD_ICONS[specificKey];
+      }
+      
+      // For items with special naming
+      if (name === 'Cat Food' && TASK_REWARD_ICONS['catFood']) {
+        return TASK_REWARD_ICONS['catFood'];
+      }
+      else if (name === 'Check-up' && TASK_REWARD_ICONS['checkup']) {
+        return TASK_REWARD_ICONS['checkup'];
+      }
+    }
+    
+    // Fallback to type-based icon
     return TASK_REWARD_ICONS[type] || TASK_REWARD_ICONS.default;
   };
   
@@ -355,11 +403,12 @@ export const PointsEarnedPanel = ({
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center">
                           <Image 
-                            src={getActivityIcon(activity.type)} 
-                            alt={activity.type} 
+                            src={getActivityIcon(activity.type, activity.name)} 
+                            alt={activity.name || activity.type}
                             width={20} 
                             height={20}
                             style={{ imageRendering: 'pixelated' }}
+                            unoptimized={true}
                           />
                           <span className="ml-1 text-xs font-pixelify text-[#304700] truncate max-w-[60px]">{activity.name}</span>
                         </div>

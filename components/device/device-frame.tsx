@@ -1,6 +1,5 @@
 import React, { useState } from "react"
 import { motion } from "framer-motion"
-import { DeviceIndicators } from "./device-indicators"
 
 interface DeviceFrameProps {
   children: React.ReactNode
@@ -34,7 +33,6 @@ export function DeviceFrame({ children }: DeviceFrameProps) {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             />
-            <DeviceIndicators status="active"  />
             <motion.button
               className="w-8 h-8 bg-green-500 rounded-full focus:outline-none"
               whileHover={{ scale: 1.1 }}

@@ -15,21 +15,24 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const { isConnected, publicKey, walletData, setUsername: updateUsername } = useWallet();
+  const { isConnected, publicKey, walletData, setUsername: updateUsername, isNewUser } = useWallet();
 
   useEffect(() => {
-    // Show overlay when user is connected
-    if (isConnected && publicKey) {
+    // Show overlay only for new users
+    if (isConnected && publicKey && isNewUser) {
       setVisible(true);
     }
-  }, [isConnected, publicKey]);
+  }, [isConnected, publicKey, isNewUser]);
 
-  // Handle manual dismiss
-  const handleDismiss = () => {
-    setVisible(false);
+  // Prevent dismiss by click on backdrop
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Show an error if they try to click away
+    setError("Please set a pet name to continue");
   };
 
-  // Check if username is already taken
+  // Check if pet name is already taken
   const checkUsernameAvailability = async (username: string): Promise<boolean> => {
     if (!username.trim()) return false;
     
@@ -48,13 +51,13 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to check username availability');
+        throw new Error(data.error || 'Failed to check pet name availability');
       }
       
       return data.available;
     } catch (error) {
-      console.error('Error checking username availability:', error);
-      setError('Could not verify username availability. Please try again.');
+      console.error('Error checking pet name availability:', error);
+      setError('Could not verify pet name availability. Please try again.');
       return false;
     } finally {
       setIsChecking(false);
@@ -70,16 +73,16 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
     setError(null);
     
     try {
-      // First check if username is available
+      // First check if pet name is available
       const isAvailable = await checkUsernameAvailability(username.trim());
       
       if (!isAvailable) {
-        setError("This username is already taken. Please choose another.");
+        setError("This pet name is already taken. Please choose another.");
         setIsSubmitting(false);
         return;
       }
       
-      // If available, update the username
+      // If available, update the pet name
       const result = await updateUsername(username.trim());
       
       if (result) {
@@ -89,10 +92,10 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
           setVisible(false);
         }, 1500);
       } else {
-        setError("Failed to save username to database. Please try again.");
+        setError("Failed to save pet name to database. Please try again.");
       }
     } catch (error) {
-      console.error('Failed to update username:', error);
+      console.error('Failed to update pet name:', error);
       setError("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -106,7 +109,7 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
           className="fixed inset-0 flex items-center justify-center"
           style={{ zIndex: 555 }}
         >
-          <div className="absolute inset-0 bg-black/50" onClick={handleDismiss}></div>
+          <div className="absolute inset-0 bg-black/50" onClick={handleBackdropClick}></div>
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -116,14 +119,14 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
           >
             <form onSubmit={handleSubmit} className="bg-gradient-to-br from-purple-500 to-cyan-400 rounded-xl shadow-2xl p-8 border-2 border-white">
               <h1 className="text-3xl font-pixelify text-white mb-6 text-center">
-                Choose Your Username
+                Choose Your Pet Name
               </h1>
               
               {success ? (
                 <div className="text-center mb-6">
                   <div className="bg-white/20 rounded-lg p-4 mb-4">
                     <p className="text-xl font-pixelify text-white">
-                      Username saved successfully!
+                      Pet name saved successfully!
                     </p>
                     <p className="text-lg font-pixelify text-white/80 mt-2">
                       Welcome, {username}!
@@ -134,7 +137,7 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
                 <>
                   <div className="mb-6">
                     <label htmlFor="username" className="block text-xl text-white font-pixelify mb-2">
-                      What username would you like to use?
+                      What would you like to name your pet?
                     </label>
                     <input
                       type="text"
@@ -142,12 +145,12 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="w-full px-4 py-3 bg-white/90 rounded-lg font-pixelify text-lg text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-white"
-                      placeholder="Enter username..."
+                      placeholder="Enter pet name..."
                       maxLength={20}
                       required
                     />
                     <p className="text-white/80 text-sm mt-2 font-pixelify">
-                      Your username must be unique. It will be visible to other players.
+                      Your pet name must be unique. It will be visible to other players.
                     </p>
                   </div>
                 
@@ -159,20 +162,13 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
                     </div>
                   )}
                 
-                  <div className="flex justify-center space-x-4">
-                    <button
-                      type="button"
-                      onClick={handleDismiss}
-                      className="px-6 py-3 bg-white/30 text-white rounded-lg font-pixelify hover:bg-white/40 transition-colors"
-                    >
-                      Skip
-                    </button>
+                  <div className="flex justify-center">
                     <button
                       type="submit"
                       disabled={!username.trim() || isSubmitting || isChecking}
                       className="px-6 py-3 bg-white text-indigo-700 rounded-lg font-pixelify hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isChecking ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save Username'}
+                      {isChecking ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save Pet Name'}
                     </button>
                   </div>
                 </>
