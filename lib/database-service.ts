@@ -443,9 +443,46 @@ export class DatabaseService {
   }
 
   // Get user data with local storage fallback
-  public async getUserData(walletAddress: string): Promise<User | null> {
+  public async getUserData(walletAddress: string): Promise<User | any | null> {
     // Check cache first
     const cacheKey = `user:${walletAddress}`;
+    const userDataCacheKey = `user_data_${walletAddress}`;
+    
+    // Check if we're looking for custom user data
+    if (walletAddress.includes('user_data_')) {
+      // First check cache for custom data
+      if (this.cache.has(userDataCacheKey)) {
+        return this.cache.get(userDataCacheKey);
+      }
+      
+      // Try localStorage for custom data
+      const localData = this.loadFromLocalStorage(userDataCacheKey);
+      if (localData) {
+        this.cache.set(userDataCacheKey, localData);
+        return localData;
+      }
+      
+      // If not in cache or localStorage, fetch from the database
+      try {
+        const response = await fetch(`/api/user/data?walletAddress=${encodeURIComponent(walletAddress)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data) {
+            // Cache the data
+            this.cache.set(userDataCacheKey, data);
+            this.saveToLocalStorage(userDataCacheKey, data);
+            return data;
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Error fetching user data from API:', fetchError);
+      }
+      
+      // Return empty object if nothing found
+      return {};
+    }
+    
+    // Regular user data lookup
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
     }
@@ -1599,6 +1636,35 @@ export class DatabaseService {
       return true;
     } catch (error) {
       console.error('Error processing pending activities:', error);
+      return false;
+    }
+  }
+
+  // Add this method after saveUserActivity
+  async saveUserData(walletAddress: string, userData: any): Promise<boolean> {
+    try {
+      if (!walletAddress) return false;
+      
+      // Safely store in local cache first
+      const cacheKey = `user_data_${walletAddress}`;
+      const existingData = this.cache.get(cacheKey) || {};
+      const updatedData = { ...existingData, ...userData };
+      
+      // Save to cache
+      this.cache.set(cacheKey, updatedData);
+      
+      // Save to localStorage for offline persistence
+      this.saveToLocalStorage(cacheKey, updatedData);
+      
+      // Queue for database sync
+      this.cache.queueOperation('user_data', 'update', {
+        walletAddress,
+        data: updatedData
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving user data:', error);
       return false;
     }
   }

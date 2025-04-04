@@ -51,11 +51,13 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, h
             ? "/assets/character/food.webp"
             : mostRecentTask === 'clean'
               ? "/assets/character/bath.webp"
-              : foodTaskOnCooldown && !mostRecentTask
-                ? "/assets/character/food.webp" 
-                : hygieneTaskOnCooldown && !mostRecentTask
-                  ? "/assets/character/bath.webp" 
-                  : "/assets/character/idle.webp"
+              : mostRecentTask === 'heal'
+                ? "/assets/character/heal.webp"
+                : foodTaskOnCooldown && !mostRecentTask
+                  ? "/assets/character/food.webp" 
+                  : hygieneTaskOnCooldown && !mostRecentTask
+                    ? "/assets/character/bath.webp" 
+                    : "/assets/character/idle.webp"
       }
       alt="Pet character" 
       width={
@@ -65,7 +67,9 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, h
             ? 140 
             : mostRecentTask === 'clean' || (hygieneTaskOnCooldown && !mostRecentTask)
               ? 120 
-              : 190
+              : mostRecentTask === 'heal'
+                ? 140
+                : 190
       } 
       height={
         sickStatus
@@ -74,7 +78,9 @@ const CatBase: React.FC<CatEmotionProps> = ({ eyeExpression, selectedMenuItem, h
             ? 140 
             : mostRecentTask === 'clean' || (hygieneTaskOnCooldown && !mostRecentTask)
               ? 120 
-              : 190
+              : mostRecentTask === 'heal'
+                ? 140
+                : 190
       }
       unoptimized={true}
       className="object-contain relative"

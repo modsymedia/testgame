@@ -32,6 +32,8 @@ export interface User {
   lastPointGainTime?: Date;
   // Pet state metrics
   petState?: PetState;
+  // Premium unlocks
+  unlockedItems?: {[key: string]: boolean};
   // Version for sync
   version?: number;
 }

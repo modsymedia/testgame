@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
+import Tilt from 'react-parallax-tilt';
 import { StatusBar } from "@/components/ui/status-bar";
 import { PixelIcon } from "@/components/ui/pixel-icon";
 import { HappyCat, AlertCat, SadCat, TiredCat, HungryCat, DeadCat } from "@/components/pet/cat-emotions";
@@ -82,6 +83,73 @@ export function KawaiiDevice() {
   const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
   const { userData, updatePoints: updateUserDataPoints } = useUserData();
   
+  // Add tilt configuration state
+  const [tiltConfig, setTiltConfig] = useState({
+    tiltEnable: true,
+    tiltMaxAngleX: 5,
+    tiltMaxAngleY: 5,
+    tiltReverse: false,
+    tiltAngleXManual: null as null | number,
+    tiltAngleYManual: null as null | number,
+  });
+  
+  // Use ref for tilt position tracking to avoid render loops
+  const tiltPositionRef = useRef({
+    tiltAngleX: 0,
+    tiltAngleY: 0
+  });
+  
+  // Add refs for the glare elements to directly manipulate DOM
+  const primaryGlareRef = useRef<HTMLDivElement>(null);
+  const secondaryGlareRef = useRef<HTMLDivElement>(null);
+  
+  // Add premium item unlock tracking
+  const [unlockedItems, setUnlockedItems] = useState<{[key: string]: boolean}>({});
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  const [unlockConfirmSelection, setUnlockConfirmSelection] = useState<'yes' | 'no'>('no');
+  const [itemToUnlock, setItemToUnlock] = useState<{type: string, name: string, cost: number, index: number}>({
+    type: '',
+    name: '',
+    cost: 0,
+    index: -1
+  });
+  
+  // Premium item costs and configuration
+  const premiumItems = {
+    food: {
+      items: ["catFood", "kibble"],
+      costs: [500, 1000],
+      benefits: [1.5, 2.0] // Multiplier for points earned
+    },
+    play: {
+      items: ["ball", "puzzle"],
+      costs: [500, 1000],
+      benefits: [1.5, 2.0]
+    },
+    clean: {
+      items: ["nails", "dental"],
+      costs: [500, 1000],
+      benefits: [1.5, 2.0]
+    },
+    doctor: {
+      items: ["vaccine", "surgery"],
+      costs: [500, 1000],
+      benefits: [1.5, 2.0]
+    }
+  };
+  
+  // Check if an item is locked - moved to the top to prevent reference errors
+  const isItemLocked = useCallback((category: string, itemName: string) => {
+    // Generate a key for the item
+    const itemKey = `${category}-${itemName}`;
+    
+    // Check if it's a premium item
+    const isPremium = premiumItems[category as keyof typeof premiumItems]?.items.includes(itemName);
+    
+    // If it's premium and not unlocked, it's locked
+    return isPremium && !unlockedItems[itemKey];
+  }, [unlockedItems, premiumItems]);
+  
   // Add state to track the most recent task type
   const [mostRecentTask, setMostRecentTask] = useState<string | null>(null);
   
@@ -124,7 +192,7 @@ export function KawaiiDevice() {
       console.error("Failed to save activity to database:", error);
     }
   };
-
+  
   // Redirect to landing if not connected
   useEffect(() => {
     if (!isConnected) {
@@ -228,12 +296,12 @@ export function KawaiiDevice() {
         console.error('❌ Error updating points:', error);
       }
     }, POINTS_UPDATE_DELAY);
-    
+      
     // Cleanup
     return () => {
       if (pointsUpdateTimerRef.current) {
         clearTimeout(pointsUpdateTimerRef.current);
-      }
+    }
     };
   }, [points, isConnected, publicKey, updateUserDataPoints]);
 
@@ -256,7 +324,7 @@ export function KawaiiDevice() {
         const updateSuccess = await updatePoints(userData.points);
         
         if (updateSuccess) {
-          console.log('💰 Wallet points updated successfully');
+        console.log('💰 Wallet points updated successfully');
         } else {
           console.warn('⚠️ Points update saved for later sync');
         }
@@ -268,8 +336,8 @@ export function KawaiiDevice() {
         if (userData.points > 0 && publicKey) {
           try {
             const updated = await updateUserScore(publicKey, userData.points);
-            if (updated) {
-              console.log('🏆 Leaderboard updated successfully');
+          if (updated) {
+            console.log('🏆 Leaderboard updated successfully');
             }
           } catch (leaderboardError) {
             // Don't fail the entire operation if leaderboard update fails
@@ -382,11 +450,18 @@ export function KawaiiDevice() {
       );
     if (isHealing)
       return (
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.5 }}>
+        <motion.div 
+          animate={{ 
+            y: [0, -5, 0], 
+            filter: ["brightness(1)", "brightness(1.2)", "brightness(1)"],
+            scale: [1, 1.05, 1]
+          }} 
+          transition={{ duration: 0.8, repeat: 1 }}
+        >
           <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                    foodTaskOnCooldown={isOnCooldown.feed}
                    sickStatus={isSick}
-                   mostRecentTask={mostRecentTask} />
+                   mostRecentTask="heal" />
         </motion.div>
       );
     if (food < 30) return <HungryCat hygieneTaskOnCooldown={isOnCooldown.clean} 
@@ -407,54 +482,276 @@ export function KawaiiDevice() {
                     mostRecentTask={mostRecentTask} />;
   };
 
-  // Modify the handleInteraction function to also record activities
-  const handleInteraction = async (type: string) => {
-    // Set the most recent task type
-    setMostRecentTask(type);
+  // Add this function to get the premium benefit multiplier
+  const getPremiumMultiplier = useCallback((type: string, itemName: string, index: number) => {
+    // Check if it's a premium item and is unlocked
+    const isPremium = premiumItems[type as keyof typeof premiumItems]?.items.includes(itemName);
+    const itemKey = `${type}-${itemName}`;
+    const isUnlocked = unlockedItems[itemKey];
     
-    let activityPoints = 0;
-    let activityName = "";
-    
-    switch (type) {
-      case 'feed':
-        await handleFeeding(); // Handle async operation
-        activityName = ["Fish", "Cookie", "Cat Food", "Kibble"][selectedFoodItem || 0];
-        activityPoints = [15, 10, 20, 12][selectedFoodItem || 0];
-        break;
-      case 'play':
-        await handlePlaying(); // Handle async operation
-        activityName = ["Laser", "Feather", "Ball", "Puzzle"][selectedPlayItem || 0];
-        activityPoints = [20, 15, 18, 25][selectedPlayItem || 0];
-        break;
-      case 'clean':
-        await handleCleaning(); // Handle async operation
-        activityName = ["Brush", "Bath", "Nails", "Dental"][selectedCleanItem || 0];
-        activityPoints = [18, 25, 15, 20][selectedCleanItem || 0];
-        break;
-      case 'doctor':
-        await handleDoctor(); // Handle async operation
-        activityName = ["Checkup", "Medicine", "Vaccine", "Surgery"][selectedDoctorItem || 0];
-        activityPoints = [25, 30, 35, 40][selectedDoctorItem || 0];
-        break;
+    // If it's a premium item and unlocked, return the benefit multiplier
+    if (isPremium && isUnlocked) {
+      const itemIndex = premiumItems[type as keyof typeof premiumItems].items.indexOf(itemName);
+      return premiumItems[type as keyof typeof premiumItems].benefits[itemIndex];
     }
     
-    // Record the activity if there are points
-    if (activityPoints > 0) {
-      const newActivity: UserActivity = {
-        id: Date.now().toString(),
-        type,
-        name: activityName,
-        points: activityPoints,
-        timestamp: Date.now()
+    // Default multiplier is 1 (no boost)
+    return 1;
+  }, [premiumItems, unlockedItems]);
+
+  // Update simulateFeedingTilt to consistently use the ref for tilt position
+  const simulateFeedingTilt = useCallback(() => {
+    // Disable normal tilting
+    setTiltConfig(prev => ({ ...prev, tiltEnable: false }));
+    
+    // Tilt forward (like pouring food)
+    setTiltConfig(prev => ({ ...prev, tiltAngleXManual: 20, tiltAngleYManual: -5 }));
+    
+    // Enhance the glare effect during feeding
+    tiltPositionRef.current = {
+      tiltAngleX: 20,
+      tiltAngleY: -5
+    };
+    
+    // Directly update glare effects with smooth transition
+    if (primaryGlareRef.current) {
+      primaryGlareRef.current.style.transition = "background-image 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)";
+      const x = 50 - tiltPositionRef.current.tiltAngleY * 3;
+      const y = 40 + tiltPositionRef.current.tiltAngleX * 4;
+      primaryGlareRef.current.style.backgroundImage = 
+        `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 70%)`;
+    }
+    
+    if (secondaryGlareRef.current) {
+      secondaryGlareRef.current.style.transition = "background-image 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)";
+      const x = 70 + tiltPositionRef.current.tiltAngleY * 2;
+      const y = 60 - tiltPositionRef.current.tiltAngleX * 3;
+      secondaryGlareRef.current.style.backgroundImage = 
+        `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0) 40%)`;
+    }
+    
+    // Hold the tilt for a moment
+    setTimeout(() => {
+      // Tilt slightly more
+      setTiltConfig(prev => ({ ...prev, tiltAngleXManual: 25, tiltAngleYManual: -8 }));
+      
+      // Update glare position
+      tiltPositionRef.current = {
+        tiltAngleX: 25,
+        tiltAngleY: -8
       };
       
-      // Update activities in state - keep only the latest 4
-      setUserActivities(prev => [newActivity, ...prev].slice(0, 4));
+      // Update DOM directly with smooth transition
+      if (primaryGlareRef.current) {
+        const x = 50 - tiltPositionRef.current.tiltAngleY * 3;
+        const y = 40 + tiltPositionRef.current.tiltAngleX * 4;
+        primaryGlareRef.current.style.backgroundImage = 
+          `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 70%)`;
+      }
       
-      // Save activity to database
-      await saveActivityToDatabase(newActivity);
-    }
-  };
+      if (secondaryGlareRef.current) {
+        const x = 70 + tiltPositionRef.current.tiltAngleY * 2;
+        const y = 60 - tiltPositionRef.current.tiltAngleX * 3;
+        secondaryGlareRef.current.style.backgroundImage = 
+          `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0) 40%)`;
+      }
+      
+      // Then return to normal after animation
+      setTimeout(() => {
+        // Update transition time to be slower when returning to normal
+        if (primaryGlareRef.current) {
+          primaryGlareRef.current.style.transition = "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1)";
+        }
+        if (secondaryGlareRef.current) {
+          secondaryGlareRef.current.style.transition = "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1)";
+        }
+        
+        setTiltConfig(prev => ({ 
+          ...prev, 
+          tiltEnable: true, 
+          tiltAngleXManual: null, 
+          tiltAngleYManual: null 
+        }));
+        
+        // Reset tilt position
+        tiltPositionRef.current = {
+          tiltAngleX: 0,
+          tiltAngleY: 0
+        };
+        
+        // Reset DOM directly
+        if (primaryGlareRef.current) {
+          primaryGlareRef.current.style.backgroundImage = 
+            `radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 70%)`;
+        }
+        
+        if (secondaryGlareRef.current) {
+          secondaryGlareRef.current.style.backgroundImage = 
+            `radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0) 40%)`;
+        }
+      }, 500);
+    }, 400);
+  }, [primaryGlareRef, secondaryGlareRef]);
+
+  // Modify the existing handleInteraction function to use premium multipliers
+  const handleInteraction = useCallback(
+    async (option: string, selectedItem: number) => {
+      // ... existing code at the start of the function
+      
+      let pointsToAdd = 0;
+      let itemName = "";
+      let itemType = "";
+      
+      if (option === "food" && selectedFoodItem !== null) {
+        itemType = "food";
+        const foodItems = ["fish", "cookie", "catFood", "kibble"];
+        itemName = foodItems[selectedFoodItem];
+        
+        // Apply premium multiplier to points
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedFoodItem);
+        pointsToAdd = Math.floor(10 * aiPointMultiplier * premiumMultiplier);
+        
+        // Trigger the feeding tilt animation
+        simulateFeedingTilt();
+        
+        // Handle feeding
+        await handleFeeding();
+        
+        // Save activity
+        const activityId = uuidv4();
+        const activity = {
+          id: activityId,
+          type: 'feed',
+          name: `Feed ${itemName}`,
+          points: pointsToAdd,
+          timestamp: Date.now()
+        };
+        saveActivityToDatabase(activity);
+        
+        // Update local activities
+        setUserActivities(prev => [activity, ...prev].slice(0, 10));
+        
+        setMostRecentTask('feed');
+      }
+      else if (option === "play" && selectedPlayItem !== null) {
+        itemType = "play";
+        const playItems = ["laser", "feather", "ball", "puzzle"];
+        itemName = playItems[selectedPlayItem];
+        
+        // Apply premium multiplier to points
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedPlayItem);
+        pointsToAdd = Math.floor(15 * aiPointMultiplier * premiumMultiplier);
+        
+        // Handle playing
+        await handlePlaying();
+        
+        // Save activity
+        const activityId = uuidv4();
+        const activity = {
+          id: activityId,
+          type: 'play',
+          name: `Play with ${itemName}`,
+          points: pointsToAdd,
+          timestamp: Date.now()
+        };
+        saveActivityToDatabase(activity);
+        
+        // Update local activities
+        setUserActivities(prev => [activity, ...prev].slice(0, 10));
+        
+        setMostRecentTask('play');
+      }
+      else if (option === "clean" && selectedCleanItem !== null) {
+        itemType = "clean";
+        const cleanItems = ["brush", "bath", "nails", "dental"];
+        itemName = cleanItems[selectedCleanItem];
+        
+        // Apply premium multiplier to points
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedCleanItem);
+        pointsToAdd = Math.floor(12 * aiPointMultiplier * premiumMultiplier);
+        
+        // Handle cleaning
+        await handleCleaning();
+        
+        // Save activity
+        const activityId = uuidv4();
+        const activity = {
+          id: activityId,
+          type: 'clean',
+          name: `Grooming: ${itemName}`,
+          points: pointsToAdd,
+          timestamp: Date.now()
+        };
+        saveActivityToDatabase(activity);
+        
+        // Update local activities
+        setUserActivities(prev => [activity, ...prev].slice(0, 10));
+        
+        setMostRecentTask('clean');
+      }
+      else if (option === "doctor" && selectedDoctorItem !== null) {
+        itemType = "doctor";
+        const doctorItems = ["checkup", "medicine", "vaccine", "surgery"];
+        itemName = doctorItems[selectedDoctorItem];
+        
+        // Apply premium multiplier to points
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedDoctorItem);
+        pointsToAdd = Math.floor(20 * aiPointMultiplier * premiumMultiplier);
+        
+        // Handle healing
+        await handleDoctor();
+        
+        // Save activity
+        const activityId = uuidv4();
+        const activity = {
+          id: activityId,
+          type: 'heal',
+          name: `Medical: ${itemName}`,
+          points: pointsToAdd,
+          timestamp: Date.now()
+        };
+        saveActivityToDatabase(activity);
+        
+        // Update local activities
+        setUserActivities(prev => [activity, ...prev].slice(0, 10));
+        
+        setMostRecentTask('heal');
+      }
+      
+      // Update points in wallet
+      if (pointsToAdd > 0 && publicKey) {
+        updatePoints(pointsToAdd);
+        updateUserDataPoints(userData.points + pointsToAdd);
+        
+        // Update leaderboard
+        updateUserScore(publicKey, points + pointsToAdd);
+      }
+      
+      // Reset menu
+      resetMenu();
+    },
+    [
+      selectedFoodItem,
+      selectedPlayItem,
+      selectedCleanItem,
+      selectedDoctorItem,
+      handleFeeding,
+      handlePlaying,
+      handleCleaning,
+      handleDoctor,
+      resetMenu,
+      updatePoints,
+      points,
+      publicKey,
+      userData.points,
+      updateUserDataPoints,
+      aiPointMultiplier,
+      saveActivityToDatabase,
+      setUserActivities,
+      getPremiumMultiplier,
+      simulateFeedingTilt
+    ]
+  );
 
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
@@ -475,6 +772,58 @@ export function KawaiiDevice() {
         return;
       }
 
+      // Handle unlock prompt navigation first
+      if (showUnlockPrompt) {
+        if (option === "previous" || option === "next") {
+          // Toggle between yes/no options
+          setUnlockConfirmSelection(prev => prev === 'yes' ? 'no' : 'yes');
+          return;
+        }
+        
+        if (option === "a") {
+          // Confirm selection
+          if (unlockConfirmSelection === 'yes') {
+            // Process the unlock
+            const { type, name, cost, index } = itemToUnlock;
+            if (userData.points >= cost) {
+              // Deduct points
+              updateUserDataPoints(userData.points - cost);
+              if (publicKey) {
+                updatePoints(-cost);
+              }
+              
+              // Unlock the item - use consistent hyphenated format
+              const itemKey = `${type}-${name}`;
+              setUnlockedItems(prev => ({...prev, [itemKey]: true}));
+              
+              // Record activity
+              const activityId = uuidv4();
+              const activity = {
+                id: activityId,
+                type: 'unlock',
+                name: `Unlocked ${name}`,
+                points: -cost,
+                timestamp: Date.now()
+              };
+              saveActivityToDatabase(activity);
+              setUserActivities(prev => [activity, ...prev].slice(0, 10));
+            }
+          }
+          
+          // Close prompt regardless of yes/no
+          setShowUnlockPrompt(false);
+          return;
+        }
+        
+        if (option === "b") {
+          // Cancel unlock
+          setShowUnlockPrompt(false);
+          return;
+        }
+        
+        return; // Don't process other inputs when prompt is open
+      }
+
       if (option === "previous" || option === "next" || option === "b") {
         handleButtonNavigation(option);
         return;
@@ -486,26 +835,86 @@ export function KawaiiDevice() {
         } else if (menuStack[menuStack.length - 1] === "food") {
           // Handle food selection
           if (selectedFoodItem !== null) {
-            await handleInteraction('feed');
+            const foodItems = ["fish", "cookie", "catFood", "kibble"];
+            const selectedFood = foodItems[selectedFoodItem];
+            
+            if (isItemLocked('food', selectedFood)) {
+              // Show unlock prompt
+              setItemToUnlock({
+                type: 'food',
+                name: selectedFood,
+                cost: premiumItems.food.costs[selectedFoodItem - 2], // -2 because first two items are free
+                index: selectedFoodItem
+              });
+              setUnlockConfirmSelection('no');
+              setShowUnlockPrompt(true);
+            } else {
+              await handleInteraction('food', selectedFoodItem);
             resetMenu();
+            }
           }
         } else if (menuStack[menuStack.length - 1] === "play") {
           // Handle play selection
           if (selectedPlayItem !== null) {
-            await handleInteraction('play');
+            const playItems = ["laser", "feather", "ball", "puzzle"];
+            const selectedPlay = playItems[selectedPlayItem];
+            
+            if (isItemLocked('play', selectedPlay)) {
+              // Show unlock prompt
+              setItemToUnlock({
+                type: 'play',
+                name: selectedPlay,
+                cost: premiumItems.play.costs[selectedPlayItem - 2],
+                index: selectedPlayItem
+              });
+              setUnlockConfirmSelection('no');
+              setShowUnlockPrompt(true);
+            } else {
+              await handleInteraction('play', selectedPlayItem);
             resetMenu();
+            }
           }
         } else if (menuStack[menuStack.length - 1] === "clean") {
           // Handle clean selection
           if (selectedCleanItem !== null) {
-            await handleInteraction('clean');
+            const cleanItems = ["brush", "bath", "nails", "dental"];
+            const selectedClean = cleanItems[selectedCleanItem];
+            
+            if (isItemLocked('clean', selectedClean)) {
+              // Show unlock prompt
+              setItemToUnlock({
+                type: 'clean',
+                name: selectedClean,
+                cost: premiumItems.clean.costs[selectedCleanItem - 2],
+                index: selectedCleanItem
+              });
+              setUnlockConfirmSelection('no');
+              setShowUnlockPrompt(true);
+            } else {
+              await handleInteraction('clean', selectedCleanItem);
             resetMenu();
+            }
           }
         } else if (menuStack[menuStack.length - 1] === "doctor") {
           // Handle doctor selection
           if (selectedDoctorItem !== null) {
-            await handleInteraction('doctor');
+            const doctorItems = ["checkup", "medicine", "vaccine", "surgery"];
+            const selectedDoctor = doctorItems[selectedDoctorItem];
+            
+            if (isItemLocked('doctor', selectedDoctor)) {
+              // Show unlock prompt
+              setItemToUnlock({
+                type: 'doctor',
+                name: selectedDoctor,
+                cost: premiumItems.doctor.costs[selectedDoctorItem - 2],
+                index: selectedDoctorItem
+              });
+              setUnlockConfirmSelection('no');
+              setShowUnlockPrompt(true);
+            } else {
+              await handleInteraction('doctor', selectedDoctorItem);
             resetMenu();
+            }
           }
         }
       }
@@ -519,9 +928,19 @@ export function KawaiiDevice() {
       selectedDoctorItem,
       handleButtonNavigation,
       handleInteraction,
-      resetPet,
       resetMenu,
-      setLastInteractionTime
+      resetPet,
+      setLastInteractionTime,
+      lastInteractionUpdateRef,
+      showUnlockPrompt,
+      unlockConfirmSelection,
+      itemToUnlock,
+      userData.points,
+      updateUserDataPoints,
+      updatePoints,
+      publicKey,
+      saveActivityToDatabase,
+      isItemLocked
     ]
   );
   
@@ -555,7 +974,7 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex flex-col items-center justify-center">
             <div className="transform scale-75">
-              {getCatEmotion()}
+            {getCatEmotion()}
             </div>
             <p className="text-red-500 font-bold mt-4 text-base">Your pet has died!</p>
             <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">100</span></p>
@@ -604,18 +1023,18 @@ export function KawaiiDevice() {
           <div className="flex justify-around w-full px-1 pt-3 pb-0">
             {["food", "clean", "doctor", "play"].map((icon, index) => (
               <div key={index} className="transform scale-100">
-                <PixelIcon
-                  icon={icon as "food" | "clean" | "doctor" | "play"}
-                  isHighlighted={selectedMenuItem === index}
-                  label={icon.charAt(0).toUpperCase() + icon.slice(1)}
-                  cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
-                  maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
-                  isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
-                  onClick={() => {
-                    setSelectedMenuItem(index);
-                    handleButtonClick("a");
-                  }}
-                />
+              <PixelIcon
+                icon={icon as "food" | "clean" | "doctor" | "play"}
+                isHighlighted={selectedMenuItem === index}
+                label={icon.charAt(0).toUpperCase() + icon.slice(1)}
+                cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
+                maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
+                isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
+                onClick={() => {
+                  setSelectedMenuItem(index);
+                  handleButtonClick("a");
+                }}
+              />
               </div>
             ))}
           </div>
@@ -630,23 +1049,85 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
-          <div className="flex justify-around w-full px-1 pt-3 pb-0">
-            {["fish", "cookie", "catFood", "kibble"].map((foodItem, index) => (
-              <div key={index} className="transform scale-100">
-                <PixelIcon 
-                  icon={foodItem as any}
-                  isHighlighted={selectedFoodItem === index}
-                  label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
-                  cooldown={cooldowns.feed}
-                  maxCooldown={DEFAULT_COOLDOWNS.feed}
-                  isDisabled={isOnCooldown.feed || isDead}
-                  onClick={() => {
-                    setSelectedFoodItem(index);
-                    handleButtonClick("a");
-                  }}
-                />
+          
+          {/* Unlock prompt overlay */}
+          {showUnlockPrompt && itemToUnlock.type === 'food' && (
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
+                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.food.benefits[itemToUnlock.index - 2]}x more points!</p>
+                
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                    Yes
+                  </div>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                    No
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
-            ))}
+            </div>
+          )}
+          
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
+            {["fish", "cookie", "catFood", "kibble"].map((foodItem, index) => {
+              const isLocked = isItemLocked('food', foodItem);
+              
+              return (
+                <div key={index} className="transform scale-100 relative">
+              <PixelIcon 
+                icon={foodItem as any}
+                isHighlighted={selectedFoodItem === index}
+                label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
+                cooldown={cooldowns.feed}
+                maxCooldown={DEFAULT_COOLDOWNS.feed}
+                    isDisabled={isOnCooldown.feed || isDead || isLocked}
+                onClick={() => {
+                      if (isLocked) {
+                        // Show unlock prompt
+                        setItemToUnlock({
+                          type: 'food',
+                          name: foodItem,
+                          cost: premiumItems.food.costs[index - 2], // -2 because first two items are free
+                          index: index
+                        });
+                        setShowUnlockPrompt(true);
+                      } else {
+                  setSelectedFoodItem(index);
+                  handleButtonClick("a");
+                      }
+                    }}
+                  />
+                  
+                  {/* Lock overlay */}
+                  {isLocked && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className={`absolute inset-0 rounded-lg ${selectedFoodItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedFoodItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedFoodItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.food.costs[index - 2]} pts
+                        </div>
+                        {selectedFoodItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       );
@@ -659,23 +1140,85 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose a game to play:</div>
           <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
-          <div className="flex justify-around w-full px-1 pt-3 pb-0">
-            {["laser", "feather", "ball", "puzzle"].map((playItem, index) => (
-              <div key={index} className="transform scale-100">
-                <PixelIcon 
-                  icon={playItem as any}
-                  isHighlighted={selectedPlayItem === index}
-                  label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
-                  cooldown={cooldowns.play}
-                  maxCooldown={DEFAULT_COOLDOWNS.play}
-                  isDisabled={isOnCooldown.play || isDead}
-                  onClick={() => {
-                    setSelectedPlayItem(index);
-                    handleButtonClick("a");
-                  }}
-                />
+          
+          {/* Unlock prompt overlay for play */}
+          {showUnlockPrompt && itemToUnlock.type === 'play' && (
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
+                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.play.benefits[itemToUnlock.index - 2]}x more points!</p>
+                
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                    Yes
+                  </div>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                    No
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
-            ))}
+            </div>
+          )}
+          
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
+            {["laser", "feather", "ball", "puzzle"].map((playItem, index) => {
+              const isLocked = isItemLocked('play', playItem);
+              
+              return (
+                <div key={index} className="transform scale-100 relative">
+              <PixelIcon 
+                icon={playItem as any}
+                isHighlighted={selectedPlayItem === index}
+                label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
+                cooldown={cooldowns.play}
+                maxCooldown={DEFAULT_COOLDOWNS.play}
+                    isDisabled={isOnCooldown.play || isDead || isLocked}
+                onClick={() => {
+                      if (isLocked) {
+                        // Show unlock prompt
+                        setItemToUnlock({
+                          type: 'play',
+                          name: playItem,
+                          cost: premiumItems.play.costs[index - 2], // -2 because first two items are free
+                          index: index
+                        });
+                        setShowUnlockPrompt(true);
+                      } else {
+                  setSelectedPlayItem(index);
+                  handleButtonClick("a");
+                      }
+                    }}
+                  />
+                  
+                  {/* Lock overlay */}
+                  {isLocked && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className={`absolute inset-0 rounded-lg ${selectedPlayItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedPlayItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedPlayItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.play.costs[index - 2]} pts
+                        </div>
+                        {selectedPlayItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       );
@@ -688,23 +1231,85 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose grooming method:</div>
           <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
-          <div className="flex justify-around w-full px-1 pt-3 pb-0">
-            {["brush", "bath", "nails", "dental"].map((cleanItem, index) => (
-              <div key={index} className="transform scale-100">
-                <PixelIcon 
-                  icon={cleanItem as any}
-                  isHighlighted={selectedCleanItem === index}
-                  label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
-                  cooldown={cooldowns.clean}
-                  maxCooldown={DEFAULT_COOLDOWNS.clean}
-                  isDisabled={isOnCooldown.clean || isDead}
-                  onClick={() => {
-                    setSelectedCleanItem(index);
-                    handleButtonClick("a");
-                  }}
-                />
+          
+          {/* Unlock prompt overlay for clean */}
+          {showUnlockPrompt && itemToUnlock.type === 'clean' && (
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
+                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.clean.benefits[itemToUnlock.index - 2]}x more points!</p>
+                
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                    Yes
+                  </div>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                    No
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
-            ))}
+            </div>
+          )}
+          
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
+            {["brush", "bath", "nails", "dental"].map((cleanItem, index) => {
+              const isLocked = isItemLocked('clean', cleanItem);
+              
+              return (
+                <div key={index} className="transform scale-100 relative">
+              <PixelIcon 
+                icon={cleanItem as any}
+                isHighlighted={selectedCleanItem === index}
+                label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
+                cooldown={cooldowns.clean}
+                maxCooldown={DEFAULT_COOLDOWNS.clean}
+                    isDisabled={isOnCooldown.clean || isDead || isLocked}
+                onClick={() => {
+                      if (isLocked) {
+                        // Show unlock prompt
+                        setItemToUnlock({
+                          type: 'clean',
+                          name: cleanItem,
+                          cost: premiumItems.clean.costs[index - 2], // -2 because first two items are free
+                          index: index
+                        });
+                        setShowUnlockPrompt(true);
+                      } else {
+                  setSelectedCleanItem(index);
+                  handleButtonClick("a");
+                      }
+                    }}
+                  />
+                  
+                  {/* Lock overlay */}
+                  {isLocked && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className={`absolute inset-0 rounded-lg ${selectedCleanItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedCleanItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedCleanItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.clean.costs[index - 2]} pts
+                        </div>
+                        {selectedCleanItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       );
@@ -717,23 +1322,85 @@ export function KawaiiDevice() {
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
-          <div className="flex justify-around w-full px-1 pt-3 pb-0">
-            {["checkup", "medicine", "vaccine", "surgery"].map((doctorItem, index) => (
-              <div key={index} className="transform scale-100">
-                <PixelIcon 
-                  icon={doctorItem as any}
-                  isHighlighted={selectedDoctorItem === index}
-                  label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
-                  cooldown={cooldowns.heal}
-                  maxCooldown={DEFAULT_COOLDOWNS.heal}
-                  isDisabled={isOnCooldown.heal || isDead}
-                  onClick={() => {
-                    setSelectedDoctorItem(index);
-                    handleButtonClick("a");
-                  }}
-                />
+          
+          {/* Unlock prompt overlay for doctor */}
+          {showUnlockPrompt && itemToUnlock.type === 'doctor' && (
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
+                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.doctor.benefits[itemToUnlock.index - 2]}x more points!</p>
+                
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                    Yes
+                  </div>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                    No
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
-            ))}
+            </div>
+          )}
+          
+          <div className="flex justify-around w-full px-1 pt-3 pb-0">
+            {["checkup", "medicine", "vaccine", "surgery"].map((doctorItem, index) => {
+              const isLocked = isItemLocked('doctor', doctorItem);
+              
+              return (
+                <div key={index} className="transform scale-100 relative">
+              <PixelIcon 
+                icon={doctorItem as any}
+                isHighlighted={selectedDoctorItem === index}
+                label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
+                cooldown={cooldowns.heal}
+                maxCooldown={DEFAULT_COOLDOWNS.heal}
+                    isDisabled={isOnCooldown.heal || isDead || isLocked}
+                onClick={() => {
+                      if (isLocked) {
+                        // Show unlock prompt
+                        setItemToUnlock({
+                          type: 'doctor',
+                          name: doctorItem,
+                          cost: premiumItems.doctor.costs[index - 2], // -2 because first two items are free
+                          index: index
+                        });
+                        setShowUnlockPrompt(true);
+                      } else {
+                  setSelectedDoctorItem(index);
+                  handleButtonClick("a");
+                      }
+                    }}
+                  />
+                  
+                  {/* Lock overlay */}
+                  {isLocked && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className={`absolute inset-0 rounded-lg ${selectedDoctorItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedDoctorItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedDoctorItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.doctor.costs[index - 2]} pts
+                        </div>
+                        {selectedDoctorItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       );
@@ -755,6 +1422,84 @@ export function KawaiiDevice() {
       setMostRecentTask(null);
     }
   }, [isOnCooldown.feed, isOnCooldown.clean, mostRecentTask]);
+
+  // Load unlocked items from database or localStorage
+  useEffect(() => {
+    async function loadUnlockedItems() {
+      if (!publicKey) return;
+      
+      try {
+        // First, set default unlocks for first 2 items in each category
+        const defaultUnlocks: {[key: string]: boolean} = {};
+        
+        // Unlock the first 2 items in each category by default
+        // Food: fish, cookie
+        defaultUnlocks['food-fish'] = true;
+        defaultUnlocks['food-cookie'] = true;
+        
+        // Play: laser, feather
+        defaultUnlocks['play-laser'] = true;
+        defaultUnlocks['play-feather'] = true;
+        
+        // Clean: brush, bath
+        defaultUnlocks['clean-brush'] = true;
+        defaultUnlocks['clean-bath'] = true;
+        
+        // Doctor: checkup, medicine
+        defaultUnlocks['doctor-checkup'] = true;
+        defaultUnlocks['doctor-medicine'] = true;
+        
+        // Try to load unlocked items from database first
+        try {
+          const customUserData = await dbService.getUserData(`user_data_${publicKey}`);
+          if (customUserData && customUserData.unlockedItems) {
+            console.log('Loaded unlocked items from database');
+            // Merge default unlocks with saved unlocks
+            setUnlockedItems({...defaultUnlocks, ...customUserData.unlockedItems});
+            return;
+          }
+        } catch (dbError) {
+          console.warn('Failed to load unlocked items from database:', dbError);
+        }
+        
+        // Fall back to localStorage if database fails
+        const savedUnlocks = localStorage.getItem(`unlocked-items-${publicKey}`);
+        if (savedUnlocks) {
+          try {
+            const parsedUnlocks = JSON.parse(savedUnlocks);
+            // Merge default unlocks with saved unlocks
+            setUnlockedItems({...defaultUnlocks, ...parsedUnlocks});
+            return;
+          } catch (e) {
+            console.error("Failed to parse unlocked items:", e);
+          }
+        }
+        
+        // If nothing was loaded, just use the defaults
+        setUnlockedItems(defaultUnlocks);
+      } catch (error) {
+        console.error("Error loading unlocked items:", error);
+      }
+    }
+    
+    loadUnlockedItems();
+  }, [publicKey]);
+
+  // Save unlocked items to localStorage and database
+  useEffect(() => {
+    if (!publicKey || Object.keys(unlockedItems).length === 0) return;
+    
+    // Save to localStorage
+    localStorage.setItem(`unlocked-items-${publicKey}`, JSON.stringify(unlockedItems));
+    
+    // Save to database
+    try {
+      dbService.saveUserData(publicKey, { unlockedItems });
+      console.log('Saved unlocked items to database');
+    } catch (error) {
+      console.error('Failed to save unlocked items to database:', error);
+    }
+  }, [unlockedItems, publicKey]);
 
   return (
     <div className="flex w-full min-h-screen p-2 sm:p-4 items-center justify-center">
@@ -778,89 +1523,272 @@ export function KawaiiDevice() {
 
         {/* Center column - Game device */}
         <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2 mx-auto">
-          <div className="flex justify-center items-center w-full  max-md:min-h-[100vh] max-h-[100vh]">
-            <div className="relative w-full max-w-[398px]">
-              {/* Gamepad image - base layer */}
-              <div className="relative w-[398px] h-[514px]">
-                <Image
-                  src="/assets/devices/gamepad.png"
-                  alt="Game Device"
-                  fill
-                  className="object-contain"
-                  priority
-                />
-              </div>
-              
-              {/* Game screen - positioned according to SVG */}
-              <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb] rounded-lg overflow-hidden z-[-1]">
-                <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
-                  <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
-                  {renderMenuContent()}
-                </div>
-              </div>
-              
-              {/* Control buttons positioned according to SVG */}
-              {/* Left button */}
-              <button 
-                onClick={() => handleButtonClick("previous")}
-                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
-                style={{ 
-                  top: "395px", 
-                  left: "80px", 
-                  width: "52px", 
-                  height: "52px",
-                }}
-                aria-label="Previous"
-              >
-                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
-              </button>
-              
-              {/* Right button */}
-              <button 
-                onClick={() => handleButtonClick("next")}
-                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
-                style={{ 
-                  top: "395px", 
-                  left: "142px", 
-                  width: "52px", 
-                  height: "52px",
-                }}
-                aria-label="Next"
-              >
-                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
-              </button>
-              
-              {/* Accept button (A) */}
-              <button 
-                onClick={() => handleButtonClick("a")}
-                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
-                style={{ 
-                  top: "395px", 
-                  left: "205px", 
-                  width: "52px", 
-                  height: "52px",
-                }}
-                aria-label="A"
-              >
-                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
-              </button>
-              
-              {/* Cancel button (B) */}
-              <button 
-                onClick={() => handleButtonClick("b")}
-                className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
-                style={{ 
-                  top: "395px", 
-                  left: "267px", 
-                  width: "52px", 
-                  height: "52px",
-                }}
-                aria-label="B"
-              >
-                <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
-              </button>
+          <div className="flex justify-center items-center w-full max-md:min-h-[100vh] max-h-[100vh]">
+            <Tilt
+              className="parallax-effect"
+              perspective={500}
+              glareEnable={false}
+              scale={1.02}
+              gyroscope={true}
+              tiltMaxAngleX={tiltConfig.tiltMaxAngleX}
+              tiltMaxAngleY={tiltConfig.tiltMaxAngleY}
+              tiltEnable={tiltConfig.tiltEnable}
+              tiltReverse={tiltConfig.tiltReverse}
+              tiltAngleXManual={tiltConfig.tiltAngleXManual}
+              tiltAngleYManual={tiltConfig.tiltAngleYManual}
+              transitionSpeed={1000}
+              transitionEasing="cubic-bezier(0.16, 1, 0.3, 1)"
+              trackOnWindow={false}
+              glareMaxOpacity={0}
+              tiltAngleXInitial={0}
+              tiltAngleYInitial={0}
+              onLeave={() => {
+                // Instead of immediately setting to 0, animate the transition
+                if (primaryGlareRef.current && secondaryGlareRef.current) {
+                  // Set longer, smoother transitions
+                  primaryGlareRef.current.style.transition = "all 2s cubic-bezier(0.16, 1, 0.3, 1)";
+                  secondaryGlareRef.current.style.transition = "all 2s cubic-bezier(0.16, 1, 0.3, 1)";
+                  
+                  // Reduce opacity
+                  primaryGlareRef.current.style.opacity = "0.2";
+                  secondaryGlareRef.current.style.opacity = "0.1";
+                  
+                  // Create a smooth animation to reset position
+                  let startX = tiltPositionRef.current.tiltAngleX;
+                  let startY = tiltPositionRef.current.tiltAngleY;
+                  let startTime = performance.now();
+                  let duration = 3000; // 3 seconds for a slower, smoother transition
+                  
+                  const animateReset = (timestamp: number) => {
+                    const elapsed = timestamp - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // Use easeOutCubic for smooth deceleration
+                    const easing = 1 - Math.pow(1 - progress, 3);
+                    
+                    // Calculate current position
+                    const currentX = startX * (1 - easing);
+                    const currentY = startY * (1 - easing);
+                    
+                    // Update the ref
+                    tiltPositionRef.current = {
+                      tiltAngleX: currentX,
+                      tiltAngleY: currentY
+                    };
+                    
+                    // Update the glare positions
+                    if (primaryGlareRef.current && secondaryGlareRef.current) {
+                      const primaryX = 50 - currentY * 3;
+                      const primaryY = 40 + currentX * 4;
+                      primaryGlareRef.current.style.backgroundImage = 
+                        `radial-gradient(circle at ${primaryX}% ${primaryY}%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 70%)`;
+                      
+                      const secondaryX = 70 + currentY * 2;
+                      const secondaryY = 60 - currentX * 3;
+                      secondaryGlareRef.current.style.backgroundImage = 
+                        `radial-gradient(circle at ${secondaryX}% ${secondaryY}%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0) 40%)`;
+                    }
+                    
+                    // Continue animation if not complete
+                    if (progress < 1) {
+                      requestAnimationFrame(animateReset);
+                    } else {
+                      // Reset completely at the end
+                      tiltPositionRef.current = {
+                        tiltAngleX: 0,
+                        tiltAngleY: 0
+                      };
+                    }
+                  };
+                  
+                  // Start the animation
+                  requestAnimationFrame(animateReset);
+                }
+              }}
+              onEnter={() => {
+                if (primaryGlareRef.current) {
+                  primaryGlareRef.current.style.transition = "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 1s ease-in";
+                  primaryGlareRef.current.style.opacity = tiltConfig.tiltEnable ? "0.7" : "0.4";
+                }
+                if (secondaryGlareRef.current) {
+                  secondaryGlareRef.current.style.transition = "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 1s ease-in";
+                  secondaryGlareRef.current.style.opacity = tiltConfig.tiltEnable ? "0.5" : "0.2";
+                }
+              }}
+              onMove={(tiltData) => {
+                // Only update if values changed significantly to improve performance
+                const xDiff = Math.abs(tiltPositionRef.current.tiltAngleX - tiltData.tiltAngleX);
+                const yDiff = Math.abs(tiltPositionRef.current.tiltAngleY - tiltData.tiltAngleY);
+                
+                if (xDiff > 0.3 || yDiff > 0.3) {
+                  // Update ref
+                  tiltPositionRef.current = {
+                    tiltAngleX: tiltData.tiltAngleX,
+                    tiltAngleY: tiltData.tiltAngleY
+                  };
+                  
+                  // Directly update DOM elements for better performance
+                  if (primaryGlareRef.current) {
+                    const x = 50 - tiltPositionRef.current.tiltAngleY * 3;
+                    const y = 40 + tiltPositionRef.current.tiltAngleX * 4;
+                    primaryGlareRef.current.style.backgroundImage = 
+                      `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 70%)`;
+                  }
+                  
+                  if (secondaryGlareRef.current) {
+                    const x = 70 + tiltPositionRef.current.tiltAngleY * 2;
+                    const y = 60 - tiltPositionRef.current.tiltAngleX * 3;
+                    secondaryGlareRef.current.style.backgroundImage = 
+                      `radial-gradient(circle at ${x}% ${y}%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0) 40%)`;
+                  }
+                }
+              }}
+            >
+              <div className="relative w-full max-w-[398px]">
+                {/* Gamepad image - base layer */}
+                <div className="relative w-[398px] h-[514px]">
+                  <Image
+                    src="/assets/devices/gamepad.png"
+                    alt="Game Device"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                  
+                  {/* Custom glare effect - positioned exactly like the gamepad image */}
+                  <div 
+                    ref={primaryGlareRef}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage: `
+                        radial-gradient(
+                          circle at ${50 - tiltPositionRef.current.tiltAngleY * 3}% ${40 + tiltPositionRef.current.tiltAngleX * 4}%, 
+                          rgba(255, 255, 255, 0.6) 0%, 
+                          rgba(255, 255, 255, 0.3) 30%,
+                          rgba(255, 255, 255, 0.1) 50%,
+                          rgba(255, 255, 255, 0) 70%
+                        )
+                      `,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      maskImage: 'url(/assets/devices/gamepad.png)',
+                      WebkitMaskImage: 'url(/assets/devices/gamepad.png)',
+                      maskSize: 'contain',
+                      WebkitMaskSize: 'contain', 
+                      maskRepeat: 'no-repeat',
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      WebkitMaskPosition: 'center',
+                      opacity: tiltConfig.tiltEnable ? 0.7 : 0.4,
+                      mixBlendMode: 'screen',
+                      willChange: 'background-image, opacity',
+                      transform: 'translateZ(0)',
+                      transition: "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s ease-out",
+                    }}
+                  />
+                  
+                  {/* Secondary reflection for depth */}
+                  <div 
+                    ref={secondaryGlareRef}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage: `
+                        radial-gradient(
+                          circle at ${70 + tiltPositionRef.current.tiltAngleY * 2}% ${60 - tiltPositionRef.current.tiltAngleX * 3}%, 
+                          rgba(255, 255, 255, 0.3) 0%, 
+                          rgba(255, 255, 255, 0.1) 20%,
+                          rgba(255, 255, 255, 0) 40%
+                        )
+                      `,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      maskImage: 'url(/assets/devices/gamepad.png)',
+                      WebkitMaskImage: 'url(/assets/devices/gamepad.png)',
+                      maskSize: 'contain',
+                      WebkitMaskSize: 'contain', 
+                      maskRepeat: 'no-repeat',
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      WebkitMaskPosition: 'center',
+                      opacity: tiltConfig.tiltEnable ? 0.5 : 0.2,
+                      mixBlendMode: 'screen',
+                      willChange: 'background-image, opacity',
+                      transform: 'translateZ(0)',
+                      transition: "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s ease-out",
+                    }}
+                  />
             </div>
-          </div>
+                
+                {/* Game screen - positioned according to SVG */}
+                <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb] rounded-lg overflow-hidden z-[-1]">
+                  <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
+                <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
+                {renderMenuContent()}
+              </div>
+            </div>
+
+                {/* Control buttons positioned according to SVG */}
+                {/* Left button */}
+                <button 
+                  onClick={() => handleButtonClick("previous")}
+                  className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                  style={{ 
+                    top: "395px", 
+                    left: "80px", 
+                    width: "52px", 
+                    height: "52px",
+                  }}
+                  aria-label="Previous"
+                >
+                  <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+                </button>
+                
+                {/* Right button */}
+                <button 
+                  onClick={() => handleButtonClick("next")}
+                  className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                  style={{ 
+                    top: "395px", 
+                    left: "142px", 
+                    width: "52px", 
+                    height: "52px",
+                  }}
+                  aria-label="Next"
+                >
+                  <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+                </button>
+                
+                {/* Accept button (A) */}
+                <button 
+                  onClick={() => handleButtonClick("a")}
+                  className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                  style={{ 
+                    top: "395px", 
+                    left: "205px", 
+                    width: "52px", 
+                    height: "52px",
+                  }}
+                  aria-label="A"
+                >
+                  <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+                </button>
+                
+                {/* Cancel button (B) */}
+                <button 
+                  onClick={() => handleButtonClick("b")}
+                  className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
+                  style={{ 
+                    top: "395px", 
+                    left: "267px", 
+                    width: "52px", 
+                    height: "52px",
+                  }}
+                  aria-label="B"
+                >
+                  <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
+                </button>
+                        </div>
+            </Tilt>
+                    </div>
         </div>
 
         {/* Right column - Points Earned Panel */}
@@ -886,4 +1814,5 @@ export function KawaiiDevice() {
     </div>
   );
 }
+
 
