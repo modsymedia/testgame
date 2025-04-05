@@ -466,6 +466,20 @@ export function KawaiiDevice() {
     }
   }, [userData.points]);
 
+  // Add an effect to reset mostRecentTask when cooldowns finish
+  useEffect(() => {
+    // If there's a most recent task but its cooldown is finished, reset it
+    if (mostRecentTask === 'feed' && !isOnCooldown.feed) {
+      setMostRecentTask(null);
+    } else if (mostRecentTask === 'clean' && !isOnCooldown.clean) {
+      setMostRecentTask(null);
+    } else if (mostRecentTask === 'play' && !isOnCooldown.play) {
+      setMostRecentTask(null);
+    } else if (mostRecentTask === 'heal' && !isOnCooldown.heal) {
+      setMostRecentTask(null);
+    }
+  }, [isOnCooldown.feed, isOnCooldown.clean, isOnCooldown.play, isOnCooldown.heal, mostRecentTask]);
+
   const getCatEmotion = () => {
     // Consider the pet sick when health is below 20
     const isSick = health < 20 && !isDead;
@@ -474,6 +488,8 @@ export function KawaiiDevice() {
     if (isMenuActive) return <AlertCat selectedMenuItem={selectedMenuItem} 
                                       hygieneTaskOnCooldown={isOnCooldown.clean} 
                                       foodTaskOnCooldown={isOnCooldown.feed}
+                                      playTaskOnCooldown={isOnCooldown.play}
+                                      healTaskOnCooldown={isOnCooldown.heal}
                                       sickStatus={isSick}
                                       mostRecentTask={mostRecentTask} />;
     if (isFeeding)
@@ -481,6 +497,8 @@ export function KawaiiDevice() {
         <motion.div animate={{ rotate: [0, -5, 5, -5, 0] }} transition={{ duration: 0.5 }}>
           <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                    foodTaskOnCooldown={isOnCooldown.feed}
+                   playTaskOnCooldown={isOnCooldown.play}
+                   healTaskOnCooldown={isOnCooldown.heal}
                    sickStatus={isSick}
                    mostRecentTask={mostRecentTask} />
         </motion.div>
@@ -490,8 +508,10 @@ export function KawaiiDevice() {
         <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: 2, duration: 0.3 }}>
           <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                    foodTaskOnCooldown={isOnCooldown.feed}
+                   playTaskOnCooldown={isOnCooldown.play}
+                   healTaskOnCooldown={isOnCooldown.heal}
                    sickStatus={isSick}
-                   mostRecentTask={mostRecentTask} />
+                   mostRecentTask="play" />
         </motion.div>
       );
     if (isCleaning)
@@ -499,6 +519,8 @@ export function KawaiiDevice() {
         <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5 }}>
           <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                    foodTaskOnCooldown={isOnCooldown.feed}
+                   playTaskOnCooldown={isOnCooldown.play}
+                   healTaskOnCooldown={isOnCooldown.heal}
                    sickStatus={isSick}
                    mostRecentTask={mostRecentTask} />
         </motion.div>
@@ -515,24 +537,34 @@ export function KawaiiDevice() {
         >
           <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                    foodTaskOnCooldown={isOnCooldown.feed}
+                   playTaskOnCooldown={isOnCooldown.play}
+                   healTaskOnCooldown={isOnCooldown.heal}
                    sickStatus={isSick}
                    mostRecentTask="heal" />
         </motion.div>
       );
     if (food < 30) return <HungryCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                                     foodTaskOnCooldown={isOnCooldown.feed}
+                                    playTaskOnCooldown={isOnCooldown.play}
+                                    healTaskOnCooldown={isOnCooldown.heal}
                                     sickStatus={isSick}
                                     mostRecentTask={mostRecentTask} />;
     if (happiness < 30) return <SadCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                                       foodTaskOnCooldown={isOnCooldown.feed}
+                                      playTaskOnCooldown={isOnCooldown.play}
+                                      healTaskOnCooldown={isOnCooldown.heal}
                                       sickStatus={isSick}
                                       mostRecentTask={mostRecentTask} />;
     if (energy < 30 || food < 50 || happiness < 50) return <TiredCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                                                                     foodTaskOnCooldown={isOnCooldown.feed}
+                                                                    playTaskOnCooldown={isOnCooldown.play}
+                                                                    healTaskOnCooldown={isOnCooldown.heal}
                                                                     sickStatus={isSick}
                                                                     mostRecentTask={mostRecentTask} />;
     return <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
                     foodTaskOnCooldown={isOnCooldown.feed}
+                    playTaskOnCooldown={isOnCooldown.play}
+                    healTaskOnCooldown={isOnCooldown.heal}
                     sickStatus={isSick}
                     mostRecentTask={mostRecentTask} />;
   };
@@ -1071,7 +1103,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex items-center justify-center relative mb-[12px]">
-            <div className="relative w-full scale-[1]">
+            <div className="relative w-full scale-[0.9]">
               {getCatEmotion()}
             </div>
           </div>
@@ -1082,9 +1114,9 @@ export function KawaiiDevice() {
                 icon={icon as "food" | "clean" | "doctor" | "play"}
                 isHighlighted={selectedMenuItem === index}
                 label={icon.charAt(0).toUpperCase() + icon.slice(1)}
-                cooldown={cooldowns[icon === "doctor" ? "heal" : icon as keyof typeof cooldowns]}
-                maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon as keyof typeof DEFAULT_COOLDOWNS]}
-                isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon] || isDead}
+                cooldown={cooldowns[icon === "doctor" ? "heal" : icon === "food" ? "feed" : icon as keyof typeof cooldowns]}
+                maxCooldown={DEFAULT_COOLDOWNS[icon === "doctor" ? "heal" : icon === "food" ? "feed" : icon as keyof typeof DEFAULT_COOLDOWNS]}
+                isDisabled={isOnCooldown[icon === "doctor" ? "heal" : icon === "food" ? "feed" : icon as keyof typeof isOnCooldown] || isDead}
                 onClick={() => {
                   setSelectedMenuItem(index);
                   handleButtonClick("a");
@@ -1103,7 +1135,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select food to feed your pet:</div>
-          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.81] mb-[12px]">{getCatEmotion()}</div>
           
           {/* Unlock prompt overlay */}
           {showUnlockPrompt && itemToUnlock.type === 'food' && (
@@ -1194,7 +1226,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose a game to play:</div>
-          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.81] mb-[12px]">{getCatEmotion()}</div>
           
           {/* Unlock prompt overlay for play */}
           {showUnlockPrompt && itemToUnlock.type === 'play' && (
@@ -1285,7 +1317,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose grooming method:</div>
-          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.81] mb-[12px]">{getCatEmotion()}</div>
           
           {/* Unlock prompt overlay for clean */}
           {showUnlockPrompt && itemToUnlock.type === 'clean' && (
@@ -1376,7 +1408,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select treatment option:</div>
-          <div className="flex-grow flex items-center justify-center scale-[0.9] mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center scale-[0.81] mb-[12px]">{getCatEmotion()}</div>
           
           {/* Unlock prompt overlay for doctor */}
           {showUnlockPrompt && itemToUnlock.type === 'doctor' && (
@@ -1467,16 +1499,6 @@ export function KawaiiDevice() {
     disconnect();
     router.push('/');
   }, [disconnect, router]);
-
-  // Add an effect to reset mostRecentTask when cooldowns finish
-  useEffect(() => {
-    // If there's a most recent task but its cooldown is finished, reset it
-    if (mostRecentTask === 'feed' && !isOnCooldown.feed) {
-      setMostRecentTask(null);
-    } else if (mostRecentTask === 'clean' && !isOnCooldown.clean) {
-      setMostRecentTask(null);
-    }
-  }, [isOnCooldown.feed, isOnCooldown.clean, mostRecentTask]);
 
   // Load unlocked items from database or localStorage
   useEffect(() => {
@@ -1784,7 +1806,7 @@ export function KawaiiDevice() {
                         transition: "background-image 1.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s ease-out",
                       }}
                     />
-              </div>
+            </div>
                     
                     {/* Game screen - positioned according to SVG */}
                     <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb] rounded-lg overflow-hidden z-[-1]">
@@ -1854,30 +1876,30 @@ export function KawaiiDevice() {
                     >
                       <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
-                  </div>
+                        </div>
                 </Tilt>
-              </div>
-            </div>
-          </div>
+                    </div>
+                </div>
+        </div>
 
-          {/* Right column - Points Earned Panel */}
+        {/* Right column - Points Earned Panel */}
           <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] min-w-[280px] px-0">
-            <PointsEarnedPanel 
+          <PointsEarnedPanel 
               className="w-full h-full"
               currentPoints={userData.points}
-              pointsMultiplier={walletData?.multiplier || 1.0}
+            pointsMultiplier={walletData?.multiplier || 1.0}
               recentActivities={userActivities}
               isLoading={isActivitiesLoading}
-              onPointsEarned={useCallback((earnedPoints: number) => {
+            onPointsEarned={useCallback((earnedPoints: number) => {
                 const newPoints = userData.points + earnedPoints;
-                if (newPoints !== lastUpdatedPointsRef.current) {
+              if (newPoints !== lastUpdatedPointsRef.current) {
                   updateUserDataPoints(newPoints);
-                  lastUpdatedPointsRef.current = newPoints;
-                }
+                lastUpdatedPointsRef.current = newPoints;
+              }
               }, [userData.points, lastUpdatedPointsRef, updateUserDataPoints])}
-            />
-          </div>
+          />
         </div>
       </div>
+    </div>
   );
 }

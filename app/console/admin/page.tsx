@@ -166,28 +166,37 @@ export default function AdminPage() {
     try {
       console.log('💀 Killing Pet for wallet:', publicKey);
       
+      if (!publicKey) {
+        throw new Error('No wallet connected');
+      }
+      
       const response = await fetch('/api/pet/update', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          publicKey,
+          walletAddress: publicKey, // Change publicKey to walletAddress which is likely the expected parameter name
           health: 0,
           happiness: 0,
           hunger: 0,
           cleanliness: 0,
+          is_dead: true, // Add explicit flag for dead pet
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to kill pet');
+      // Check for HTTP errors and try to get the error message from response
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server error: ${response.status}`);
+      }
       
       console.log('☠️ Pet killed successfully for wallet:', publicKey);
       toast.success("Pet killed successfully");
       loadStats(); // Reload statistics
     } catch (error) {
       console.error('❌ Error killing pet:', error);
-      toast.error("Failed to kill pet");
+      toast.error(error instanceof Error ? error.message : "Failed to kill pet");
     } finally {
       setIsLoading(false);
     }
@@ -198,28 +207,38 @@ export default function AdminPage() {
     try {
       console.log('🔄 Resetting pet for wallet:', publicKey);
       
+      if (!publicKey) {
+        throw new Error('No wallet connected');
+      }
+      
       const response = await fetch('/api/pet/update', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          publicKey,
+          walletAddress: publicKey, // Change publicKey to walletAddress
           health: 100,
           happiness: 100,
           hunger: 100,
           cleanliness: 100,
+          energy: 100, // Add energy parameter
+          is_dead: false, // Explicitly set is_dead to false
         }),
       });
-
-      if (!response.ok) throw new Error('Failed to reset pet');
+      
+      // Check for HTTP errors and try to get the error message from response
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server error: ${response.status}`);
+      }
       
       console.log('✨ Pet reset successfully for wallet:', publicKey);
       toast.success("Pet reset successfully");
       loadStats(); // Reload statistics
     } catch (error) {
       console.error('❌ Error resetting pet:', error);
-      toast.error("Failed to reset pet");
+      toast.error(error instanceof Error ? error.message : "Failed to reset pet");
     } finally {
       setIsLoading(false);
     }
