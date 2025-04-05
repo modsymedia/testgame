@@ -20,6 +20,7 @@ interface WalletContextType {
   burnPoints: () => Promise<number | undefined>;
   error: string | null;
   isNewUser: boolean;
+  showPetNamePrompt: boolean;
   setUsername: (username: string) => Promise<boolean>;
   availableWallets: Array<{name: string, label: string, icon: string}>;
   currentWalletName: string | null;
@@ -35,6 +36,7 @@ const defaultContext: WalletContextType = {
   burnPoints: async () => undefined,
   error: null,
   isNewUser: false,
+  showPetNamePrompt: false,
   setUsername: async () => false,
   availableWallets: [],
   currentWalletName: null
@@ -57,8 +59,25 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [showPetNamePrompt, setShowPetNamePrompt] = useState(false);
   const [availableWallets, setAvailableWallets] = useState<Array<{name: string, label: string, icon: string}>>([]);
   const [currentWalletName, setCurrentWalletName] = useState<string | null>(null);
+
+  // Check for global trigger to show pet name prompt (for testing)
+  useEffect(() => {
+    // Check every second for the global trigger
+    const intervalId = setInterval(() => {
+      // @ts-ignore - check for global trigger
+      if (typeof window !== 'undefined' && window.__forceShowPetNamePrompt) {
+        console.log('Detected global trigger to show pet name prompt');
+        setShowPetNamePrompt(true);
+        // @ts-ignore - reset the trigger
+        window.__forceShowPetNamePrompt = false;
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Safe connect wrapper
   const safeConnect = async (provider: any): Promise<any> => {
@@ -174,6 +193,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
             console.error('Error loading wallet data:', err);
             // Continue with connection even if data load fails
           }
+
+          // Always show the pet name prompt on any wallet connection
+          setShowPetNamePrompt(true);
         }
       } catch (error) {
         console.error('Error checking wallet connection:', error);
@@ -236,6 +258,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
             console.error('Error loading wallet data after connect:', dataErr);
             // Continue with default data if needed
           }
+
+          // Always show the pet name prompt on connect event
+          setShowPetNamePrompt(true);
         }
       } catch (error) {
         console.error('Error in connect handler:', error);
@@ -474,6 +499,10 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setIsLoading(false);
         }
         
+        // After successful connection, set showPetNamePrompt to true for every login
+        console.log("Connection successful - showing pet name prompt");
+        setShowPetNamePrompt(true);
+        
         return true;
       } catch (connError) {
         console.error('Connection error:', connError);
@@ -595,6 +624,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
       // No longer a new user after completing setup
       setIsNewUser(false);
       
+      // Dismiss the pet name prompt after successful update
+      setShowPetNamePrompt(false);
+      
       return true;
     } catch (error) {
       console.error('Error setting username:', error);
@@ -612,6 +644,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     burnPoints,
     error,
     isNewUser,
+    showPetNamePrompt,
     setUsername,
     availableWallets,
     currentWalletName

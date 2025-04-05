@@ -72,6 +72,8 @@
     "react-hook-form": "^7.54.1",
     "react-parallax-tilt": "^1.7.289",
     "react-resizable-panels": "^2.1.7",
+    "react-responsive": "^10.0.1",
+    "react-useanimations": "^2.10.0",
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
     "tailwind-merge": "^1.14.0",

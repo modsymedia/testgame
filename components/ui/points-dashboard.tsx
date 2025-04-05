@@ -203,7 +203,7 @@ export const PointsDashboard = ({
       </div>
 
       {/* Right side - GPT Logs */}
-      <div className="w-[320px]">
+      <div className="w-[320px] ">
         <GPTLogsPanel />
       </div>
     </div>

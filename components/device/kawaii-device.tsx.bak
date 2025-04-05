@@ -62,7 +62,7 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
             alt="Health" 
             width={21} 
             height={21} 
-            className="mr-2"
+            className="mr-1"
             style={{ imageRendering: 'pixelated' }}
           />
           <CustomSlider 
@@ -143,6 +143,17 @@ export function KawaiiDevice() {
       
       // Use the smaller scale to ensure device fits within container
       let newScale = Math.min(widthScale, heightScale);
+      
+      // Apply different minimum scales based on screen size
+      if (isSmallScreen) {
+        newScale = Math.max(newScale, 0.65); // Minimum scale for small screens
+      } else if (isMediumScreen) {
+        newScale = Math.max(newScale, 0.85); // Minimum scale for medium screens
+      } else {
+        newScale = Math.max(newScale, 0.95); // Minimum scale for large screens
+      }
+      
+      // Cap the maximum scale
       newScale = Math.min(newScale, 1.0);
       
       // Update scale state
@@ -1071,7 +1082,7 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="flex-grow flex items-center justify-center relative mb-[12px]">
-            <div className="relative w-full scale-[1]">
+            <div className="relative w-full scale-[0.9]">
               {getCatEmotion()}
             </div>
           </div>
@@ -1582,7 +1593,13 @@ export function KawaiiDevice() {
             ref={deviceWrapperRef}
             className="flex justify-center items-center w-full h-full min-h-[300px] max-md:min-h-[100vh] max-h-[100vh] relative"
           >
-
+            {/* Debug overlay for development - shows current scale */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="absolute top-0 left-0 bg-black/70 text-white text-xs p-1 z-50">
+                Scale: {deviceScale.toFixed(2)}
+            </div>
+            )}
+            
             <div 
               ref={deviceContentRef}
               className="transition-transform duration-300 ease-out flex justify-center items-center"
@@ -1854,7 +1871,7 @@ export function KawaiiDevice() {
                     >
                       <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
-                  </div>
+                        </div>
                 </Tilt>
               </div>
             </div>
@@ -1866,18 +1883,23 @@ export function KawaiiDevice() {
               className="w-full h-full"
               currentPoints={userData.points}
               pointsMultiplier={walletData?.multiplier || 1.0}
-              recentActivities={userActivities}
-              isLoading={isActivitiesLoading}
+              recentActivities={userActivities} // Pass user activities
+              isLoading={isActivitiesLoading} // Pass loading state
               onPointsEarned={useCallback((earnedPoints: number) => {
                 const newPoints = userData.points + earnedPoints;
                 if (newPoints !== lastUpdatedPointsRef.current) {
                   updateUserDataPoints(newPoints);
                   lastUpdatedPointsRef.current = newPoints;
+                  
+                  // Don't create an activity for auto points - we only want to show interactions
                 }
               }, [userData.points, lastUpdatedPointsRef, updateUserDataPoints])}
             />
           </div>
         </div>
       </div>
+    </div>
   );
 }
+
+

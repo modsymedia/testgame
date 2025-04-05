@@ -55,7 +55,7 @@ export default function DashboardPage() {
   }, [publicKey]);
 
   return (
-    <div className="min-h-screen p-6 flex items-center justify-center">
+    <div className="sm:pt-20 min-h-min p-6 flex items-center justify-center ">
       <PointsDashboard
         points={dashboardData.points}
         tokenPrice={tokenPrice}

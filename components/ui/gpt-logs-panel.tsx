@@ -92,12 +92,12 @@ export const GPTLogsPanel = () => {
   return (
     <AnimatePresence>
       <motion.div
-        className="w-80 mx-auto"
+        className="w-80  mx-auto"
         initial={{ opacity: 0.9 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
-        <PixelatedContainer className="flex flex-col p-0" noPadding>
+        <PixelatedContainer className="flex flex-col p-0 w-full" noPadding>
           {/* Header */}
           <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between  w-full">
             <span className="text-xl font-bold font-pixelify"> LLM INFO</span>

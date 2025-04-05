@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/forms/button';
 import { Input } from '@/components/ui/forms/input';
+import PixelatedContainer from '@/components/game/PixelatedContainerBig';
 import {
   Dialog,
   DialogContent,
@@ -12,30 +13,45 @@ import {
 } from '@/components/ui/feedback/dialog';
 
 export function UsernameModal() {
-  const { isConnected, publicKey, walletData, setUsername, isNewUser } = useWallet();
+  const { isConnected, publicKey, walletData, setUsername, isNewUser, showPetNamePrompt } = useWallet();
   const [open, setOpen] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Add debug logging
+  useEffect(() => {
+    console.log('UsernameModal state:', { 
+      isConnected, 
+      hasPublicKey: !!publicKey, 
+      hasWalletData: !!walletData,
+      isNewUser,
+      showPetNamePrompt,
+      isOpen: open
+    });
+  }, [isConnected, publicKey, walletData, isNewUser, showPetNamePrompt, open]);
+
   // Set initial name field
   useEffect(() => {
-    if (publicKey) {
-      // Always start with an empty field for better UX
+    if (publicKey && walletData?.username) {
+      // Pre-fill with current username for better UX
+      setUsernameInput(walletData.username);
+    } else {
       setUsernameInput('');
     }
-  }, [publicKey]);
+  }, [publicKey, walletData]);
 
-  // Show dialog only for new users
+  // Show dialog based on showPetNamePrompt flag
   useEffect(() => {
-    if (isConnected && isNewUser) {
-      console.log("New user connected, showing pet name modal");
+    console.log("showPetNamePrompt changed:", showPetNamePrompt);
+    if (showPetNamePrompt) {
+      console.log("Showing pet name modal");
       setOpen(true);
-    } else if (!isNewUser) {
-      // Close the modal if user is no longer new (e.g. after setting pet name)
+    } else {
+      console.log("Hiding pet name modal");
       setOpen(false);
     }
-  }, [isConnected, isNewUser]);
+  }, [showPetNamePrompt]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,17 +86,15 @@ export function UsernameModal() {
     }
   };
 
-  // Prevent closing the modal if name isn't set
+  // Prevent closing the modal if no name is set
   const handleOpenChange = (newOpen: boolean) => {
-    // Only allow closing if submitting or form has been completed
-    if (!newOpen && !isNewUser) {
-      setOpen(false);
-    } else {
-      // Keep dialog open if user is new (force them to set a name)
-      setOpen(true);
-      
-      // If trying to close without setting a name, show an error
-      if (!newOpen && isNewUser) {
+    if (!newOpen) {
+      // Allow closing if user already has a name
+      if (!isNewUser) {
+        setOpen(false);
+      } else {
+        // Keep dialog open if user is new (force them to set a name)
+        setOpen(true);
         setError('Please choose a pet name first');
       }
     }
@@ -88,37 +102,43 @@ export function UsernameModal() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Choose Your Pet Name</DialogTitle>
-          <DialogDescription>
-            Please enter a name for your pet to identify yourself
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="name" className="text-right col-span-1">
-                Pet Name
-              </label>
-              <Input
-                id="name"
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Enter your pet's name"
-                className="col-span-3"
-                maxLength={16}
-                required
-              />
+      <DialogContent className="sm:max-w-[425px] p-0 bg-transparent border-none shadow-none">
+        <PixelatedContainer bgcolor="#EBFFB7" className="p-6 rounded-xl">
+          <DialogHeader className="font-pixelify text-[#304700]">
+            <DialogTitle className="text-2xl">Choose Your Pet Name</DialogTitle>
+            <DialogDescription className="text-[#304700]/80 font-pixelify">
+              Please enter a name for your pet to identify yourself
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="name" className="text-right col-span-1 font-pixelify text-[#304700]">
+                  Pet Name
+                </label>
+                <Input
+                  id="name"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="Enter your pet's name"
+                  className="col-span-3 bg-white/70 border-[#304700] font-pixelify text-[#304700] placeholder-[#304700]/50"
+                  maxLength={16}
+                  required
+                />
+              </div>
+              {error && <p className="text-sm text-red-500 text-center font-pixelify">{error}</p>}
             </div>
-            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isSubmitting || !usernameInput.trim()}>
-              {isSubmitting ? 'Saving...' : 'Save Pet Name'}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !usernameInput.trim()}
+                className="bg-[#304700] hover:bg-[#3a5800] text-white font-pixelify px-6 py-3"
+              >
+                {isSubmitting ? 'Saving...' : 'Save Pet Name'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </PixelatedContainer>
       </DialogContent>
     </Dialog>
   );

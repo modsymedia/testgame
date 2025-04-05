@@ -62,7 +62,9 @@ export default function LeaderboardDisplay() {
 
       // Check if the current user is in the results and set their rank
       if (publicKey) {
-        const userEntry = result.entries.find(entry => entry.walletAddress === publicKey);
+        const userEntry = result.entries.find(
+          (entry) => entry.walletAddress === publicKey
+        );
         if (userEntry) {
           setUserRank(userEntry.rank);
         } else {
@@ -71,17 +73,22 @@ export default function LeaderboardDisplay() {
           if (userRankResult.success) {
             setUserRank(userRankResult.rank);
             setTotalUsers(userRankResult.totalUsers);
-            
+
             // Also store the user data from the server
             if (userRankResult.userData) {
-              console.log('Got user data from server during leaderboard load:', userRankResult.userData);
+              console.log(
+                "Got user data from server during leaderboard load:",
+                userRankResult.userData
+              );
               setUserData(userRankResult.userData);
             }
 
             // If we're not on the user's page, suggest navigating to it
             const userPage = calculateUserPage(userRankResult.rank);
             if (userPage !== page) {
-              console.log(`User is on page ${userPage}, current page is ${page}`);
+              console.log(
+                `User is on page ${userPage}, current page is ${page}`
+              );
             }
           }
         }
@@ -137,17 +144,19 @@ export default function LeaderboardDisplay() {
           if (result.success) {
             setUserRank(result.rank);
             setTotalUsers(result.totalUsers);
-            
+
             // Store the user data from the server
             if (result.userData) {
-              console.log('Got user data from server:', result.userData);
+              console.log("Got user data from server:", result.userData);
               setUserData(result.userData);
             }
 
             // Calculate which page the user should be on
             const userPage = calculateUserPage(result.rank);
             if (userPage !== currentPage) {
-              console.log(`User is on page ${userPage}, current page is ${currentPage}`);
+              console.log(
+                `User is on page ${userPage}, current page is ${currentPage}`
+              );
             }
           }
         } catch (error) {
@@ -155,7 +164,7 @@ export default function LeaderboardDisplay() {
         }
       }
     };
-    
+
     fetchUserData();
   }, [isConnected, publicKey]);
 
@@ -184,51 +193,94 @@ export default function LeaderboardDisplay() {
     if (userData?.points) {
       return userData.points;
     }
-    
+
     // Then try wallet data pet stats
     if (walletData?.petStats?.points) {
       return walletData.petStats.points;
     }
-    
+
     // Then fallback to wallet data direct points
     if (walletData?.points) {
       return walletData.points;
     }
-    
+
     return 0;
   };
-  
+
   // Add function to get the user's name from most reliable source
   const getUserName = () => {
     // First try to get username from API-returned userData
     if (userData?.username) {
       return userData.username;
     }
-    
+
     // Then try wallet data
     if (walletData?.username) {
       return walletData.username;
     }
-    
+
     // Fallback to wallet address
     return publicKey ? publicKey.substring(0, 6) + "..." : "You";
   };
 
   return (
-    <div className="flex flex-col items-center w-[500px]">
-      <PixelatedContainer className="w-full max-w-lg p-8">
+    <div className="flex flex-col items-center w-full sm:w-[500px] px-4">
+      <PixelatedContainer className="w-full max-w-lg p-2 sm:p-4 mb-6">
+        {userRank &&  (
+          <div className="mb-1.5 sm:mb-3 p-1 sm:p-2 bg-[#ebffb7] rounded-md">
+            <h3 className="text-center text-[#304700] font-bold text-[16px] sm:text-[18px] uppercase">
+              Your Position
+            </h3>
+            <div className="flex items-center justify-between py-0.5 sm:py-1">
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                <div className="flex items-center justify-center w-5 sm:w-6 h-5 sm:h-6">
+                  {userRank <= 3 ? (
+                    <Trophy
+                      className={`inline-block ${getTrophyColor(userRank)}`}
+                      size={16}
+                    />
+                  ) : (
+                    <span className="text-[16px] sm:text-[18px] font-bold text-[#304700]">
+                      {userRank}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[14px] sm:text-[16px] text-[#304700] truncate">
+                  {getUserName()}
+                </span>
+              </div>
+              <div className="flex items-center gap-0.5 sm:gap-1 text-[#304700]">
+                <Image
+                  src="/assets/icons/coin.png"
+                  width={16}
+                  height={16}
+                  alt="Points"
+                  className="inline-block"
+                />
+                <span className="text-[14px] sm:text-[16px] font-medium font-numbers">
+                  {getUserPoints().toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </PixelatedContainer>
+
+      <PixelatedContainer className="w-full max-w-lg p-2 sm:p-4">
         {!isConnected ? (
-          <div className="text-center p-6 text-[#304700]">
+          <div className="text-center p-2 sm:p-4 text-[#304700]">
             Sign in to view leaderboard
           </div>
         ) : isLoading ? (
           <div className="flex flex-col items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-0"></div>
-            <div className="mt-4 text-[#304700] text-sm">Loading leaderboard...</div>
+            <div className="mt-2 sm:mt-4 text-[#304700] text-sm">
+              Loading leaderboard...
+            </div>
           </div>
         ) : error ? (
-          <div className="text-center p-6">
-            <p className="text-red-500 mb-3">{error}</p>
+          <div className="text-center p-2 sm:p-4">
+            <p className="text-red-500 mb-1.5 sm:mb-3">{error}</p>
             <Button
               onClick={handleRefresh}
               variant="outline"
@@ -239,74 +291,35 @@ export default function LeaderboardDisplay() {
             </Button>
           </div>
         ) : displayedEntries.length === 0 ? (
-          <div className="text-center p-6 text-[#304700]">
+          <div className="text-center p-2 sm:p-4 text-[#304700]">
             No players yet. Be the first!
           </div>
         ) : (
           <>
             {/* User Rank Section */}
-            {userRank && !isLoading && (
-              <div className="mb-4 p-3 bg-[#ebffb7] rounded-md">
-                <h3 className="text-center text-[#304700] font-bold text-[20px] uppercase">Your Position</h3>
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8">
-                      {userRank <= 3 ? (
-                        <Trophy
-                          className={`inline-block ${getTrophyColor(userRank)}`}
-                          size={22}
-                        />
-                      ) : (
-                        <span className="text-[20px] font-bold text-[#304700]">{userRank}</span>
-                      )}
-                    </div>
-                    <span className="text-[18px] text-[#304700]">
-                      {getUserName()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[#304700]">
-                    <Image
-                      src="/assets/icons/coin.png"
-                      width={24}
-                      height={24}
-                      alt="Points"
-                      className="inline-block"
-                    />
-                    <span className="text-[18px] font-medium font-numbers">
-                      {getUserPoints().toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
+
             <Table>
-              {/* <TableHeader>
-                    <TableRow className="border-0">
-                      <TableHead className="w-[80px] text-center text-[#304700]">Rank</TableHead>
-                      <TableHead className="text-[#304700]">Player</TableHead>
-                      <TableHead className="text-right text-[#304700]">Score</TableHead>
-                    </TableRow>
-                  </TableHeader> */}
               <TableBody>
                 {displayedEntries.map((entry) => (
                   <TableRow
                     key={entry.walletAddress}
-                    className={`border-0 text-[18px] uppercase ${
+                    className={`border-0 text-[14px] sm:text-[16px] uppercase ${
                       entry.walletAddress === publicKey ? "bg-[#ebffb7]/30" : ""
                     }`}
                   >
-                    <TableCell className="flex-1 flex items-center space-x-3">
-                      <div className="w-4 h-12 flex items-center justify-center text-[16px]">
+                    <TableCell className="flex-1 flex items-center space-x-0.5 sm:space-x-1 p-1 sm:p-2">
+                      <div className="w-3 sm:w-4 h-8 sm:h-10 flex items-center justify-center text-[12px] sm:text-[14px]">
                         {entry.rank <= 3 ? (
                           <Trophy
                             className={`inline-block ${getTrophyColor(
                               entry.rank
                             )}`}
-                            size={18}
+                            size={14}
                           />
                         ) : (
-                          <span className="text-[18px] font-numbers">{entry.rank}</span>
+                          <span className="text-[14px] sm:text-[16px] font-numbers">
+                            {entry.rank}
+                          </span>
                         )}
                       </div>
                       <div className="truncate uppercase">
@@ -314,15 +327,17 @@ export default function LeaderboardDisplay() {
                           entry.walletAddress.substring(0, 6) + "..."}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-[#304700] flex items-center justify-start gap-2 min-w-[120px]">
+                    <TableCell className="text-right text-[#304700] flex items-center justify-start gap-0.5 sm:gap-1 min-w-[70px] sm:min-w-[90px] p-1 sm:p-2">
                       <Image
                         src="/assets/icons/coin.png"
-                        width={24}
-                        height={24}
+                        width={16}
+                        height={16}
                         alt="Points"
                         className="inline-block"
                       />
-                      <span className="text-[18px] font-numbers">{entry.score.toLocaleString()}</span>
+                      <span className="text-[14px] sm:text-[16px] font-numbers">
+                        {entry.score.toLocaleString()}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -333,11 +348,11 @@ export default function LeaderboardDisplay() {
       </PixelatedContainer>
 
       {displayedEntries.length > 0 && totalPages > 1 && !isLoading && (
-        <div className="flex justify-center mt-8 space-x-8 items-center">
+        <div className="flex justify-center mt-2 sm:mt-4 space-x-2 sm:space-x-4 items-center">
           <button
             onClick={() => handlePageChange("prev")}
             disabled={currentPage === 1 || isLoading}
-            className={`w-12 h-12 relative transition-opacity ${
+            className={`w-6 h-6 sm:w-8 sm:h-8 relative transition-opacity ${
               currentPage === 1 || isLoading
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:opacity-80 cursor-pointer"
@@ -349,13 +364,14 @@ export default function LeaderboardDisplay() {
           </button>
 
           <span className="flex items-center text-[#304700] font-medium">
-            <span className="font-numbers">{currentPage}</span> / <span className="font-numbers">{totalPages}</span>
+            <span className="font-numbers">{currentPage}</span> /{" "}
+            <span className="font-numbers">{totalPages}</span>
           </span>
 
           <button
             onClick={() => handlePageChange("next")}
             disabled={currentPage === totalPages || isLoading}
-            className={`w-12 h-12 relative transition-opacity ${
+            className={`w-6 h-6 sm:w-8 sm:h-8 relative transition-opacity ${
               currentPage === totalPages || isLoading
                 ? "opacity-50 cursor-not-allowed"
                 : "hover:opacity-80 cursor-pointer"
@@ -370,4 +386,3 @@ export default function LeaderboardDisplay() {
     </div>
   );
 }
-
