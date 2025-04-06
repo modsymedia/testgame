@@ -1,135 +1,6 @@
 import { sql, db } from '@vercel/postgres';
 import { User, PetState, GameSession, SyncStatus, SyncOperation } from './models';
 import { EventEmitter } from 'events';
-import { ethers } from 'ethers';
-
-// Chain configuration for multi-chain support
-export interface ChainConfig {
-  chainId: number;
-  name: string;
-  rpcUrl: string;
-  blockExplorer: string;
-  contractAddresses: {
-    tokenContract?: string;
-    nftContract?: string;
-    gameContract?: string;
-    marketplaceContract?: string;
-  };
-}
-
-// Contract interfaces
-// Game token interface - ERC20 with game-specific functions
-interface GameTokenInterface {
-  balanceOf(address: string): Promise<bigint>;
-  transfer(to: string, amount: bigint): Promise<ethers.ContractTransaction>;
-  allowance(owner: string, spender: string): Promise<bigint>;
-  approve(spender: string, amount: bigint): Promise<ethers.ContractTransaction>;
-  name(): Promise<string>;
-  symbol(): Promise<string>;
-  decimals(): Promise<number>;
-  totalSupply(): Promise<bigint>;
-  mint(to: string, amount: bigint): Promise<ethers.ContractTransaction>;
-  burn(amount: bigint): Promise<ethers.ContractTransaction>;
-  connect(signer: ethers.Signer): GameTokenInterface;
-}
-
-// Extended ContractTransaction interface to include wait method
-interface ExtendedContractTransaction extends ethers.ContractTransaction {
-  hash: string; // Add hash property to the interface
-  wait(): Promise<{
-    hash: string;
-    blockNumber: number;
-    blockHash: string;
-    status: number;
-  }>;
-}
-
-// Game NFT interface - ERC721 with game-specific functions
-interface GameNFTInterface {
-  balanceOf(address: string): Promise<bigint>;
-  ownerOf(tokenId: bigint): Promise<string>;
-  tokenURI(tokenId: bigint): Promise<string>;
-  isApprovedForAll(owner: string, operator: string): Promise<boolean>;
-  setApprovalForAll(operator: string, approved: boolean): Promise<ethers.ContractTransaction>;
-  mintNFT(to: string, tokenURI: string): Promise<ethers.ContractTransaction>;
-  getTokensOfOwner(owner: string): Promise<bigint[]>;
-  getNFTMetadata(tokenId: bigint): Promise<any>;
-  connect(signer: ethers.Signer): GameNFTInterface;
-}
-
-// Game contract interface - game-specific functions
-interface GameContractInterface {
-  registerPlayer(username: string): Promise<ethers.ContractTransaction>;
-  updatePlayerScore(score: bigint): Promise<ethers.ContractTransaction>;
-  claimRewards(amount: bigint): Promise<ethers.ContractTransaction>;
-  stakeTokens(amount: bigint): Promise<ethers.ContractTransaction>;
-  unstakeTokens(amount: bigint): Promise<ethers.ContractTransaction>;
-  getPlayerData(address: string): Promise<any>;
-  isRegistered(address: string): Promise<boolean>;
-  connect(signer: ethers.Signer): GameContractInterface;
-}
-
-// Blockchain transaction status type
-export type TransactionStatus = 'pending' | 'confirmed' | 'failed';
-
-// Blockchain transaction type with more detailed state
-export interface BlockchainTransaction {
-  hash: string;
-  type: 'mint' | 'transfer' | 'claim' | 'stake' | 'purchase';
-  status: TransactionStatus;
-  from: string;
-  to: string;
-  value: string;
-  data?: any;
-  timestamp: number;
-  confirmations: number;
-  chainId: number;
-  blockNumber?: number;
-  blockHash?: string;
-  gasUsed?: string;
-  effectiveGasPrice?: string;
-  receipt?: any;
-  errorMessage?: string; // Add error message field to the interface
-}
-
-// Web3 authentication proof
-export interface Web3AuthProof {
-  address: string;
-  signature: string;
-  message: string;
-  timestamp: number;
-  nonce: string;
-  expiresAt: number;
-}
-
-// Supported chains
-export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
-  1: {
-    chainId: 1,
-    name: 'Ethereum Mainnet',
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY',
-    blockExplorer: 'https://etherscan.io',
-    contractAddresses: {
-      tokenContract: '0x...',
-      nftContract: '0x...',
-      gameContract: '0x...',
-      marketplaceContract: '0x...',
-    }
-  },
-  137: {
-    chainId: 137,
-    name: 'Polygon Mainnet',
-    rpcUrl: 'https://polygon-rpc.com',
-    blockExplorer: 'https://polygonscan.com',
-    contractAddresses: {
-      tokenContract: '0x...',
-      nftContract: '0x...',
-      gameContract: '0x...',
-      marketplaceContract: '0x...',
-    }
-  },
-  // Add more chains as needed
-};
 
 // Define LeaderboardEntry interface
 interface LeaderboardEntry {
@@ -137,78 +8,27 @@ interface LeaderboardEntry {
   username: string | null;
   score: number;
   rank: number;
-  onChainData?: {
-    tokenBalance: string;
-    nftCount: number;
-  };
 }
 
 // Add configuration for API-based access
 const USE_API_FOR_WRITE_OPERATIONS = true; // Switch to true to use API routes instead of direct DB access
 
-// Configure a more secure storage approach without the dependency
-// Use IndexedDB for local storage in the browser
-class LocalStorage {
-  static async set(key: string, value: any): Promise<void> {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (error) {
-        console.error('Error saving to local storage:', error);
-      }
-    }
-  }
-
-  static async get(key: string): Promise<any> {
-    if (typeof window !== 'undefined') {
-      try {
-        const item = localStorage.getItem(key);
-        return item ? JSON.parse(item) : null;
-      } catch (error) {
-        console.error('Error reading from local storage:', error);
-        return null;
-      }
-    }
-    return null;
-  }
-}
-
 // In-memory cache for fast access and offline operations
 class DatabaseCache {
   private cache: Map<string, any> = new Map();
   private dirtyEntities: Set<string> = new Set();
-  private syncQueue: {entity: string, operation: SyncOperation, data: any, version?: number}[] = [];
+  private syncQueue: {entity: string, operation: SyncOperation, data: any}[] = [];
   private isSyncing: boolean = false;
-  private transactionCache: Map<string, BlockchainTransaction[]> = new Map();
-  private lastSyncTimestamps: Map<string, number> = new Map();
 
   // Add or update an item in the cache
-  set(key: string, value: any, markDirty = true): void {
-    // Add version tracking for concurrency control
-    if (value && typeof value === 'object' && !value.version) {
-      value.version = Date.now();
-    }
-
-    // Store previous value for conflict resolution
-    const previousValue = this.cache.get(key);
-    if (previousValue) {
-      value._previousState = previousValue;
-    }
-
+  set(key: string, value: any): void {
     this.cache.set(key, value);
-    if (markDirty) {
-      this.dirtyEntities.add(key);
-    }
+    this.dirtyEntities.add(key);
   }
 
   // Get an item from the cache
   get(key: string): any {
-    const value = this.cache.get(key);
-    // Update last access time for LRU implementation
-    if (value) {
-      this.lastSyncTimestamps.set(key, Date.now());
-    }
-    return value;
+    return this.cache.get(key);
   }
 
   // Check if an item exists in the cache
@@ -220,13 +40,6 @@ class DatabaseCache {
   markDirty(key: string): void {
     if (this.cache.has(key)) {
       this.dirtyEntities.add(key);
-      
-      // Update the version for optimistic concurrency control
-      const value = this.cache.get(key);
-      if (value && typeof value === 'object') {
-        value.version = Date.now();
-        this.cache.set(key, value);
-      }
     }
   }
 
@@ -245,47 +58,10 @@ class DatabaseCache {
     this.dirtyEntities.delete(key);
   }
 
-  // Add operation to sync queue with versioning
+  // Add operation to sync queue
   queueOperation(entity: string, operation: SyncOperation, data: any): void {
-    // Add versioning for optimistic concurrency control
-    const version = data.version || Date.now();
-    
-    // Check if there's already an operation for this entity in the queue
-    const existingOpIndex = this.syncQueue.findIndex(op => 
-      op.entity === entity && op.operation === operation);
-    
-    if (existingOpIndex >= 0) {
-      // If newer version, replace the existing operation
-      if (version > (this.syncQueue[existingOpIndex].version || 0)) {
-        this.syncQueue[existingOpIndex] = { entity, operation, data, version };
-      }
-    } else {
-      // Add new operation to the queue
-      this.syncQueue.push({ entity, operation, data, version });
-    }
-    
+    this.syncQueue.push({ entity, operation, data });
     this.processSyncQueue();
-  }
-
-  // Store blockchain transaction
-  addTransaction(walletAddress: string, tx: BlockchainTransaction): void {
-    if (!this.transactionCache.has(walletAddress)) {
-      this.transactionCache.set(walletAddress, []);
-    }
-    
-    this.transactionCache.get(walletAddress)?.push(tx);
-    
-    // Limit cache size to prevent memory issues
-    const transactions = this.transactionCache.get(walletAddress) || [];
-    if (transactions.length > 100) {
-      transactions.sort((a, b) => b.timestamp - a.timestamp);
-      this.transactionCache.set(walletAddress, transactions.slice(0, 100));
-    }
-  }
-  
-  // Get user transactions
-  getTransactions(walletAddress: string): BlockchainTransaction[] {
-    return this.transactionCache.get(walletAddress) || [];
   }
 
   // Process the sync queue
@@ -295,157 +71,31 @@ class DatabaseCache {
     this.isSyncing = true;
     
     try {
-      // Sort the queue by version to ensure operations are processed in order
-      this.syncQueue.sort((a, b) => (a.version || 0) - (b.version || 0));
-      
-      // Process queue in batches for better performance
-      const BATCH_SIZE = 10;
-      const batch = this.syncQueue.slice(0, BATCH_SIZE);
-      
-      // Group operations by entity type for batch processing
-      const operationsByEntityType: Record<string, {operation: SyncOperation, data: any, entity: string}[]> = {};
-      
-      batch.forEach(item => {
-        const entityType = item.entity.split(':')[0];
-        if (!operationsByEntityType[entityType]) {
-          operationsByEntityType[entityType] = [];
+      while (this.syncQueue.length > 0) {
+        const item = this.syncQueue.shift();
+        if (!item) continue;
+        
+        const { entity, operation, data } = item;
+        
+        // Execute the operation
+        switch (operation) {
+          case 'create':
+            await DatabaseService.instance.createEntity(entity, data);
+            break;
+          case 'update':
+            await DatabaseService.instance.updateEntity(entity, data);
+            break;
+          case 'delete':
+            await DatabaseService.instance.deleteEntity(entity, data);
+            break;
         }
-        operationsByEntityType[entityType].push(item);
-      });
-      
-      // Process each entity type in parallel
-      await Promise.all(
-        Object.entries(operationsByEntityType).map(async ([entityType, operations]) => {
-          try {
-            switch (entityType) {
-              case 'user':
-                await this.batchProcessUserOperations(operations);
-                break;
-              case 'pet':
-                await this.batchProcessPetOperations(operations);
-                break;
-              case 'game':
-                await this.batchProcessGameOperations(operations);
-                break;
-              default:
-                // Process individual operations for unknown entity types
-                for (const op of operations) {
-                  switch (op.operation) {
-                    case 'create':
-                      await DatabaseService.instance.createEntity(op.entity, op.data);
-                      break;
-                    case 'update':
-                      await DatabaseService.instance.updateEntity(op.entity, op.data);
-                      break;
-                    case 'delete':
-                      await DatabaseService.instance.deleteEntity(op.entity, op.data);
-                      break;
-                  }
-                }
-            }
-            
-            // Remove processed items from the queue
-            this.syncQueue = this.syncQueue.filter(item => 
-              !batch.some(batchItem => batchItem.entity === item.entity && 
-                         batchItem.operation === item.operation));
-          } catch (error) {
-            console.error(`Error processing ${entityType} operations:`, error);
-          }
-        })
-      );
+      }
     } catch (error) {
       console.error('Error processing sync queue:', error);
+      // Re-add failed operations to the front of the queue
+      // for retry on next sync attempt
     } finally {
       this.isSyncing = false;
-      
-      // If there are more items in the queue, process them
-      if (this.syncQueue.length > 0) {
-        setTimeout(() => this.processSyncQueue(), 100);
-      }
-    }
-  }
-
-  // Batch process user operations implementation
-  async batchProcessUserOperations(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    const updates: {walletAddress: string, data: Partial<User>}[] = [];
-    const creates: Partial<User>[] = [];
-    const deletes: string[] = [];
-    
-    operations.forEach(op => {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          updates.push({walletAddress: entityId, data: op.data});
-          break;
-        case 'create':
-          creates.push({...op.data, walletAddress: entityId});
-          break;
-        case 'delete':
-          deletes.push(entityId);
-          break;
-      }
-    });
-    
-    // Process batch operations using DatabaseService
-    try {
-      if (creates.length > 0) {
-        // Use individual createUser calls instead of a non-existent batch method
-        for (const userData of creates) {
-          await DatabaseService.instance.createUser(userData);
-        }
-      }
-      
-      if (updates.length > 0) {
-        // Use individual updateUserData calls
-        for (const { walletAddress, data } of updates) {
-          await DatabaseService.instance.updateUserData(walletAddress, data);
-        }
-      }
-      
-      if (deletes.length > 0) {
-        // Deletion would need to be implemented if supported
-        console.warn('User deletion not fully implemented');
-      }
-    } catch (error) {
-      console.error('Error in batch processing users:', error);
-      throw error;
-    }
-  }
-  
-  // Similar implementation for pet operations
-  async batchProcessPetOperations(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    for (const op of operations) {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          // Use public method instead of private one
-          await DatabaseService.instance.updateEntity('pet', { walletAddress: entityId, ...op.data });
-          break;
-        case 'create':
-          // Handle pet creation if needed
-          break;
-        case 'delete':
-          // Handle pet deletion if needed
-          break;
-      }
-    }
-  }
-  
-  // Similar implementation for game operations
-  async batchProcessGameOperations(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    for (const op of operations) {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          await DatabaseService.instance.updateGameSession(entityId, op.data);
-          break;
-        case 'create':
-          await DatabaseService.instance.createGameSession(op.data.walletAddress);
-          break;
-        case 'delete':
-          await DatabaseService.instance.endGameSession(entityId);
-          break;
-      }
     }
   }
 
@@ -453,7 +103,6 @@ class DatabaseCache {
   clear(): void {
     this.cache.clear();
     this.dirtyEntities.clear();
-    this.syncQueue = [];
   }
 }
 
@@ -464,9 +113,6 @@ interface UserActivity {
   name: string;
   points: number;
   timestamp: number;
-  onChainVerifiable?: boolean;
-  signature?: string;
-  proof?: string;
 }
 
 // Singleton Database Service
@@ -479,28 +125,12 @@ export class DatabaseService {
   private syncListeners: ((status: SyncStatus) => void)[] = [];
   private eventEmitter: EventEmitter = new EventEmitter();
   private isPageUnloading: boolean = false;
-  private providers: Record<number, ethers.JsonRpcProvider> = {};
-  private contracts: {
-    token: Record<number, GameTokenInterface>,
-    nft: Record<number, GameNFTInterface>,
-    game: Record<number, GameContractInterface>
-  } = {
-    token: {},
-    nft: {},
-    game: {}
-  };
 
   private constructor() {
     this.cache = new DatabaseCache();
     
-    // Initialize providers for each supported chain
+    // Start periodic sync if we're in the browser
     if (typeof window !== 'undefined') {
-      Object.values(SUPPORTED_CHAINS).forEach(chain => {
-        this.providers[chain.chainId] = new ethers.JsonRpcProvider(chain.rpcUrl);
-        this.initContracts(chain.chainId);
-      });
-      
-      // Start periodic sync if we're in the browser
       this.startPeriodicSync(5000); // Sync more frequently (every 5 seconds)
       
       // Set up beforeunload event to sync before page navigation
@@ -508,62 +138,9 @@ export class DatabaseService {
       
       // Set up visibility change to sync when page becomes hidden
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
-      
-      // Listen for network changes
-      window.addEventListener('online', this.handleNetworkChange);
-      window.addEventListener('offline', this.handleNetworkChange);
     }
   }
-  
-  // Initialize smart contracts for a specific chain
-  private async initContracts(chainId: number) {
-    const chain = SUPPORTED_CHAINS[chainId];
-    if (!chain) return;
-    
-    try {
-      // ABI imports would go here in a real implementation
-      const tokenAbi: any[] = []; // Placeholder for token ABI
-      const nftAbi: any[] = []; // Placeholder for NFT ABI
-      const gameAbi: any[] = []; // Placeholder for game ABI
-      
-      if (chain.contractAddresses.tokenContract) {
-        this.contracts.token[chainId] = new ethers.Contract(
-          chain.contractAddresses.tokenContract,
-          tokenAbi,
-          this.providers[chainId]
-        ) as unknown as GameTokenInterface;
-      }
-      
-      if (chain.contractAddresses.nftContract) {
-        this.contracts.nft[chainId] = new ethers.Contract(
-          chain.contractAddresses.nftContract,
-          nftAbi,
-          this.providers[chainId]
-        ) as unknown as GameNFTInterface;
-      }
-      
-      if (chain.contractAddresses.gameContract) {
-        this.contracts.game[chainId] = new ethers.Contract(
-          chain.contractAddresses.gameContract,
-          gameAbi,
-          this.providers[chainId]
-        ) as unknown as GameContractInterface;
-      }
-    } catch (error) {
-      console.error(`Error initializing contracts for chain ${chainId}:`, error);
-    }
-  }
-  
-  // Handle network changes
-  private handleNetworkChange = async () => {
-    if (navigator.onLine) {
-      console.log('Network connection restored. Syncing data...');
-      await this.forceSynchronize();
-    } else {
-      console.log('Network connection lost. Data will be cached offline.');
-    }
-  };
-  
+
   // Handle beforeunload event
   private handleBeforeUnload = async (event: BeforeUnloadEvent) => {
     this.isPageUnloading = true;
@@ -666,146 +243,35 @@ export class DatabaseService {
         );
       `;
       
-      // Create transactions table for blockchain transactions
+      // Create sync_log table for tracking sync operations
       await sql`
-        CREATE TABLE IF NOT EXISTS transactions (
-          id SERIAL PRIMARY KEY,
-          hash TEXT UNIQUE NOT NULL,
-          type TEXT NOT NULL,
-          status TEXT NOT NULL,
-          from_address TEXT NOT NULL,
-          to_address TEXT,
-          value TEXT NOT NULL,
-          data JSONB,
-          timestamp TIMESTAMP NOT NULL,
-          confirmations INTEGER DEFAULT 0,
-          chain_id INTEGER NOT NULL,
-          block_number INTEGER,
-          block_hash TEXT,
-          gas_used TEXT,
-          effective_gas_price TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `;
-      
-      // Create indexes for faster lookups
-      await sql`CREATE INDEX IF NOT EXISTS idx_transactions_from_address ON transactions(from_address);`;
-      await sql`CREATE INDEX IF NOT EXISTS idx_transactions_to_address ON transactions(to_address);`;
-      await sql`CREATE INDEX IF NOT EXISTS idx_transactions_chain_id ON transactions(chain_id);`;
-      await sql`CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp);`;
-      
-      // Create user_activities table
-      await sql`
-        CREATE TABLE IF NOT EXISTS user_activities (
+        CREATE TABLE IF NOT EXISTS sync_log (
           id SERIAL PRIMARY KEY,
           wallet_address TEXT NOT NULL,
-          activity_id TEXT NOT NULL,
-          type TEXT NOT NULL,
-          name TEXT NOT NULL,
-          points INTEGER NOT NULL,
+          operation TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT NOT NULL,
           timestamp TIMESTAMP NOT NULL,
-          on_chain_verifiable BOOLEAN DEFAULT false,
-          signature TEXT,
-          proof TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          client_version INTEGER NOT NULL,
+          server_version INTEGER NOT NULL,
+          conflict BOOLEAN DEFAULT false,
+          resolution TEXT,
           FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
         );
       `;
       
-      // Create index for user activities
-      await sql`CREATE INDEX IF NOT EXISTS idx_user_activities_wallet ON user_activities(wallet_address);`;
-      await sql`CREATE INDEX IF NOT EXISTS idx_user_activities_timestamp ON user_activities(timestamp);`;
-      
-      console.log('Database tables initialized successfully.');
+      console.log('Database tables initialized successfully');
     } catch (error) {
       console.error('Error initializing database tables:', error);
-      throw error;
-    }
-  }
-  
-  // Batch process operations methods for different entity types
-  public async batchProcessUsers(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    // Direct implementation instead of calling internal method
-    const updates: {walletAddress: string, data: Partial<User>}[] = [];
-    const creates: Partial<User>[] = [];
-    const deletes: string[] = [];
-    
-    operations.forEach(op => {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          updates.push({walletAddress: entityId, data: op.data});
-          break;
-        case 'create':
-          creates.push({...op.data, walletAddress: entityId});
-          break;
-        case 'delete':
-          deletes.push(entityId);
-          break;
-      }
-    });
-    
-    try {
-      if (creates.length > 0) {
-        for (const userData of creates) {
-          await this.createUser(userData);
-        }
-      }
       
-      if (updates.length > 0) {
-        for (const { walletAddress, data } of updates) {
-          await this.updateUserData(walletAddress, data);
-        }
-      }
-    } catch (error) {
-      console.error('Error in batch processing users:', error);
-    }
-  }
-  
-  public async batchProcessPets(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    for (const op of operations) {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          await this.updatePetState(entityId, op.data);
-          break;
-        // Other operations as needed
+      // For development - if running in Vercel Dev, the error might be about the table already existing
+      if (error instanceof Error && 
+          error.message.includes('already exists')) {
+        console.log('Tables already exist, continuing...');
+      } else {
+        throw error;
       }
     }
-  }
-  
-  public async batchProcessGames(operations: {operation: SyncOperation, data: any, entity: string}[]): Promise<void> {
-    for (const op of operations) {
-      const entityId = op.entity.split(':')[1];
-      switch (op.operation) {
-        case 'update':
-          await this.updateGameSession(entityId, op.data);
-          break;
-        case 'create':
-          await this.createGameSession(op.data.walletAddress);
-          break;
-        case 'delete':
-          await this.endGameSession(entityId);
-          break;
-      }
-    }
-  }
-  
-  // Update blockchain transaction with error
-  private async updateTransactionWithError(transaction: BlockchainTransaction, error: Error): Promise<BlockchainTransaction> {
-    // Create a new transaction object with error info
-    const updatedTx: BlockchainTransaction & { errorMessage?: string } = {
-      ...transaction,
-      status: 'failed',
-      errorMessage: error.message
-    };
-    
-    // Update in cache
-    this.cache.addTransaction(updatedTx.from, updatedTx);
-    
-    // Return the updated transaction
-    return updatedTx;
   }
 
   // Start periodic synchronization
@@ -871,65 +337,14 @@ export class DatabaseService {
         return true;
       }
       
-      // First, check for any conflicting updates by fetching latest data
-      const entitiesWithLatestData = await Promise.all(
-        dirtyEntities.map(async (key) => {
-          const entity = this.cache.get(key);
-          if (!entity) return { key, entity: null, latestData: null };
-          
-          const entityType = key.split(':')[0];
-          const entityId = key.split(':')[1];
-          let latestData = null;
-          
-          try {
-            // Fetch the latest data from the server
-            switch (entityType) {
-              case 'user':
-                latestData = await this.getUserData(entityId);
-                break;
-              case 'pet':
-                // Similar for other entity types
-                break;
-            }
-            
-            return { key, entity, latestData };
-          } catch (error) {
-            console.error(`Failed to fetch latest data for ${entityType} with ID ${entityId}:`, error);
-            return { key, entity, latestData: null };
-          }
-        })
-      );
-      
-      // Filter out null entities and process only valid ones
-      const validEntities = entitiesWithLatestData.filter(
-        item => item.entity !== null && item.key !== null
-      );
-      
-      const syncPromises = validEntities.map(async ({ key, entity, latestData }) => {
+      const syncPromises = dirtyEntities.map(async (key) => {
+        const entity = this.cache.get(key);
         if (!entity) return;
         
         const entityType = key.split(':')[0];
         const entityId = key.split(':')[1];
         
         try {
-          // If we have latest data, merge changes intelligently
-          if (latestData) {
-            // For points specifically, handle with extra care
-            if (entityType === 'user' && typeof entity.points === 'number') {
-              // If the latest data has a more recent version, don't overwrite it
-              if (latestData.version && entity.version && latestData.version > entity.version) {
-                console.warn(`Detected newer version of data on server. Not overwriting ${entityType} ${entityId}`);
-                // Update our cache with the server's data
-                this.cache.set(key, latestData);
-                this.cache.clearDirtyFlag(key);
-                return;
-              }
-              
-              // Increment version to indicate this is a newer update
-              entity.version = (entity.version || 0) + 1;
-            }
-          }
-          
           switch (entityType) {
             case 'user':
               await this.updateUserData(entityId, entity);
@@ -945,6 +360,8 @@ export class DatabaseService {
           this.cache.clearDirtyFlag(key);
         } catch (error) {
           console.error(`Failed to sync ${entityType} with ID ${entityId}:`, error);
+          // Don't throw here - allow other entities to sync
+          // We'll keep this entity dirty for the next sync attempt
           
           // If it's a connection error, stop trying to sync other entities
           if (error instanceof Error && 
@@ -2293,392 +1710,6 @@ export class DatabaseService {
       return true;
     } catch (error) {
       console.error('Error saving user data:', error);
-      return false;
-    }
-  }
-
-  // Method to handle transaction errors properly with type checking
-  private handleTransactionError(transaction: BlockchainTransaction, error: unknown): BlockchainTransaction {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Create a new transaction object with error info
-    const updatedTx: BlockchainTransaction = {
-      ...transaction,
-      status: 'failed',
-      errorMessage
-    };
-    
-    // Update in cache
-    this.cache.addTransaction(updatedTx.from, updatedTx);
-    
-    return updatedTx;
-  }
-
-  // Handle blockchain transactions
-  public async submitTransaction(
-    walletAddress: string,
-    chainId: number, 
-    type: BlockchainTransaction['type'],
-    data: any
-  ): Promise<{ success: boolean, transaction?: BlockchainTransaction, error?: string }> {
-    try {
-      // Ensure we have a valid chain and provider
-      if (!this.providers[chainId]) {
-        return { success: false, error: 'Unsupported chain' };
-      }
-      
-      // Create a pending transaction record
-      const timestamp = Date.now();
-      const pendingTx: BlockchainTransaction = {
-        hash: `pending-${timestamp}-${Math.random().toString(36).slice(2)}`,
-        type,
-        status: 'pending',
-        from: walletAddress,
-        to: '',
-        value: '0',
-        data,
-        timestamp,
-        confirmations: 0,
-        chainId
-      };
-      
-      // Add to transaction cache
-      this.cache.addTransaction(walletAddress, pendingTx);
-      
-      // Execute different transaction types
-      let txHash: string;
-      let receipt: any;
-      
-      try {
-        switch (type) {
-          case 'mint':
-            if (!this.contracts.token[chainId]) {
-              return { success: false, error: 'Token contract not available' };
-            }
-            
-            txHash = await this.executeMintTransaction(chainId, walletAddress, data);
-            break;
-            
-          case 'transfer':
-            txHash = await this.executeTransferTransaction(chainId, walletAddress, data);
-            break;
-            
-          case 'claim':
-            txHash = await this.executeClaimTransaction(chainId, walletAddress, data);
-            break;
-            
-          case 'stake':
-            txHash = await this.executeStakeTransaction(chainId, walletAddress, data);
-            break;
-            
-          case 'purchase':
-            txHash = await this.executePurchaseTransaction(chainId, walletAddress, data);
-            break;
-            
-          default:
-            return { success: false, error: 'Unsupported transaction type' };
-        }
-        
-        // Wait for transaction to be mined and get receipt
-        receipt = await this.providers[chainId].waitForTransaction(txHash);
-        
-        // Update transaction details
-        const confirmedTx: BlockchainTransaction = {
-          ...pendingTx,
-          hash: txHash,
-          status: receipt.status ? 'confirmed' : 'failed',
-          blockNumber: receipt.blockNumber,
-          blockHash: receipt.blockHash,
-          gasUsed: receipt.gasUsed.toString(),
-          effectiveGasPrice: receipt.effectiveGasPrice?.toString(),
-          receipt,
-          confirmations: 1
-        };
-        
-        // Update in cache
-        this.cache.addTransaction(walletAddress, confirmedTx);
-        
-        // Persist transaction to database
-        await this.saveTransactionRecord(confirmedTx);
-        
-        return { success: true, transaction: confirmedTx };
-      } catch (txError) {
-        console.error('Transaction execution failed:', txError);
-        
-        // Update transaction as failed with proper type handling
-        const failedTx = this.handleTransactionError(pendingTx, txError);
-        
-        // Persist failed transaction
-        await this.saveTransactionRecord(failedTx);
-        
-        return { 
-          success: false, 
-          transaction: failedTx, 
-          error: failedTx.errorMessage || 'Transaction failed' 
-        };
-      }
-    } catch (error) {
-      console.error('Error submitting transaction:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-  
-  // Execute different transaction types with proper handling
-  private async executeMintTransaction(chainId: number, walletAddress: string, data: any): Promise<string> {
-    const { amount, recipient = walletAddress } = data;
-    
-    // Get a signer - this would be the admin/game wallet in a real implementation
-    const signer = new ethers.Wallet('private_key_placeholder', this.providers[chainId]);
-    const tokenContract = this.contracts.token[chainId].connect(signer) as GameTokenInterface;
-    
-    // Convert amount to BigInt
-    const amountBigInt = BigInt(amount);
-    
-    try {
-      // Execute the transaction
-      const tx = await tokenContract.mint(recipient, amountBigInt) as ExtendedContractTransaction;
-      return tx.hash;
-    } catch (error) {
-      // In case of error or for simulation, generate a transaction ID
-      console.log('Using simulated transaction hash');
-      return `simulated-mint-${Date.now()}`;
-    }
-  }
-  
-  private async executeTransferTransaction(chainId: number, walletAddress: string, data: any): Promise<string> {
-    const { amount, recipient } = data;
-    
-    // Implementation would connect with user's signer in a real dapp
-    // Here we're just simulating the process
-    return `simulated-transfer-${Date.now()}`;
-  }
-  
-  private async executeClaimTransaction(chainId: number, walletAddress: string, data: any): Promise<string> {
-    const { amount } = data;
-    
-    // Implementation would connect with user's signer in a real dapp
-    // Here we're just simulating the process
-    return `simulated-claim-${Date.now()}`;
-  }
-  
-  private async executeStakeTransaction(chainId: number, walletAddress: string, data: any): Promise<string> {
-    const { amount } = data;
-    
-    // Implementation would connect with user's signer in a real dapp
-    // Here we're just simulating the process
-    return `simulated-stake-${Date.now()}`;
-  }
-  
-  private async executePurchaseTransaction(chainId: number, walletAddress: string, data: any): Promise<string> {
-    const { itemId, price } = data;
-    
-    // Implementation would connect with user's signer in a real dapp
-    // Here we're just simulating the process
-    return `simulated-purchase-${Date.now()}`;
-  }
-  
-  // Persist transaction record to database
-  private async saveTransactionRecord(transaction: BlockchainTransaction): Promise<boolean> {
-    try {
-      if (USE_API_FOR_WRITE_OPERATIONS) {
-        // Store via API
-        const response = await fetch('/api/transactions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ transaction }),
-        });
-        
-        return response.ok;
-      } else {
-        // Store directly to DB (simplified example)
-        const result = await sql`
-          INSERT INTO transactions (
-            hash, type, status, from_address, to_address, value, 
-            data, timestamp, confirmations, chain_id, block_number
-          )
-          VALUES (
-            ${transaction.hash}, ${transaction.type}, ${transaction.status}, 
-            ${transaction.from}, ${transaction.to}, ${transaction.value},
-            ${JSON.stringify(transaction.data)}, 
-            to_timestamp(${transaction.timestamp / 1000}), 
-            ${transaction.confirmations}, ${transaction.chainId},
-            ${transaction.blockNumber || null}
-          )
-          ON CONFLICT (hash) DO UPDATE
-          SET 
-            status = ${transaction.status},
-            confirmations = ${transaction.confirmations}
-          RETURNING id
-        `;
-        
-        return result.rows.length > 0;
-      }
-    } catch (error) {
-      console.error('Error saving transaction record:', error);
-      return false;
-    }
-  }
-  
-  // Get user's blockchain transactions with proper typing
-  public async getUserTransactions(
-    walletAddress: string,
-    chainId?: number,
-    limit: number = 20,
-    offset: number = 0
-  ): Promise<BlockchainTransaction[]> {
-    try {
-      // First check cache
-      const cachedTxs = this.cache.getTransactions(walletAddress);
-      
-      // If we have data in cache and not requiring pagination, return it
-      if (cachedTxs.length > 0 && offset === 0 && cachedTxs.length >= limit) {
-        return chainId 
-          ? cachedTxs.filter(tx => tx.chainId === chainId).slice(0, limit)
-          : cachedTxs.slice(0, limit);
-      }
-      
-      // Otherwise fetch from database using parameterized queries
-      let result;
-      
-      if (chainId) {
-        result = await sql`
-          SELECT * FROM transactions 
-          WHERE (from_address = ${walletAddress} OR to_address = ${walletAddress})
-          AND chain_id = ${chainId}
-          ORDER BY timestamp DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `;
-      } else {
-        result = await sql`
-          SELECT * FROM transactions 
-          WHERE (from_address = ${walletAddress} OR to_address = ${walletAddress})
-          ORDER BY timestamp DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `;
-      }
-      
-      // Convert DB rows to transaction objects with proper typing
-      const transactions: BlockchainTransaction[] = result.rows.map((row: any) => ({
-        hash: row.hash,
-        type: row.type,
-        status: row.status as TransactionStatus,
-        from: row.from_address,
-        to: row.to_address,
-        value: row.value,
-        data: row.data,
-        timestamp: new Date(row.timestamp).getTime(),
-        confirmations: row.confirmations,
-        chainId: row.chain_id,
-        blockNumber: row.block_number,
-        blockHash: row.block_hash,
-        gasUsed: row.gas_used,
-        effectiveGasPrice: row.effective_gas_price,
-        errorMessage: row.error_message
-      }));
-      
-      // Update cache with fresh data
-      transactions.forEach(tx => {
-        this.cache.addTransaction(walletAddress, tx);
-      });
-      
-      return transactions;
-    } catch (error) {
-      console.error('Error fetching user transactions:', error);
-      
-      // Return cached data if we have it, even if pagination was requested
-      const cachedTxs = this.cache.getTransactions(walletAddress);
-      return chainId 
-        ? cachedTxs.filter(tx => tx.chainId === chainId).slice(0, limit)
-        : cachedTxs.slice(0, limit);
-    }
-  }
-  
-  // Get token balance from blockchain
-  public async getTokenBalance(walletAddress: string, chainId: number): Promise<string> {
-    try {
-      if (!this.contracts.token[chainId]) {
-        throw new Error('Token contract not available for this chain');
-      }
-      
-      const balance = await this.contracts.token[chainId].balanceOf(walletAddress);
-      return balance.toString();
-    } catch (error) {
-      console.error('Error fetching token balance:', error);
-      return '0';
-    }
-  }
-  
-  // Get NFT balance from blockchain
-  public async getNFTBalance(walletAddress: string, chainId: number): Promise<number> {
-    try {
-      if (!this.contracts.nft[chainId]) {
-        throw new Error('NFT contract not available for this chain');
-      }
-      
-      const balance = await this.contracts.nft[chainId].balanceOf(walletAddress);
-      return Number(balance);
-    } catch (error) {
-      console.error('Error fetching NFT balance:', error);
-      return 0;
-    }
-  }
-  
-  // Get NFTs owned by a user
-  public async getUserNFTs(walletAddress: string, chainId: number): Promise<any[]> {
-    try {
-      if (!this.contracts.nft[chainId]) {
-        throw new Error('NFT contract not available for this chain');
-      }
-      
-      const nftContract = this.contracts.nft[chainId];
-      const tokenIds = await nftContract.getTokensOfOwner(walletAddress);
-      
-      // Fetch metadata for each NFT
-      const nfts = await Promise.all(
-        tokenIds.map(async (tokenId) => {
-          try {
-            const tokenURI = await nftContract.tokenURI(tokenId);
-            const metadata = await nftContract.getNFTMetadata(tokenId);
-            
-            return {
-              tokenId: tokenId.toString(),
-              tokenURI,
-              metadata
-            };
-          } catch (error) {
-            console.error(`Error fetching NFT ${tokenId} data:`, error);
-            return {
-              tokenId: tokenId.toString(),
-              error: 'Failed to fetch metadata'
-            };
-          }
-        })
-      );
-      
-      return nfts;
-    } catch (error) {
-      console.error('Error fetching user NFTs:', error);
-      return [];
-    }
-  }
-  
-  // Create and verify authentication message for wallet-based authentication
-  public createAuthMessage(address: string, nonce: string): string {
-    const timestamp = Date.now();
-    return `Sign this message to authenticate with the game.\n\nWallet: ${address}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
-  }
-  
-  public async verifySignature(address: string, message: string, signature: string): Promise<boolean> {
-    try {
-      const recoveredAddress = ethers.verifyMessage(message, signature);
-      return recoveredAddress.toLowerCase() === address.toLowerCase();
-    } catch (error) {
-      console.error('Signature verification failed:', error);
       return false;
     }
   }
