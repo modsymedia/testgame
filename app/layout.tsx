@@ -3,6 +3,7 @@ import './globals.css'
 import { WalletProvider } from '@/context/WalletContext'
 import { UserDataProvider } from '@/context/UserDataContext'
 import { PointsProvider } from '@/context/PointsContext'
+import BackgroundMusic from '@/components/ui/BackgroundMusic'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -26,6 +27,7 @@ export default function RootLayout({
         <WalletProvider>
           <UserDataProvider>
             <PointsProvider>
+              <BackgroundMusic />
               <main>
                 {children}
               </main>
