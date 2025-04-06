@@ -395,15 +395,60 @@ export default function AdminPage() {
         );
       }
 
-      // Also clean up local storage
-      localStorage.removeItem(`user_data_${publicKey}`);
-      localStorage.removeItem(`pet_state_${publicKey}`);
-      localStorage.removeItem(`unlocked-items-${publicKey}`);
+      // Clean up ALL local storage items related to this wallet
+      const keysToRemove: string[] = [];
+      
+      // Find all localStorage items that contain the public key
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes(publicKey)) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      // Also check for specifically known keys
+      [
+        `user_data_${publicKey}`,
+        `pet_state_${publicKey}`,
+        `unlocked-items-${publicKey}`,
+        `hasChosenName_${publicKey}`,
+        `game_session_${publicKey}`,
+        `activities_${publicKey}`,
+        `wallet_data_${publicKey}`,
+        `inventory_${publicKey}`,
+      ].forEach(key => {
+        if (!keysToRemove.includes(key)) {
+          keysToRemove.push(key);
+        }
+      });
+      
+      // Remove all identified keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`Removed localStorage item: ${key}`);
+      });
 
+      // Also clear sessionStorage items
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.includes(publicKey)) {
+          sessionStorage.removeItem(key);
+          console.log(`Removed sessionStorage item: ${key}`);
+        }
+      }
+      
+      // Complete browser reset: Force a page reload to clear any in-memory data
       console.log("🚮 Account deleted successfully for wallet:", publicKey);
-      toast.success("Account deleted successfully");
+      toast.success("Account deleted successfully. Page will reload to complete the process.");
+      
+      // First disconnect the wallet
       disconnect();
-      router.push("/");
+      
+      // Set a short timeout before reload to ensure the toast is visible
+      setTimeout(() => {
+        // Force a clean reload
+        window.location.reload();
+      }, 1500);
     } catch (error) {
       console.error("❌ Error deleting account:", error);
       toast.error(

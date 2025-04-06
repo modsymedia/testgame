@@ -37,9 +37,10 @@ interface UserActivity {
 interface StatusHeaderProps {
   animatedPoints: number;
   health: number;
+  isDatabaseReady: boolean;
 }
 
-const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
+const StatusHeader = ({ animatedPoints, health, isDatabaseReady }: StatusHeaderProps) => {
   return (
     <div className="flex justify-between w-full pt-2 pb-1 px-5">
       <div className="flex-1">
@@ -75,6 +76,11 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
           />
         </div>
       </div>
+      {!isDatabaseReady && (
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black/50">
+          <div className="text-white font-pixel text-lg">Syncing...</div>
+        </div>
+      )}
     </div>
   );
 };
@@ -240,7 +246,7 @@ export function KawaiiDevice() {
       router.push('/');
     }
   }, [isConnected, router]);
-
+  
   // Use our custom hooks
   const {
     food,
@@ -989,8 +995,8 @@ export function KawaiiDevice() {
           heal: isOnCooldown.heal
         };
         
-        // Pass cooldown information to make navigation skip cooldown items
-        handleButtonNavigation(option, cooldownState);
+        // Call handleButtonNavigation with just the option parameter
+        handleButtonNavigation(option);
         return;
       }
 
@@ -1133,7 +1139,7 @@ export function KawaiiDevice() {
     if (isDead) {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="flex-grow flex flex-col items-center justify-center">
             <div>
             {getCatEmotion()}
@@ -1176,7 +1182,7 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "main") {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="flex-grow flex items-center justify-center relative mb-[12px]">
             <div className="relative w-full ">
               {getCatEmotion()}
@@ -1208,7 +1214,7 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "food") {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
@@ -1268,22 +1274,10 @@ export function KawaiiDevice() {
                   {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 rounded-lg ${selectedFoodItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
-                      <div className="z-10 text-white flex flex-col items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" 
-                          className={`h-7 w-7 ${selectedFoodItem === index ? 'text-yellow-300' : 'text-white'}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedFoodItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
-                          {premiumItems.food.costs[index - 2]} pts
-                        </div>
-                        {selectedFoodItem === index && (
-                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
-                        )}
+                      <div className={`absolute inset-0 ${selectedFoodItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
+                      <div className="z-10 flex-row items-center px-2 py-0.5 rounded">
+                        
+                        <span className="font-numbers text-white text-[18px]">{premiumItems.food.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}
@@ -1299,7 +1293,7 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "play") {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose a game to play:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
@@ -1359,22 +1353,17 @@ export function KawaiiDevice() {
                   {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 rounded-lg ${selectedPlayItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
-                      <div className="z-10 text-white flex flex-col items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" 
-                          className={`h-7 w-7 ${selectedPlayItem === index ? 'text-yellow-300' : 'text-white'}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedPlayItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
-                          {premiumItems.play.costs[index - 2]} pts
-                        </div>
-                        {selectedPlayItem === index && (
-                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
-                        )}
+                      <div className={`absolute inset-0 ${selectedPlayItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
+                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
+                        <Image 
+                          src="/assets/icons/coin.png" 
+                          alt="Coins" 
+                          width={12} 
+                          height={12}
+                          className="mr-1"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                        <span className="font-pixel text-white text-[10px]">{premiumItems.play.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}
@@ -1390,7 +1379,7 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "clean") {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose grooming method:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
@@ -1450,22 +1439,17 @@ export function KawaiiDevice() {
                   {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 rounded-lg ${selectedCleanItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
-                      <div className="z-10 text-white flex flex-col items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" 
-                          className={`h-7 w-7 ${selectedCleanItem === index ? 'text-yellow-300' : 'text-white'}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedCleanItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
-                          {premiumItems.clean.costs[index - 2]} pts
-                        </div>
-                        {selectedCleanItem === index && (
-                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
-                        )}
+                      <div className={`absolute inset-0 ${selectedCleanItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
+                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
+                        <Image 
+                          src="/assets/icons/coin.png" 
+                          alt="Coins" 
+                          width={12} 
+                          height={12}
+                          className="mr-1"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                        <span className="font-pixel text-white text-[10px]">{premiumItems.clean.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}
@@ -1481,7 +1465,7 @@ export function KawaiiDevice() {
     if (menuStack[menuStack.length - 1] === "doctor") {
       return (
         <>
-          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <StatusHeader animatedPoints={animatedPoints} health={health} isDatabaseReady={true} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
@@ -1538,25 +1522,20 @@ export function KawaiiDevice() {
                     }}
                   />
                   
-                  {/* Lock overlay */}
+                  {/* Lock overlay for doctor items */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 rounded-lg ${selectedDoctorItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
-                      <div className="z-10 text-white flex flex-col items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" 
-                          className={`h-7 w-7 ${selectedDoctorItem === index ? 'text-yellow-300' : 'text-white'}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedDoctorItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
-                          {premiumItems.doctor.costs[index - 2]} pts
-                        </div>
-                        {selectedDoctorItem === index && (
-                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
-                        )}
+                      <div className={`absolute inset-0 ${selectedDoctorItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
+                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
+                        <Image 
+                          src="/assets/icons/coin.png" 
+                          alt="Coins" 
+                          width={12} 
+                          height={12}
+                          className="mr-1"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                        <span className="font-pixel text-white text-[10px]">{premiumItems.doctor.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}

@@ -82,12 +82,12 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
     
-    // Validate numeric values are within range
-    const validatedHealth = typeof health === 'number' ? Math.max(0, Math.min(100, health)) : 100;
-    const validatedHappiness = typeof happiness === 'number' ? Math.max(0, Math.min(100, happiness)) : 100;
-    const validatedHunger = typeof hunger === 'number' ? Math.max(0, Math.min(100, hunger)) : 100;
-    const validatedCleanliness = typeof cleanliness === 'number' ? Math.max(0, Math.min(100, cleanliness)) : 100;
-    const validatedEnergy = typeof energy === 'number' ? Math.max(0, Math.min(100, energy)) : 100;
+    // Validate and sanitize input values
+    const validatedHealth = Math.round(typeof health === 'number' ? Math.max(0, Math.min(100, health)) : 100);
+    const validatedHappiness = Math.round(typeof happiness === 'number' ? Math.max(0, Math.min(100, happiness)) : 100);
+    const validatedHunger = Math.round(typeof hunger === 'number' ? Math.max(0, Math.min(100, hunger)) : 100);
+    const validatedCleanliness = Math.round(typeof cleanliness === 'number' ? Math.max(0, Math.min(100, cleanliness)) : 100);
+    const validatedEnergy = Math.round(typeof energy === 'number' ? Math.max(0, Math.min(100, energy)) : 100);
     const validatedIsDead = typeof isDead === 'boolean' ? isDead : false;
     
     // Check if the pet exists
