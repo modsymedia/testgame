@@ -1354,16 +1354,8 @@ export function KawaiiDevice() {
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <div className={`absolute inset-0 ${selectedPlayItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
-                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
-                        <Image 
-                          src="/assets/icons/coin.png" 
-                          alt="Coins" 
-                          width={12} 
-                          height={12}
-                          className="mr-1"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                        <span className="font-pixel text-white text-[10px]">{premiumItems.play.costs[index - 2]}</span>
+                      <div className="z-10 flex-row items-center px-2 py-0.5 rounded">
+                        <span className="font-numbers text-white text-[18px]">{premiumItems.play.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}
@@ -1440,16 +1432,8 @@ export function KawaiiDevice() {
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <div className={`absolute inset-0 ${selectedCleanItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
-                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
-                        <Image 
-                          src="/assets/icons/coin.png" 
-                          alt="Coins" 
-                          width={12} 
-                          height={12}
-                          className="mr-1"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                        <span className="font-pixel text-white text-[10px]">{premiumItems.clean.costs[index - 2]}</span>
+                      <div className="z-10 flex-row items-center px-2 py-0.5 rounded">
+                        <span className="font-numbers text-white text-[18px]">{premiumItems.clean.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}
@@ -1526,16 +1510,8 @@ export function KawaiiDevice() {
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <div className={`absolute inset-0 ${selectedDoctorItem === index ? 'bg-black/50' : 'bg-black/40'}`}></div>
-                      <div className="z-10 flex items-center px-2 py-0.5 rounded">
-                        <Image 
-                          src="/assets/icons/coin.png" 
-                          alt="Coins" 
-                          width={12} 
-                          height={12}
-                          className="mr-1"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                        <span className="font-pixel text-white text-[10px]">{premiumItems.doctor.costs[index - 2]}</span>
+                      <div className="z-10 flex-row items-center px-2 py-0.5 rounded">
+                        <span className="font-numbers text-white text-[18px]">{premiumItems.doctor.costs[index - 2]}</span>
                       </div>
                     </div>
                   )}

@@ -12,13 +12,17 @@ export default function ConsoleLayout({
     <div className="min-h-screen flex flex-col relative">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <Image
-          src="/assets/leaderboard-bg.png"
-          alt="Leaderboard Background"
-          fill
-          priority
-          style={{ objectFit: "cover", imageRendering: "pixelated" }}
-        />
+        <picture className="fixed w-[100vw] h-[100vh]" >
+          <source media="(max-width: 768px)" srcSet="/assets/mobilebg.png" />
+          <Image
+            src="/assets/bg.png"
+            alt="Background"
+            layout="fill"
+            priority
+            className="object-cover pixelated "
+            style={{ imageRendering: "pixelated",  }}
+          />
+        </picture>
       </div>
 
       {/* Content */}
