@@ -20,6 +20,50 @@ html::-webkit-scrollbar {
   }
 }
 
+/* Import pixel font */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@layer components {
+  /* Pixel art styling */
+  .font-pixel {
+    font-family: 'Press Start 2P', cursive;
+    letter-spacing: 0.05em;
+  }
+  
+  .pixel-border {
+    position: relative;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+  }
+  
+  .pixel-image {
+    image-rendering: pixelated;
+  }
+  
+  .number-glow {
+    text-shadow: 0 0 5px currentColor;
+  }
+  
+  /* Animations */
+  .pulse-animation {
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+    100% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

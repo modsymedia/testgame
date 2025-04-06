@@ -145,114 +145,47 @@ export function PixelIcon({
           {getIcon()}
         </motion.div>
         
-        {/* Cooldown overlay - circular progress */}
+        {/* Pixel-art style cooldown overlay */}
         {isAnimating && (
           <div className="absolute inset-0 flex items-center justify-center">
-            {/* Outer glow effect */}
-            <motion.div
-              className="absolute inset-0 rounded-lg"
-              initial={{ opacity: 0 }}
-              animate={{ 
-                opacity: [0.3, 0.5, 0.3],
-                scale: [1, 1.02, 1],
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
+            {/* Pixelated cooldown background */}
+            <div 
+              className="absolute inset-0 bg-[#4b6130]/60 border-2 border-[#d8e5a8]/30"
               style={{
-                background: 'radial-gradient(circle, rgba(48,71,0,0.3) 0%, rgba(48,71,0,0) 70%)'
-              }}
-            />
-
-            {/* Circular cooldown indicator */}
-            <motion.svg 
-              className="w-full h-full absolute"
-              viewBox="0 0 100 100"
-              initial={{ opacity: 0, scale: 0.8, rotate: -90 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1,
-                rotate: -90
-              }}
-              transition={{ 
-                duration: 0.3,
-                ease: "easeOut"
+                clipPath: `inset(0 ${100 - progress}% 0 0)` // Reveal from left to right
               }}
             >
-              {/* Background circle */}
-              <circle 
-                cx="50" 
-                cy="50" 
-                r="45" 
-                fill="none" 
-                stroke="#304700" 
-                strokeWidth="8"
-                className="opacity-20"
-              />
-              {/* Progress circle */}
-              <motion.circle 
-                cx="50" 
-                cy="50" 
-                r="45" 
-                fill="none" 
-                stroke="#304700" 
-                strokeWidth="8"
-                strokeDasharray="283"
-                initial={{ strokeDashoffset: 283 }}
-                animate={{ 
-                  strokeDashoffset: 283 - (283 * progress) / 100,
-                  transition: {
-                    duration: 0.5,
-                    ease: "easeInOut"
-                  }
+              {/* Pixelated grid pattern */}
+              <div className="absolute inset-0 opacity-30" 
+                style={{
+                  backgroundImage: 'linear-gradient(to right, #d8e5a8 1px, transparent 1px), linear-gradient(to bottom, #d8e5a8 1px, transparent 1px)',
+                  backgroundSize: '4px 4px'
                 }}
-                className="opacity-60"
               />
-            </motion.svg>
+            </div>
             
-            {/* Cooldown timer */}
-            <motion.div 
-              className="absolute inset-0 flex items-center justify-center rounded-lg"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1,
-                background: [
-                  'rgba(0,0,0,0.4)',
-                  'rgba(0,0,0,0.5)',
-                  'rgba(0,0,0,0.4)'
-                ]
-              }}
-              transition={{ 
-                duration: 0.3,
-                background: {
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }
-              }}
-            >
-              <motion.span 
-                className="text-white text-xs font-bold font-numbers drop-shadow-lg"
-                animate={{
-                  scale: [1, 1.1, 1],
-                  opacity: [1, 0.8, 1]
-                }}
-                transition={{
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
+            {/* Cooldown time with pixel font */}
+            <div className="z-20 p-1 bg-[#4b6130]/80 border border-[#d8e5a8]/50 rounded-sm">
+              <div 
+                className="font-pixel text-[#eff8cb] text-xs text-center shadow-sm"
+                style={{ 
+                  textShadow: '1px 1px 0 #304700',
+                  letterSpacing: '1px'
                 }}
               >
                 {formatTime(cooldown)}
-              </motion.span>
-            </motion.div>
+              </div>
+            </div>
+            
+            {/* Pixel corners for emphasis */}
+            <div className="absolute top-0 left-0 w-1 h-1 bg-[#d8e5a8]"></div>
+            <div className="absolute top-0 right-0 w-1 h-1 bg-[#d8e5a8]"></div>
+            <div className="absolute bottom-0 left-0 w-1 h-1 bg-[#d8e5a8]"></div>
+            <div className="absolute bottom-0 right-0 w-1 h-1 bg-[#d8e5a8]"></div>
           </div>
         )}
         
-        {/* Enhanced Tooltip */}
+        {/* Enhanced Tooltip - updated with pixel style */}
         <motion.div
           initial={{ opacity: 0, y: 10, scale: 0.9 }}
           animate={showTooltip ? { 
@@ -267,22 +200,21 @@ export function PixelIcon({
           } : { opacity: 0, y: 10, scale: 0.9 }}
           className={`
             absolute -top-10 left-1/2 transform -translate-x-1/2
-            px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg
+            px-3 py-1.5 bg-[#606845] border-2 border-[#d8e5a8] text-[#eff8cb] text-xs font-pixel
             pointer-events-none whitespace-nowrap z-50
-            shadow-lg
             ${showTooltip ? 'visible' : 'invisible'}
           `}
         >
           <div className="relative">
             <div className="font-medium mb-0.5">{label || icon}</div>
             {isAnimating && (
-              <div className="text-gray-300 text-[10px]">
-                Cooldown: {formatTime(cooldown)}
+              <div className="text-[#d8e5a8] text-[10px]">
+                Cool: {formatTime(cooldown)}
               </div>
             )}
             <div 
-              className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 translate-y-full
-              border-solid border-4 border-transparent border-t-gray-800"
+              className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 translate-y-full
+              w-3 h-3 bg-[#606845] border-r-2 border-b-2 border-[#d8e5a8] rotate-45"
             />
           </div>
         </motion.div>

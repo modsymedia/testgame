@@ -493,13 +493,8 @@ export class DatabaseService {
       `;
       
       if (result.rows.length === 0) {
-        // Try fallback to local storage
-        const localData = this.loadFromLocalStorage(cacheKey);
-        if (localData) {
-          // Cache the local data
-          this.cache.set(cacheKey, localData);
-          return localData;
-        }
+        // For regular users, don't fall back to localStorage
+        console.log('User not found in database:', walletAddress);
         return null;
       }
       
@@ -517,21 +512,13 @@ export class DatabaseService {
       // Cache the result
       this.cache.set(cacheKey, user);
       
-      // Also save to local storage as backup
-      this.saveToLocalStorage(cacheKey, user);
+      // Don't save to localStorage for regular users
       
       return user;
     } catch (error) {
       console.error('Error finding user:', error);
       
-      // Try fallback to local storage
-      const localData = this.loadFromLocalStorage(cacheKey);
-      if (localData) {
-        // Cache the local data
-        this.cache.set(cacheKey, localData);
-        return localData;
-      }
-      
+      // Don't fallback to localStorage for regular users
       return null;
     }
   }
@@ -796,48 +783,56 @@ export class DatabaseService {
   // Update pet state
   private async updatePetState(walletAddress: string, petState: Partial<PetState>): Promise<boolean> {
     try {
-      // Check if pet state exists for this wallet
-      const checkResult = await sql`
-        SELECT COUNT(*) as count FROM pet_states WHERE wallet_address = ${walletAddress}
+      if (!walletAddress) {
+        console.error('Wallet address is required for updatePetState');
+        return false;
+      }
+      
+      console.log('Updating pet state for wallet:', walletAddress, petState);
+      
+      // Check if the pet state already exists
+      const existingPet = await sql`
+        SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
       `;
       
-      const exists = checkResult.rows[0]?.count > 0;
+      // Format dates properly
+      const lastStateUpdate = petState.lastStateUpdate instanceof Date 
+        ? petState.lastStateUpdate.toISOString() 
+        : new Date().toISOString();
+        
+      const lastInteractionTime = petState.lastInteractionTime instanceof Date 
+        ? petState.lastInteractionTime.toISOString() 
+        : new Date().toISOString();
+        
+      // Make sure boolean values are correct
+      const isDead = typeof petState.isDead === 'boolean' ? petState.isDead : false;
       
-      if (exists) {
-        // Build SET clause for UPDATE
-        const setClauses: string[] = [];
-        const values: any[] = [];
-        let paramIndex = 1;
-        
-        // Process each key in petState
-        Object.entries(petState).forEach(([key, value]) => {
-          if (key === 'version') return; // Skip version field
-          
-          // Convert camelCase to snake_case
-          const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-          
-          setClauses.push(`${snakeKey} = $${paramIndex}`);
-          paramIndex++;
-          
-          // Convert dates to ISO strings
-          if (value instanceof Date) {
-            values.push(value.toISOString());
-          } else {
-            values.push(value);
-          }
-        });
-        
-        if (setClauses.length > 0) {
-          values.push(walletAddress);
-          
-          const updateSql = `
-            UPDATE pet_states 
-            SET ${setClauses.join(', ')} 
-            WHERE wallet_address = $${values.length}
-          `;
-          
-          await db.query(updateSql, values);
-        }
+      // Ensure numeric values are within valid range
+      const health = typeof petState.health === 'number' ? Math.max(0, Math.min(100, petState.health)) : 100;
+      const happiness = typeof petState.happiness === 'number' ? Math.max(0, Math.min(100, petState.happiness)) : 100;
+      const hunger = typeof petState.hunger === 'number' ? Math.max(0, Math.min(100, petState.hunger)) : 100;
+      const cleanliness = typeof petState.cleanliness === 'number' ? Math.max(0, Math.min(100, petState.cleanliness)) : 100;
+      const energy = typeof petState.energy === 'number' ? Math.max(0, Math.min(100, petState.energy)) : 100;
+      const qualityScore = typeof petState.qualityScore === 'number' ? Math.max(0, petState.qualityScore) : 0;
+      
+      if (existingPet.rows && existingPet.rows.length > 0) {
+        // Update existing pet state
+        await sql`
+          UPDATE pet_states SET
+            health = ${health},
+            happiness = ${happiness}, 
+            hunger = ${hunger},
+            cleanliness = ${cleanliness},
+            energy = ${energy},
+            quality_score = ${qualityScore},
+            last_state_update = ${lastStateUpdate},
+            last_message = ${petState.lastMessage || ''},
+            last_reaction = ${petState.lastReaction || 'none'},
+            is_dead = ${isDead},
+            last_interaction_time = ${lastInteractionTime},
+            version = COALESCE(version, 0) + 1
+          WHERE wallet_address = ${walletAddress}
+        `;
       } else {
         // Insert new pet state
         await sql`
@@ -846,17 +841,17 @@ export class DatabaseService {
             last_state_update, quality_score, last_message, last_reaction, is_dead, last_interaction_time
           ) VALUES (
             ${walletAddress},
-            ${petState.health || 100},
-            ${petState.happiness || 100},
-            ${petState.hunger || 100},
-            ${petState.cleanliness || 100},
-            ${petState.energy || 100},
-            ${petState.lastStateUpdate instanceof Date ? petState.lastStateUpdate.toISOString() : new Date().toISOString()},
-            ${petState.qualityScore || 0},
+            ${health},
+            ${happiness},
+            ${hunger},
+            ${cleanliness},
+            ${energy},
+            ${lastStateUpdate},
+            ${qualityScore},
             ${petState.lastMessage || ''},
             ${petState.lastReaction || 'none'},
-            ${petState.isDead || false},
-            ${petState.lastInteractionTime instanceof Date ? petState.lastInteractionTime.toISOString() : new Date().toISOString()}
+            ${isDead},
+            ${lastInteractionTime}
           )
         `;
       }
@@ -874,6 +869,7 @@ export class DatabaseService {
         });
       }
       
+      console.log('Pet state updated successfully for:', walletAddress);
       return true;
     } catch (error) {
       console.error('Error updating pet state:', error);

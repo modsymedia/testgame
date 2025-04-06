@@ -1,4 +1,5 @@
 import { PetBehaviorData } from "./openai-service";
+import { dbService } from "@/lib/database-service";
 
 // Export activity type for consistent use across the app
 export type UserActivity = 'login' | 'logout' | 'feed' | 'play' | 'clean' | 'heal';
@@ -25,21 +26,24 @@ interface UserBehaviorStore {
   totalTimeSpent: number; // in minutes
 }
 
-const STORAGE_KEY_PREFIX = 'pet_behavior_';
+// Database key for behavior storage
+const BEHAVIOR_KEY_PREFIX = 'pet_behavior_';
 
 // Create or update user behavior data
-export function logUserActivity(userId: string, petName: string, activityType: UserActivity, duration?: number): void {
-  if (typeof window === 'undefined') return; // Only run on client
+export async function logUserActivity(userId: string, petName: string, activityType: UserActivity, duration?: number): Promise<void> {
+  if (typeof window === 'undefined' || !userId) return; // Only run on client with valid userId
 
-  const storageKey = `${STORAGE_KEY_PREFIX}${userId}`;
+  const storageKey = `${BEHAVIOR_KEY_PREFIX}${userId}`;
   let behaviorData: UserBehaviorStore;
   
-  // Get existing data or create new
   try {
-    const existingData = localStorage.getItem(storageKey);
-    if (existingData) {
-      behaviorData = JSON.parse(existingData);
+    // Try to get existing data from database
+    const existingData = await dbService.getUserData(storageKey);
+    
+    if (existingData && existingData.behaviorData) {
+      behaviorData = existingData.behaviorData;
     } else {
+      // Create new behavior data
       const now = Date.now();
       behaviorData = {
         userId,
@@ -58,8 +62,25 @@ export function logUserActivity(userId: string, petName: string, activityType: U
       };
     }
   } catch (error) {
-    console.error('Error parsing behavior data:', error);
-    return;
+    console.error('Error retrieving behavior data:', error);
+    
+    // Create new behavior data on error
+    const now = Date.now();
+    behaviorData = {
+      userId,
+      petName,
+      firstLogin: now,
+      lastLogin: now,
+      loginDays: [getDateString(now)],
+      sessionLogs: [],
+      activityCounts: {
+        feeding: 0,
+        playing: 0,
+        cleaning: 0,
+        healing: 0
+      },
+      totalTimeSpent: 0
+    };
   }
   
   const now = Date.now();
@@ -111,58 +132,53 @@ export function logUserActivity(userId: string, petName: string, activityType: U
     behaviorData.sessionLogs = behaviorData.sessionLogs.slice(-100);
   }
   
-  // Save updated data
-  localStorage.setItem(storageKey, JSON.stringify(behaviorData));
+  // Save updated data to database
+  try {
+    await dbService.saveUserData(storageKey, { behaviorData });
+    console.log(`Behavior data for ${activityType} saved to database`);
+  } catch (saveError) {
+    console.error('Failed to save behavior data to database:', saveError);
+  }
 }
 
 /**
  * Gets behavior data for AI processing
  */
-export function getBehaviorData(userId: string, petName: string, currentStats: PetBehaviorData['currentStats']): PetBehaviorData {
-  // Only run on client side
-  if (typeof window === 'undefined') {
-    return {
-      petName,
-      loginCount: 1,
-      consecutiveLoginDays: 1,
-      loginsPerDay: 1,
-      timeSpent: 0,
-      activityCounts: {
-        feed: 0,
-        play: 0,
-        clean: 0,
-        heal: 0
-      },
-      currentStats,
-      timeOfDay: getTimeOfDay(),
-      dayOfWeek: getDayOfWeek()
-    };
+export async function getBehaviorData(userId: string, petName: string, currentStats: PetBehaviorData['currentStats']): Promise<PetBehaviorData> {
+  // Default data for when we can't access the database
+  const defaultData = {
+    petName,
+    loginCount: 1,
+    consecutiveLoginDays: 1,
+    loginsPerDay: 1,
+    timeSpent: 0,
+    activityCounts: {
+      feed: 0,
+      play: 0,
+      clean: 0,
+      heal: 0
+    },
+    currentStats,
+    timeOfDay: getTimeOfDay(),
+    dayOfWeek: getDayOfWeek()
+  };
+  
+  // Only run on client side with valid userId
+  if (typeof window === 'undefined' || !userId) {
+    return defaultData;
   }
 
-  const storageKey = `${STORAGE_KEY_PREFIX}${userId}`;
-  const storedData = localStorage.getItem(storageKey);
-  
-  if (!storedData) {
-    return {
-      petName,
-      loginCount: 1,
-      consecutiveLoginDays: 1,
-      loginsPerDay: 1,
-      timeSpent: 0,
-      activityCounts: {
-        feed: 0,
-        play: 0,
-        clean: 0,
-        heal: 0
-      },
-      currentStats,
-      timeOfDay: getTimeOfDay(),
-      dayOfWeek: getDayOfWeek()
-    };
-  }
+  const storageKey = `${BEHAVIOR_KEY_PREFIX}${userId}`;
   
   try {
-    const behaviorData: UserBehaviorStore = JSON.parse(storedData);
+    // Get data from database
+    const storedData = await dbService.getUserData(storageKey);
+    
+    if (!storedData || !storedData.behaviorData) {
+      return defaultData;
+    }
+    
+    const behaviorData: UserBehaviorStore = storedData.behaviorData;
     const now = Date.now();
     
     // Calculate metrics
@@ -211,25 +227,9 @@ export function getBehaviorData(userId: string, petName: string, currentStats: P
       timeOfDay: getTimeOfDay(),
       dayOfWeek: getDayOfWeek()
     };
-    
   } catch (error) {
-    console.error('Error getting behavior data:', error);
-    return {
-      petName,
-      loginCount: 1,
-      consecutiveLoginDays: 1,
-      loginsPerDay: 1,
-      timeSpent: 0,
-      activityCounts: {
-        feed: 0,
-        play: 0,
-        clean: 0,
-        heal: 0
-      },
-      currentStats,
-      timeOfDay: getTimeOfDay(),
-      dayOfWeek: getDayOfWeek()
-    };
+    console.error('Error getting behavior data from database:', error);
+    return defaultData;
   }
 }
 

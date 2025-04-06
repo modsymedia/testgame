@@ -6,6 +6,7 @@ import { useWallet } from "@/context/WalletContext"
 import { usePoints } from "@/context/PointsContext"
 import { saveWalletData } from "@/utils/wallet"
 import { usePetAI } from "@/hooks/use-pet-ai"
+import { dbService } from "@/lib/database-service"
 
 export interface PetStats {
   food: number
@@ -71,24 +72,149 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     petReaction
   } = usePetAI(username, publicKey || '', initialStats);
   
-  // Initialize stats from wallet data if available
-  const initialWalletStats = isConnected && walletData?.petStats 
-    ? walletData.petStats 
-    : initialStats;
+  // Default stats - will be overridden by database values when loaded
+  const defaultStats = {
+    food: 50,
+    happiness: 40,
+    cleanliness: 40,
+    energy: 30,
+    health: 30,
+    isDead: false,
+    points: 0
+  };
   
-  // Core stats
-  const [food, setFood] = useState(initialWalletStats.food ?? 50)
-  const [happiness, setHappiness] = useState(initialWalletStats.happiness ?? 40)
-  const [cleanliness, setCleanliness] = useState(initialWalletStats.cleanliness ?? 40)
-  const [energy, setEnergy] = useState(initialWalletStats.energy ?? 30)
-  const [health, setHealth] = useState(initialWalletStats.health ?? 30)
-  const [isDead, setIsDead] = useState(initialWalletStats.isDead ?? false)
+  // Core stats - initialize with defaults, will be updated from DB
+  const [food, setFood] = useState(defaultStats.food)
+  const [happiness, setHappiness] = useState(defaultStats.happiness)
+  const [cleanliness, setCleanliness] = useState(defaultStats.cleanliness)
+  const [energy, setEnergy] = useState(defaultStats.energy)
+  const [health, setHealth] = useState(defaultStats.health)
+  const [isDead, setIsDead] = useState(defaultStats.isDead)
   
   // Points state with safeguard against decreasing
-  const [points, setPoints] = useState(initialWalletStats.points ?? 0)
+  const [points, setPoints] = useState(defaultStats.points)
   
   // Add a ref to track the highest points value
-  const highestPointsRef = useRef(initialWalletStats.points ?? 0);
+  const highestPointsRef = useRef(defaultStats.points);
+  
+  // Flag to track if pet data has been loaded from database
+  const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Function to load pet state from database
+  const loadPetStateFromDatabase = useCallback(async () => {
+    if (!publicKey || !isConnected) return;
+    
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    const attemptLoad = async (): Promise<boolean> => {
+      try {
+        console.log(`Attempt ${retryCount + 1}: Loading pet state from database for ${publicKey}`);
+        
+        const response = await fetch(`/api/pet-state?walletAddress=${encodeURIComponent(publicKey)}`, {
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        
+        if (response.ok) {
+          const { success, data } = await response.json();
+          
+          if (success && data) {
+            console.log('Pet state loaded from database:', data);
+            // Update all stats from database
+            setFood(data.hunger || defaultStats.food);
+            setHappiness(data.happiness || defaultStats.happiness);
+            setCleanliness(data.cleanliness || defaultStats.cleanliness);
+            setEnergy(data.energy || defaultStats.energy);
+            setHealth(data.health || defaultStats.health);
+            setIsDead(data.is_dead || defaultStats.isDead);
+            
+            // Update points if needed
+            if (data.points && data.points > points) {
+              setPoints(data.points);
+              highestPointsRef.current = data.points;
+            }
+            
+            setDataLoaded(true);
+            return true;
+          } else {
+            console.warn('No valid pet state data returned from API:', { success, data });
+          }
+        } else {
+          // Try to extract error details
+          let errorDetails = `HTTP ${response.status}`;
+          try {
+            const errorText = await response.text();
+            errorDetails = errorText || errorDetails;
+          } catch (e) {}
+          
+          console.error(`Error response from pet-state API: ${errorDetails}`);
+        }
+        
+        return false;
+      } catch (error) {
+        console.error(`Attempt ${retryCount + 1} failed to load pet state:`, error);
+        return false;
+      }
+    };
+    
+    // First attempt
+    let success = await attemptLoad();
+    
+    // Retry if needed
+    while (!success && retryCount < maxRetries) {
+      retryCount++;
+      // Wait before retrying (500ms, then 1000ms)
+      await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
+      success = await attemptLoad();
+    }
+    
+    // If all API attempts failed, try the user data service
+    if (!success) {
+      try {
+        console.log('Falling back to database service for pet state');
+        const userData = await dbService.getUserData(publicKey);
+        
+        if (userData && userData.petState) {
+          const petState = userData.petState;
+          setFood(petState.hunger || defaultStats.food);
+          setHappiness(petState.happiness || defaultStats.happiness);
+          setCleanliness(petState.cleanliness || defaultStats.cleanliness);
+          setEnergy(petState.energy || defaultStats.energy);
+          setHealth(petState.health || defaultStats.health);
+          setIsDead(petState.isDead || defaultStats.isDead);
+          
+          // Update points if needed
+          if (userData.points && userData.points > points) {
+            setPoints(userData.points);
+            highestPointsRef.current = userData.points;
+          }
+          
+          setDataLoaded(true);
+          console.log('Successfully loaded pet state from database service');
+          return;
+        } else {
+          console.warn('No pet state found in user data service');
+        }
+      } catch (dbError) {
+        console.error('Error loading from database service:', dbError);
+      }
+    }
+    
+    // If we got here, we couldn't load data from anywhere
+    if (!success) {
+      console.log('Using default stats as no pet state could be loaded from database');
+      setDataLoaded(true);
+    }
+  }, [publicKey, isConnected, defaultStats, points, setFood, setHappiness, setCleanliness, setEnergy, setHealth, setIsDead, setPoints]);
+  
+  // Load pet state from database when user connects
+  useEffect(() => {
+    if (isConnected && publicKey && !dataLoaded) {
+      loadPetStateFromDatabase();
+    }
+  }, [isConnected, publicKey, dataLoaded, loadPetStateFromDatabase]);
   
   // Cooldown tracking
   const [cooldowns, setCooldowns] = useState<ActionCooldowns>({
@@ -480,13 +606,13 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   
   // Add a ref to track the last saved state to prevent infinite updates
   const lastSavedStatsRef = useRef({
-    food: initialWalletStats.food ?? 50,
-    happiness: initialWalletStats.happiness ?? 40,
-    cleanliness: initialWalletStats.cleanliness ?? 40,
-    energy: initialWalletStats.energy ?? 30,
-    health: initialWalletStats.health ?? 30,
-    isDead: initialWalletStats.isDead ?? false,
-    points: initialWalletStats.points ?? 0,
+    food: defaultStats.food,
+    happiness: defaultStats.happiness,
+    cleanliness: defaultStats.cleanliness,
+    energy: defaultStats.energy,
+    health: defaultStats.health,
+    isDead: defaultStats.isDead,
+    points: defaultStats.points,
   });
 
   // Create a ref for debouncing

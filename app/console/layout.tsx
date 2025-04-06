@@ -21,7 +21,7 @@ export default function ConsoleLayout({
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col min-h-screen">
+      <div className="relative z-10 flex flex-col min-h-screen justify-center">
         <Header />
         {children}
       </div>

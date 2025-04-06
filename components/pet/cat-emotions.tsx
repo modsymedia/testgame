@@ -1,11 +1,6 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 
-const blinkAnimation = {
-  open: { d: "M 2 2 Q 3.5 0 5 2" },
-  closed: { d: "M 2 2 Q 3.5 4 5 2" },
-};
-
 // These animations will be applied to the image container
 const pawAnimation = {
   rest: { rotate: 0 },
@@ -50,8 +45,8 @@ const CatBase: React.FC<CatEmotionProps> = ({
     <Image
       src="/assets/character/shadow.png"
       alt="Shadow"
-      width={108}
-      height={29}
+      width={97}
+      height={26}
       unoptimized={true}
       className={`absolute ${
         mostRecentTask === "clean" || hygieneTaskOnCooldown
@@ -89,31 +84,31 @@ const CatBase: React.FC<CatEmotionProps> = ({
       alt="Pet character"
       width={
         sickStatus
-          ? 108
+          ? 97
           : mostRecentTask === "feed" || (foodTaskOnCooldown && !mostRecentTask)
-          ? 126
+          ? 113
           : mostRecentTask === "clean" ||
             (hygieneTaskOnCooldown && !mostRecentTask)
-          ? 108
+          ? 97
           : mostRecentTask === "heal"
-          ? 126
+          ? 113
           : mostRecentTask === "play"
-          ? 126
-          : 171
+          ? 113
+          : 154
       }
       height={
         sickStatus
-          ? 108
+          ? 97
           : mostRecentTask === "feed" || (foodTaskOnCooldown && !mostRecentTask)
-          ? 126
+          ? 113
           : mostRecentTask === "clean" ||
             (hygieneTaskOnCooldown && !mostRecentTask)
-          ? 108
+          ? 97
           : mostRecentTask === "heal"
-          ? 126
+          ? 113
           : mostRecentTask === "play"
-          ? 126
-          : 171
+          ? 113
+          : 154
       }
       unoptimized={true}
       className="object-contain relative"
@@ -284,8 +279,8 @@ export function DeadCat() {
       <Image
         src="/assets/character/shadow.png"
         alt="Shadow"
-        width={108}
-        height={29}
+        width={97}
+        height={26}
         unoptimized={true}
         className="absolute top-[96px] object-contain opacity-50"
         style={{
@@ -297,8 +292,8 @@ export function DeadCat() {
       <Image
         src="/assets/character/Dead.png"
         alt="Dead pet character"
-        width={171}
-        height={171}
+        width={154}
+        height={154}
         unoptimized={true}
         className="object-contain relative grayscale"
         style={{

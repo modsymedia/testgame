@@ -155,39 +155,90 @@ export function WalletProvider({ children }: WalletProviderProps) {
           }
           
           try {
-            // Fetch wallet data asynchronously
-            const data = await loadWalletData(key);
-            
-            // Also fetch server data to ensure we have the latest
+            // Only fetch data from server, not local storage
             try {
               const serverData = await fetchUserRank(key);
               if (serverData.success && serverData.userData) {
-                console.log('Updated wallet data from server:', serverData.userData);
-                // Merge local and server data, with server data taking precedence
-                const mergedData = {
-                  ...data,
-                  username: serverData.userData.username || data.username,
-                  points: serverData.userData.points || data.points,
+                console.log('Loaded wallet data from server:', serverData.userData);
+                
+                // Use server data exclusively
+                const userData = {
+                  username: serverData.userData.username || `User_${key.substring(0, 4)}`,
+                  points: serverData.userData.points || 0,
+                  multiplier: serverData.userData.multiplier || 1.0,
+                  lastLogin: Date.now(),
+                  daysActive: serverData.userData.daysActive || 0,
+                  consecutiveDays: serverData.userData.consecutiveDays || 0,
                   petStats: {
-                    ...data.petStats,
-                    points: serverData.userData.points || data.petStats?.points || 0,
                     ...(serverData.userData.petState ? {
-                      food: serverData.userData.petState.hunger,
-                      happiness: serverData.userData.petState.happiness,
-                      cleanliness: serverData.userData.petState.cleanliness,
-                      energy: serverData.userData.petState.energy,
-                      health: serverData.userData.petState.health,
-                      isDead: serverData.userData.petState.isDead
-                    } : {})
+                      food: serverData.userData.petState.hunger || 50,
+                      happiness: serverData.userData.petState.happiness || 40,
+                      cleanliness: serverData.userData.petState.cleanliness || 40,
+                      energy: serverData.userData.petState.energy || 30,
+                      health: serverData.userData.petState.health || 30,
+                      isDead: serverData.userData.petState.isDead || false,
+                      points: serverData.userData.points || 0
+                    } : {
+                      food: 50,
+                      happiness: 40,
+                      cleanliness: 40,
+                      energy: 30,
+                      health: 30,
+                      isDead: false,
+                      points: 0
+                    })
                   }
                 };
-                setWalletData(mergedData);
+                
+                setWalletData(userData);
               } else {
-                setWalletData(data);
+                // If no server data, initialize with default data
+                const defaultData = {
+                  username: `User_${key.substring(0, 4)}`,
+                  points: 0,
+                  multiplier: 1.0,
+                  lastLogin: Date.now(),
+                  daysActive: 0,
+                  consecutiveDays: 0,
+                  petStats: {
+                    food: 50,
+                    happiness: 40,
+                    cleanliness: 40,
+                    energy: 30,
+                    health: 30,
+                    isDead: false,
+                    points: 0
+                  }
+                };
+                
+                // Save default data to server
+                await saveWalletData(key, defaultData);
+                
+                setWalletData(defaultData);
               }
             } catch (serverErr) {
               console.error('Error fetching server data:', serverErr);
-              setWalletData(data);
+              
+              // Use minimal default data if server fails
+              const defaultData = {
+                username: `User_${key.substring(0, 4)}`,
+                points: 0,
+                multiplier: 1.0,
+                lastLogin: Date.now(),
+                daysActive: 0,
+                consecutiveDays: 0,
+                petStats: {
+                  food: 50,
+                  happiness: 40,
+                  cleanliness: 40,
+                  energy: 30,
+                  health: 30,
+                  isDead: false,
+                  points: 0
+                }
+              };
+              
+              setWalletData(defaultData);
             }
           } catch (err) {
             console.error('Error loading wallet data:', err);
@@ -221,38 +272,90 @@ export function WalletProvider({ children }: WalletProviderProps) {
           }
           
           try {
-            const data = await loadWalletData(key);
-            
-            // Also fetch server data to ensure we have the latest
+            // Only fetch data from server, not local storage
             try {
               const serverData = await fetchUserRank(key);
               if (serverData.success && serverData.userData) {
-                console.log('Updated wallet data from server on connect event:', serverData.userData);
-                // Merge local and server data, with server data taking precedence
-                const mergedData = {
-                  ...data,
-                  username: serverData.userData.username || data.username,
-                  points: serverData.userData.points || data.points,
+                console.log('Loaded wallet data from server on connect event:', serverData.userData);
+                
+                // Use server data exclusively
+                const userData = {
+                  username: serverData.userData.username || `User_${key.substring(0, 4)}`,
+                  points: serverData.userData.points || 0,
+                  multiplier: serverData.userData.multiplier || 1.0,
+                  lastLogin: Date.now(),
+                  daysActive: serverData.userData.daysActive || 0,
+                  consecutiveDays: serverData.userData.consecutiveDays || 0,
                   petStats: {
-                    ...data.petStats,
-                    points: serverData.userData.points || data.petStats?.points || 0,
                     ...(serverData.userData.petState ? {
-                      food: serverData.userData.petState.hunger,
-                      happiness: serverData.userData.petState.happiness,
-                      cleanliness: serverData.userData.petState.cleanliness,
-                      energy: serverData.userData.petState.energy,
-                      health: serverData.userData.petState.health,
-                      isDead: serverData.userData.petState.isDead
-                    } : {})
+                      food: serverData.userData.petState.hunger || 50,
+                      happiness: serverData.userData.petState.happiness || 40,
+                      cleanliness: serverData.userData.petState.cleanliness || 40,
+                      energy: serverData.userData.petState.energy || 30,
+                      health: serverData.userData.petState.health || 30,
+                      isDead: serverData.userData.petState.isDead || false,
+                      points: serverData.userData.points || 0
+                    } : {
+                      food: 50,
+                      happiness: 40,
+                      cleanliness: 40,
+                      energy: 30,
+                      health: 30,
+                      isDead: false,
+                      points: 0
+                    })
                   }
                 };
-                setWalletData(mergedData);
+                
+                setWalletData(userData);
               } else {
-                setWalletData(data);
+                // Initialize with default data if no server data
+                const defaultData = {
+                  username: `User_${key.substring(0, 4)}`,
+                  points: 0,
+                  multiplier: 1.0,
+                  lastLogin: Date.now(),
+                  daysActive: 0,
+                  consecutiveDays: 0,
+                  petStats: {
+                    food: 50,
+                    happiness: 40,
+                    cleanliness: 40,
+                    energy: 30,
+                    health: 30,
+                    isDead: false,
+                    points: 0
+                  }
+                };
+                
+                // Save default data to server
+                await saveWalletData(key, defaultData);
+                
+                setWalletData(defaultData);
               }
             } catch (serverErr) {
               console.error('Error fetching server data on connect event:', serverErr);
-              setWalletData(data);
+              
+              // Use minimal default data if server fails
+              const defaultData = {
+                username: `User_${key.substring(0, 4)}`,
+                points: 0,
+                multiplier: 1.0,
+                lastLogin: Date.now(),
+                daysActive: 0,
+                consecutiveDays: 0,
+                petStats: {
+                  food: 50,
+                  happiness: 40,
+                  cleanliness: 40,
+                  energy: 30,
+                  health: 30,
+                  isDead: false,
+                  points: 0
+                }
+              };
+              
+              setWalletData(defaultData);
             }
           } catch (dataErr) {
             console.error('Error loading wallet data after connect:', dataErr);
@@ -408,48 +511,74 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsLoading(true);
         
         try {
-          const walletData = await loadWalletData(key);
-          
-          if (walletData) {
-            console.log(`Loaded wallet data for ${key.substring(0, 8)}...`);
-            
-            // Fetch server data to ensure we have the latest
-            try {
-              const serverData = await fetchUserRank(key);
-              if (serverData.success && serverData.userData) {
-                console.log('Updated wallet data from server after login:', serverData.userData);
-                // Merge local and server data, with server data taking precedence
-                const mergedData = {
-                  ...walletData,
-                  username: serverData.userData.username || walletData.username,
-                  points: serverData.userData.points || walletData.points,
-                  petStats: {
-                    ...walletData.petStats,
-                    points: serverData.userData.points || walletData.petStats?.points || 0,
-                    ...(serverData.userData.petState ? {
-                      food: serverData.userData.petState.hunger,
-                      happiness: serverData.userData.petState.happiness,
-                      cleanliness: serverData.userData.petState.cleanliness,
-                      energy: serverData.userData.petState.energy,
-                      health: serverData.userData.petState.health,
-                      isDead: serverData.userData.petState.isDead
-                    } : {})
-                  }
-                };
-                setWalletData(mergedData);
-              } else {
-                setWalletData(walletData);
-              }
-            } catch (serverErr) {
-              console.error('Error fetching server data after login:', serverErr);
-              setWalletData(walletData);
+          // Only fetch data from server, not local storage
+          try {
+            const serverData = await fetchUserRank(key);
+            if (serverData.success && serverData.userData) {
+              console.log('Loaded wallet data from server after login:', serverData.userData);
+              
+              // Use server data exclusively, no localStorage
+              const userData = {
+                username: serverData.userData.username || `User_${key.substring(0, 4)}`,
+                points: serverData.userData.points || 0,
+                multiplier: serverData.userData.multiplier || 1.0,
+                lastLogin: Date.now(),
+                daysActive: serverData.userData.daysActive || 0,
+                consecutiveDays: serverData.userData.consecutiveDays || 0,
+                petStats: {
+                  ...(serverData.userData.petState ? {
+                    food: serverData.userData.petState.hunger || 50,
+                    happiness: serverData.userData.petState.happiness || 40,
+                    cleanliness: serverData.userData.petState.cleanliness || 40,
+                    energy: serverData.userData.petState.energy || 30,
+                    health: serverData.userData.petState.health || 30,
+                    isDead: serverData.userData.petState.isDead || false,
+                    points: serverData.userData.points || 0
+                  } : {
+                    food: 50,
+                    happiness: 40,
+                    cleanliness: 40,
+                    energy: 30,
+                    health: 30,
+                    isDead: false,
+                    points: 0
+                  })
+                }
+              };
+              
+              setWalletData(userData);
+              setIsNewUser(false);
+            } else {
+              console.log('No existing wallet data found, initializing with defaults');
+              // Mark as new user so we can show pet name form
+              setIsNewUser(true);
+              const defaultData = {
+                username: `User_${key.substring(0, 4)}`,
+                points: 0,
+                multiplier: 1.0,
+                lastLogin: Date.now(),
+                daysActive: 0,
+                consecutiveDays: 0,
+                petStats: {
+                  food: 50,
+                  happiness: 40,
+                  cleanliness: 40,
+                  energy: 30,
+                  health: 30,
+                  isDead: false,
+                  points: 0
+                }
+              };
+              
+              setWalletData(defaultData);
+              
+              // Save the default data to the server
+              await saveWalletData(key, defaultData);
             }
-            setIsNewUser(false);
-          } else {
-            console.log('No existing wallet data found, initializing with defaults');
-            // Mark as new user so we can show pet name form
-            setIsNewUser(true);
-            const defaultData = {
+          } catch (serverError) {
+            console.error('Error getting data from server:', serverError);
+            // Set default values if server data loading fails
+            setWalletData({
               username: `User_${key.substring(0, 4)}`,
               points: 0,
               multiplier: 1.0,
@@ -465,15 +594,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
                 isDead: false,
                 points: 0
               }
-            };
-            
-            setWalletData(defaultData);
-            
-            // Save the default data
-            const saved = await saveWalletData(key, defaultData);
-            if (!saved) {
-              console.warn('Failed to save initial wallet data, using memory storage');
-            }
+            });
           }
         } catch (dataError) {
           console.error('Error loading wallet data:', dataError);
@@ -555,11 +676,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
     
     setWalletData(updatedWalletData);
     
-    // Save updated data
-    const saved = await saveWalletData(publicKey, updatedWalletData);
-    if (!saved) {
-      console.warn('Failed to persist points update to server, using memory storage');
-    }
+    // Save updated data directly to server
+    await saveWalletData(publicKey, updatedWalletData);
     
     return points;
   };

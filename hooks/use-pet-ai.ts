@@ -38,13 +38,66 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
   useEffect(() => {
     if (isConnected && petName && walletId) {
       loginTimeRef.current = Date.now();
-      logUserActivity(walletId, petName, 'login');
-      // Initial AI behavior fetch
-      getAIBehavior(true);
+      // Log login activity asynchronously
+      const logLogin = async () => {
+        await logUserActivity(walletId, petName, 'login');
+        // Initial AI behavior fetch after logging - call directly from the effect
+        if (isConnected && petName && walletId) {
+          setIsLoading(true);
+          try {
+            // Prepare current pet state
+            const currentPetState: PetState = {
+              health: currentStatsRef.current.health || 100,
+              happiness: currentStatsRef.current.happiness || 100,
+              hunger: currentStatsRef.current.hunger || 100,
+              cleanliness: currentStatsRef.current.cleanliness || 100,
+              energy: currentStatsRef.current.energy || 100
+            };
+            
+            // Use our updated function with fallback support
+            const aiResponse = await getPetBehavior(
+              petName,
+              walletId,
+              currentPetState,
+              "idle"
+            );
+            
+            // Update state with AI data
+            if (aiResponse) {
+              setDecayRates(aiResponse.decayRates);
+              setCooldowns(aiResponse.cooldowns);
+              setAiPersonality(Array.isArray(aiResponse.personality) 
+                ? aiResponse.personality 
+                : [aiResponse.personality.name, aiResponse.personality.description]
+              );
+              setAiAdvice(aiResponse.advice);
+              setAiPointMultiplier(aiResponse.pointMultiplier);
+              
+              // Only set mood description if it exists
+              const moodDesc = (aiResponse as any).moodDescription;
+              if (moodDesc) {
+                setMoodDescription(moodDesc);
+              }
+              
+              if (aiResponse.isOfflineMode) {
+                console.log('Using offline pet AI mode');
+              }
+            }
+          } catch (error) {
+            console.error("Failed to get AI behavior:", error);
+          } finally {
+            setIsLoading(false);
+          }
+        }
+      };
+      logLogin();
     } else if (!isConnected && loginTimeRef.current) {
-      // Log logout with duration
+      // Log logout with duration asynchronously
       const duration = getSessionDuration();
-      logUserActivity(walletId, petName, 'logout', duration);
+      const logLogout = async () => {
+        await logUserActivity(walletId, petName, 'logout', duration);
+      };
+      logLogout();
       loginTimeRef.current = null;
     }
   }, [isConnected, petName, walletId]);
@@ -182,9 +235,9 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
   /**
    * Log activity for AI to process
    */
-  const logActivity = useCallback((activity: UserActivity) => {
+  const logActivity = useCallback(async (activity: UserActivity) => {
     if (!walletId || !petName) return;
-    logUserActivity(walletId, petName, activity);
+    await logUserActivity(walletId, petName, activity);
   }, [walletId, petName]);
 
   /**

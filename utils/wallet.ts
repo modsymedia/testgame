@@ -51,26 +51,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     isSaving = true;
     console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
     
-    // Always update in-memory storage immediately
-    inMemoryStorage.set(publicKey, {
-      ...data,
-      lastSaved: new Date().toISOString()
-    });
-    
-    // Try to save to localStorage as well for offline backup
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`wallet_${publicKey}`, JSON.stringify({
-          ...data,
-          lastSaved: new Date().toISOString()
-        }));
-      } catch (e) {
-        // Ignore localStorage errors
-        console.warn('Unable to save to localStorage:', e);
-      }
-    }
-    
-    // Try to save to server
+    // Try to save to server directly
     try {
       const response = await fetch('/api/wallet', {
         method: 'POST',
@@ -99,7 +80,13 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`API error (${response.status}): ${errorText}`);
-        return true; // Still return true since we saved to localStorage
+        // Track the failure but don't use localStorage
+        inMemoryStorage.set(publicKey, {
+          ...data,
+          lastSaved: new Date().toISOString(),
+          pendingSave: true // Mark as pending to retry later
+        });
+        return false;
       }
       
       const result = await response.json();
@@ -109,12 +96,17 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
         console.warn(result.warning);
       }
       
-      console.log(`Wallet data saved successfully: ${result.message}`);
+      console.log(`Wallet data saved successfully to server: ${result.message}`);
       return true;
     } catch (serverError) {
       console.error('Failed to save wallet data to server:', serverError);
-      // Still return true since we already saved to in-memory and localStorage
-      return true;
+      // Track the failure but don't fallback to localStorage
+      inMemoryStorage.set(publicKey, {
+        ...data,
+        lastSaved: new Date().toISOString(),
+        pendingSave: true // Mark as pending to retry later
+      });
+      return false;
     }
   } catch (error) {
     isSaving = false;
@@ -125,84 +117,32 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
   }
 }
 
-// Load wallet data from the server
+// Load wallet data from the server only - no localStorage fallbacks
 export async function loadWalletData(publicKey: string): Promise<any> {
   try {
-    // Check if we have temporary stored data first
-    if (inMemoryStorage.has(publicKey)) {
-      console.log('👛 Retrieved data from temporary storage:', publicKey);
-      return inMemoryStorage.get(publicKey);
-    }
+    console.log('Attempting to load wallet data from server for:', publicKey);
     
-    // Try to get data from localStorage first
-    if (typeof window !== 'undefined') {
-      try {
-        const localData = localStorage.getItem(`wallet_${publicKey}`);
-        if (localData) {
-          const parsedData = JSON.parse(localData);
-          console.log('💾 Retrieved data from localStorage:', publicKey);
-          
-          // Store in memory for faster access
-          inMemoryStorage.set(publicKey, parsedData);
-          
-          // Try to sync with server in the background
-          fetch(`/api/wallet?walletAddress=${encodeURIComponent(publicKey)}`)
-            .then(response => response.json())
-            .then(({ success, data }) => {
-              if (success && data) {
-                // Merge server data with local data, keeping local values if they're higher
-                const mergedData = {
-                  username: data.username || parsedData.username,
-                  points: Math.max(data.points || 0, parsedData.points || 0),
-                  multiplier: Math.max(data.multiplier || 1.0, parsedData.multiplier || 1.0),
-                  lastLogin: parsedData.lastLogin,
-                  daysActive: Math.max(data.daysActive || 0, parsedData.daysActive || 0),
-                  consecutiveDays: Math.max(data.consecutiveDays || 0, parsedData.consecutiveDays || 0),
-                  petStats: {
-                    food: Math.max(data.petState?.hunger || 0, parsedData.petStats?.food || 0),
-                    happiness: Math.max(data.petState?.happiness || 0, parsedData.petStats?.happiness || 0),
-                    cleanliness: Math.max(data.petState?.cleanliness || 0, parsedData.petStats?.cleanliness || 0),
-                    energy: Math.max(data.petState?.energy || 0, parsedData.petStats?.energy || 0),
-                    health: Math.max(data.petState?.health || 0, parsedData.petStats?.health || 0),
-                    isDead: data.petState?.isDead || parsedData.petStats?.isDead || false,
-                    points: Math.max(data.points || 0, parsedData.petStats?.points || 0)
-                  }
-                };
-                
-                // Update storage with merged data
-                inMemoryStorage.set(publicKey, mergedData);
-                localStorage.setItem(`wallet_${publicKey}`, JSON.stringify(mergedData));
-                console.log('🔄 Synced local data with server:', publicKey);
-              }
-            })
-            .catch(error => {
-              console.error('❌ Background sync failed:', error);
-            });
-          
-          return parsedData;
-        }
-      } catch (localStorageError) {
-        console.error('❌ LocalStorage access error:', localStorageError);
-      }
-    }
-    
-    // If no local data, try to get from server
+    // Only attempt to load from server
     try {
       const response = await fetch(`/api/wallet?walletAddress=${encodeURIComponent(publicKey)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        // Add cache: 'no-store' to prevent browser caching
+        cache: 'no-store'
       });
       
       if (!response.ok) {
+        console.error(`API error (${response.status})`);
         throw new Error(`API error (${response.status})`);
       }
       
       const { success, data } = await response.json();
       
       if (!success || !data) {
-        throw new Error('Invalid response format');
+        console.error('Invalid response format or no data found');
+        throw new Error('Invalid response format or no data found');
       }
       
       // Format data for client use
@@ -224,39 +164,22 @@ export async function loadWalletData(publicKey: string): Promise<any> {
         }
       };
       
-      // Store in both memory and localStorage
-      inMemoryStorage.set(publicKey, formattedData);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(`wallet_${publicKey}`, JSON.stringify(formattedData));
-        } catch (e) {
-          console.warn('⚠️ Unable to save to localStorage:', e);
-        }
-      }
-      
-      console.log('🌐 Retrieved data from server:', publicKey);
+      console.log('📊 Retrieved data from server:', publicKey);
       return formattedData;
     } catch (fetchError) {
       console.error('❌ Server connection error:', fetchError);
       
-      // Create new default data only if no existing data was found
+      // Create new default data - don't try to load from local storage
       const defaultData = createDefaultWalletData(publicKey);
       
-      // Store in both memory and localStorage
+      // Only store in memory, don't save to localStorage
       inMemoryStorage.set(publicKey, defaultData);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(`wallet_${publicKey}`, JSON.stringify(defaultData));
-        } catch (e) {
-          console.warn('⚠️ Unable to save to localStorage:', e);
-        }
-      }
       
-      console.log('🆕 Created new default wallet data:', publicKey);
+      console.log('Created default wallet data for new user:', publicKey);
       return defaultData;
     }
   } catch (error) {
-    console.error('❌ Failed to load wallet data:', error);
+    console.error('General error loading wallet data:', error);
     return createDefaultWalletData(publicKey);
   }
 }

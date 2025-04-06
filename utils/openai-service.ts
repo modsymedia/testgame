@@ -203,22 +203,8 @@ export interface PetBehaviorResponse {
  */
 export async function getPetBehavior(petName: string, walletAddress: string, petState: PetState, action?: string): Promise<PetBehaviorResponse> {
   try {
-    // Add client-side caching for AI responses using localStorage if available
-    const cacheKey = `pet_behavior_${action || 'idle'}_${Math.floor(petState.health / 10)}_${Math.floor(petState.happiness / 10)}_${Math.floor(petState.hunger / 10)}_${Math.floor(petState.cleanliness / 10)}`;
-    
-    // Check if we have this response cached
-    if (typeof window !== 'undefined') {
-      try {
-        const cachedResponse = localStorage.getItem(cacheKey);
-        if (cachedResponse) {
-          const parsedResponse = JSON.parse(cachedResponse);
-          console.log('Using cached pet behavior response');
-          return parsedResponse;
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    }
+    // No client-side caching - always fetch from the server
+    console.log(`Getting pet behavior for ${petName} - ${action || 'idle'}`);
     
     // Try server request
     try {
@@ -233,6 +219,8 @@ export async function getPetBehavior(petName: string, walletAddress: string, pet
           petState,
           action
         }),
+        // Add cache: 'no-store' to prevent browser caching
+        cache: 'no-store'
       });
       
       if (!response.ok) {
@@ -241,16 +229,6 @@ export async function getPetBehavior(petName: string, walletAddress: string, pet
       }
       
       const data = await response.json();
-      
-      // Cache successful response in localStorage
-      if (typeof window !== 'undefined' && data) {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(data));
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-      }
-      
       return data;
     } catch (serverError) {
       console.error('OpenAI service error:', serverError);
