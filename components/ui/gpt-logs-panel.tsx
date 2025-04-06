@@ -3,6 +3,7 @@ import { getGPTLogs, GPTLogEntry } from "@/utils/openai-service";
 import { motion, AnimatePresence } from "framer-motion";
 import PixelatedContainer from "@/components/game/PixelatedContainer";
 import Image from 'next/image';
+import { useIsMobile } from "./use-mobile";
 
 export const GPTLogsPanel = () => {
   const [logs, setLogs] = useState<GPTLogEntry[]>([]);
@@ -14,6 +15,7 @@ export const GPTLogsPanel = () => {
   const [showCount, setShowCount] = useState(10);
   const isComponentMounted = useRef(true);
   const previousLogsRef = useRef<string>("");
+  const isMobile = useIsMobile();
 
   // Memoize the filter function to avoid recreation on each render
   const getFilteredLogs = useCallback((allLogs: GPTLogEntry[]) => {
@@ -92,14 +94,14 @@ export const GPTLogsPanel = () => {
   return (
     <AnimatePresence>
       <motion.div
-        className="w-80  mx-auto"
+        className={`${isMobile ? 'w-full' : 'w-80'} mx-auto`}
         initial={{ opacity: 0.9 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
         <PixelatedContainer className="flex flex-col p-0 w-full" noPadding>
           {/* Header */}
-          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between  w-full">
+          <div className="bg-[#ebffb7] text-[#304700] p-2 flex items-center justify-between w-full">
             <span className="text-xl font-bold font-pixelify"> LLM INFO</span>
             <div className="flex items-center">
               <Image
@@ -149,7 +151,7 @@ export const GPTLogsPanel = () => {
             </div>
 
             {/* Replace ScrollArea with a simple div with overflow */}
-            <div className="h-[400px] overflow-y-auto pr-1">
+            <div className={`${isMobile ? 'h-[350px]' : 'h-[400px]'} overflow-y-auto pr-1`}>
               <div className="space-y-4">
                 {logs.length === 0 ? (
                   <div className="text-center py-4 text-[#304700] font-sk-eliz">
@@ -171,21 +173,21 @@ export const GPTLogsPanel = () => {
 
                           <div className="mb-2">
                             <div className="font-bold text-[#304700] font-sk-eliz mb-1">
-                              Prompt:
+                              {isMobile ? "" : "Prompt:"}
                             </div>
-                            <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
+                            <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap text-sm">
                               {expandedLog === index
                                 ? log.prompt
-                                : truncateText(log.prompt, 150)}
+                                : truncateText(log.prompt, isMobile ? 80 : 150)}
                             </div>
                           </div>
 
                           {log.response && (
                             <div>
                               <div className="font-bold text-[#304700] font-sk-eliz mb-1">
-                                Response:
+                                {isMobile ? "" : "Response:"}
                               </div>
-                              <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap">
+                              <div className="text-[#304700] font-sk-eliz break-words whitespace-pre-wrap text-sm">
                                 {expandedLog === index
                                   ? typeof log.response === "string"
                                     ? log.response
@@ -194,7 +196,7 @@ export const GPTLogsPanel = () => {
                                       typeof log.response === "string"
                                         ? log.response
                                         : JSON.stringify(log.response),
-                                      100
+                                      isMobile ? 60 : 100
                                     )}
                               </div>
                             </div>
@@ -202,12 +204,12 @@ export const GPTLogsPanel = () => {
 
                           <div className="flex justify-end mt-2">
                             <button
-                              className="bg-transparent text-[#304700] px-2 py-1 font-sk-eliz hover:underline"
+                              className="bg-transparent text-[#304700] px-2 py-1 font-sk-eliz hover:underline text-xs"
                               onClick={() => toggleLogExpansion(index)}
                             >
                               {expandedLog === index
-                                ? "View less"
-                                : "View more"}
+                                ? "Less"
+                                : "More"}
                             </button>
                           </div>
                         </div>
@@ -217,7 +219,7 @@ export const GPTLogsPanel = () => {
                     {logs.length >= showCount && (
                       <div className="flex justify-center mt-4">
                         <button
-                          className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-4 py-1 hover:bg-[#d1e599] font-sk-eliz"
+                          className="bg-[#ebffb7] border-2 border-[#304700] text-[#304700] px-4 py-1 hover:bg-[#d1e599] font-sk-eliz text-sm"
                           onClick={loadMoreLogs}
                         >
                           View more

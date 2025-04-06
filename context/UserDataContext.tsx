@@ -226,10 +226,14 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     if (!publicKey || !isConnected) return false;
     
     try {
+      // Store the current state before update for recovery
+      const previousPoints = userData.points;
+      
       // Update points locally first for immediate feedback
       setUserData(prevData => ({
         ...prevData,
-        points: newPoints
+        points: newPoints,
+        lastSync: Date.now()
       }));
       
       // Try to update points on server with retry mechanism
@@ -239,6 +243,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       
       const attemptServerUpdate = async (): Promise<boolean> => {
         try {
+          // Save a copy of the points we're about to update to localStorage for recovery
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`points_backup_${publicKey}`, JSON.stringify({
+              points: newPoints,
+              timestamp: Date.now()
+            }));
+          }
+          
+          // Use the pointsManager to update the points
           await pointsManager.updatePoints(publicKey, newPoints);
           return true;
         } catch (serverError) {
@@ -250,46 +263,41 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       // First attempt
       success = await attemptServerUpdate();
       
-      // If failed, retry with increasing delays
+      // Retry if needed
       while (!success && retries < maxRetries) {
         retries++;
-        const delay = Math.min(1000 * Math.pow(2, retries), 10000); // Exponential backoff (max 10s)
-        
-        console.log(`Retrying points update in ${delay/1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
+        console.log(`Retrying points update (attempt ${retries})...`);
         success = await attemptServerUpdate();
       }
       
       if (!success) {
-        // If all retries failed, store in pending updates
-        console.warn('All server update attempts failed. Storing update for later sync.');
+        console.error('Failed to update points after multiple retries');
         
-        // Store the failed update in localStorage for later sync
-        try {
+        // If we couldn't update the server, queue the update for later
+        // and revert the UI to show correct points
+        if (typeof window !== 'undefined') {
           const pendingUpdates = JSON.parse(localStorage.getItem('pendingPointsUpdates') || '[]');
           pendingUpdates.push({
-            walletAddress: publicKey,
+            publicKey,
             points: newPoints,
             timestamp: Date.now()
           });
           localStorage.setItem('pendingPointsUpdates', JSON.stringify(pendingUpdates));
-        } catch (e) {
-          console.error('Failed to store pending update:', e);
         }
+        
+        // Trigger a sync to try to resolve the issue
+        debouncedSync();
+        return false;
       }
       
-      // Update last sync time regardless of server success
-      // Client has the latest data even if server update failed
-      setUserData(prevData => ({
-        ...prevData,
-        lastSync: Date.now()
-      }));
+      // Force a sync after successful update to ensure consistency
+      setTimeout(() => {
+        syncWithServer();
+      }, 1000);
       
-      return true; // Return true because the local update succeeded
-    } catch (err) {
-      console.error('Failed to update points:', err);
-      setError('Failed to update points. Please try again.');
+      return true;
+    } catch (error) {
+      console.error('Error updating points:', error);
       return false;
     }
   };

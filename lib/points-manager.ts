@@ -1124,11 +1124,51 @@ export class PointsManager {
   // Update points directly (for admin or special operations)
   public async updatePoints(walletAddress: string, newPoints: number): Promise<boolean> {
     try {
+      // Get the most recent user data from database
       const userData = await this.getUserData(walletAddress);
       
       if (!userData) {
         return false;
       }
+      
+      // Check if there's a pending transaction for this user
+      if (this.pendingTransactions.some(tx => 
+        tx.walletAddress === walletAddress && !tx.isProcessed)) {
+        // Add this update to the pending transactions to ensure it's processed in order
+        this.pendingTransactions.push({
+          walletAddress,
+          amount: newPoints - (userData.points || 0),
+          operation: 'earn',
+          source: 'gameplay',
+          timestamp: new Date(),
+          metadata: {
+            isDirectUpdate: true,
+            newPoints: newPoints,
+            oldPoints: userData.points || 0
+          }
+        });
+        
+        // Process pending transactions to ensure updates happen in order
+        await this.processPendingTransactions();
+        return true;
+      }
+      
+      // Create a record to track this change
+      const transaction: PointTransaction = {
+        walletAddress,
+        amount: 0, // Not adding/subtracting but setting directly
+        operation: 'earn',
+        source: 'gameplay',
+        timestamp: new Date(),
+        metadata: {
+          isDirectUpdate: true,
+          newPoints: newPoints,
+          oldPoints: userData.points || 0
+        }
+      };
+      
+      // Add to transaction history
+      this.addTransaction(transaction);
       
       // Update user data with new points
       await dbService.updateUserData(walletAddress, {
@@ -1139,8 +1179,12 @@ export class PointsManager {
       this.userPointsCache[walletAddress] = {
         ...this.userPointsCache[walletAddress] || {},
         points: newPoints,
-        lastUpdate: new Date()
+        lastUpdate: new Date(),
+        lastSyncTime: Date.now()
       };
+      
+      // Save to cache storage
+      this.saveCacheToStorage();
       
       // Emit event for UI updates
       this.eventEmitter.emit('points-updated', {
@@ -1151,6 +1195,21 @@ export class PointsManager {
       return true;
     } catch (error) {
       console.error('Error updating points directly:', error);
+      
+      // Store the update in the pending transactions to retry later
+      this.pendingTransactions.push({
+        walletAddress,
+        amount: 0,
+        operation: 'earn',
+        source: 'gameplay',
+        timestamp: new Date(),
+        metadata: {
+          isDirectUpdate: true,
+          newPoints: newPoints,
+          errorRetry: true
+        }
+      });
+      
       return false;
     }
   }

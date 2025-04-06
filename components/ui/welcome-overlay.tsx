@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/context/WalletContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import PixelatedContainer from '@/components/game/PixelatedContainerBig';
 
 interface WelcomeOverlayProps {
   duration?: number; // Duration in milliseconds before auto-dismissal
@@ -117,63 +118,65 @@ const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
             transition={{ duration: 0.5 }}
             className="relative z-10 max-w-md w-full mx-4"
           >
-            <form onSubmit={handleSubmit} className="bg-gradient-to-br from-purple-500 to-cyan-400 rounded-xl shadow-2xl p-8 border-2 border-white">
-              <h1 className="text-3xl font-pixelify text-white mb-6 text-center">
-                Choose Your Pet Name
-              </h1>
-              
-              {success ? (
-                <div className="text-center mb-6">
-                  <div className="bg-white/20 rounded-lg p-4 mb-4">
-                    <p className="text-xl font-pixelify text-white">
-                      Pet name saved successfully!
-                    </p>
-                    <p className="text-lg font-pixelify text-white/80 mt-2">
-                      Welcome, {username}!
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-6">
-                    <label htmlFor="username" className="block text-xl text-white font-pixelify mb-2">
-                      What would you like to name your pet?
-                    </label>
-                    <input
-                      type="text"
-                      id="username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-4 py-3 bg-white/90 rounded-lg font-pixelify text-lg text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-white"
-                      placeholder="Enter pet name..."
-                      maxLength={20}
-                      required
-                    />
-                    <p className="text-white/80 text-sm mt-2 font-pixelify">
-                      Your pet name must be unique. It will be visible to other players.
-                    </p>
-                  </div>
+            <PixelatedContainer className="p-6">
+              <form onSubmit={handleSubmit}>
+                <h1 className="text-2xl font-pixelify text-[#304700] mb-6 text-center font-bold">
+                  Choose Your Pet Name
+                </h1>
                 
-                  {error && (
-                    <div className="mb-6">
-                      <div className="bg-red-500/30 border border-red-500/50 rounded-lg p-3">
-                        <p className="text-white font-pixelify">{error}</p>
-                      </div>
+                {success ? (
+                  <div className="text-center mb-6">
+                    <div className="bg-[#DCEEA0] p-4 mb-4">
+                      <p className="text-xl font-pixelify text-[#304700] font-bold">
+                        Pet name saved successfully!
+                      </p>
+                      <p className="text-lg font-pixelify text-[#304700] mt-2">
+                        Welcome, {username}!
+                      </p>
                     </div>
-                  )}
-                
-                  <div className="flex justify-center">
-                    <button
-                      type="submit"
-                      disabled={!username.trim() || isSubmitting || isChecking}
-                      className="px-6 py-3 bg-white text-indigo-700 rounded-lg font-pixelify hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isChecking ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save Pet Name'}
-                    </button>
                   </div>
-                </>
-              )}
-            </form>
+                ) : (
+                  <>
+                    <div className="mb-6">
+                      <label htmlFor="username" className="block text-lg font-pixelify text-[#304700] mb-2 font-bold">
+                        What would you like to name your pet?
+                      </label>
+                      <input
+                        type="text"
+                        id="username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full px-4 py-3 bg-[#EBFFB7] border border-[#304700] font-pixelify text-lg text-[#304700] placeholder-[#92AD00]/50 focus:outline-none focus:ring-2 focus:ring-[#304700]"
+                        placeholder="Enter pet name..."
+                        maxLength={20}
+                        required
+                      />
+                      <p className="text-[#304700] text-sm mt-2 font-pixelify">
+                        Your pet name must be unique. It will be visible to other players.
+                      </p>
+                    </div>
+                  
+                    {error && (
+                      <div className="mb-6">
+                        <div className="bg-red-100 border border-red-400 p-3">
+                          <p className="text-red-800 font-pixelify">{error}</p>
+                        </div>
+                      </div>
+                    )}
+                  
+                    <div className="flex justify-center">
+                      <button
+                        type="submit"
+                        disabled={!username.trim() || isSubmitting || isChecking}
+                        className="px-6 py-3 bg-[#304700] text-white font-pixelify hover:bg-[#3c5800] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isChecking ? 'Checking...' : isSubmitting ? 'Saving...' : 'Save Pet Name'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            </PixelatedContainer>
           </motion.div>
         </div>
       )}

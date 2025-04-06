@@ -24,26 +24,13 @@ import { updateUserScore } from "@/utils/leaderboard";
 import CustomSlider from "@/components/game/CustomSlider";
 import { dbService } from "@/lib/database-service";
 
-// Add these interfaces right after the UserActivity interface definition
+// Add this interface for activities right after the imports
 interface UserActivity {
   id: string;
   type: 'feed' | 'play' | 'clean' | 'heal' | string;
   name: string;
   points: number;
   timestamp: number;
-}
-
-// Interface for cooldown states
-interface CooldownState {
-  feed: boolean;
-  play: boolean;
-  clean: boolean;
-  heal: boolean;
-}
-
-// Interface for locked items
-interface LockedItemsState {
-  [key: string]: boolean;
 }
 
 // Add this component near the top of the file, outside the KawaiiDevice component
@@ -60,8 +47,8 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
           <Image 
             src="/assets/icons/coin.png" 
             alt="Coins" 
-            width={22} 
-            height={22} 
+            width={25} 
+            height={25} 
             className="mr-1"
             style={{ imageRendering: 'pixelated' }}
           />
@@ -73,8 +60,8 @@ const StatusHeader = ({ animatedPoints, health }: StatusHeaderProps) => {
           <Image 
             src="/assets/icons/hart.png" 
             alt="Health" 
-            width={18} 
-            height={18} 
+            width={21} 
+            height={21} 
             className="mr-2"
             style={{ imageRendering: 'pixelated' }}
           />
@@ -96,9 +83,6 @@ export function KawaiiDevice() {
   const router = useRouter();
   const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
   const { userData, updatePoints: updateUserDataPoints } = useUserData();
-  
-  // Add database readiness state
-  const [isDatabaseReady, setIsDatabaseReady] = useState(false);
   
   // Add tilt configuration state
   const [tiltConfig, setTiltConfig] = useState({
@@ -178,17 +162,8 @@ export function KawaiiDevice() {
   const [unlockedItems, setUnlockedItems] = useState<{[key: string]: boolean}>({});
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [unlockConfirmSelection, setUnlockConfirmSelection] = useState<'yes' | 'no'>('no');
-  
-  // Define interface for item to unlock
-  interface ItemToUnlock {
-    type: 'food' | 'play' | 'clean' | 'doctor';
-    name: string;
-    cost: number;
-    index: number;
-  }
-  
-  const [itemToUnlock, setItemToUnlock] = useState<ItemToUnlock>({
-    type: 'food',
+  const [itemToUnlock, setItemToUnlock] = useState<{type: string, name: string, cost: number, index: number}>({
+    type: '',
     name: '',
     cost: 0,
     index: -1
@@ -1006,30 +981,22 @@ export function KawaiiDevice() {
       }
 
       if (option === "previous" || option === "next" || option === "b") {
-        // Map isOnCooldown to the expected CooldownState type
-        const cooldownState: CooldownState = {
+        // Create a cooldown state object to pass to handleButtonNavigation
+        const cooldownState = {
           feed: isOnCooldown.feed,
           play: isOnCooldown.play,
           clean: isOnCooldown.clean,
           heal: isOnCooldown.heal
         };
         
-        // Pass cooldown and unlocked items states to navigation handler
-        handleButtonNavigation(option, cooldownState, unlockedItems);
+        // Pass cooldown information to make navigation skip cooldown items
+        handleButtonNavigation(option, cooldownState);
         return;
       }
 
       if (option === "a") {
         if (menuStack[menuStack.length - 1] === "main") {
-          // Map isOnCooldown to the expected CooldownState type
-          const cooldownState: CooldownState = {
-            feed: isOnCooldown.feed,
-            play: isOnCooldown.play,
-            clean: isOnCooldown.clean,
-            heal: isOnCooldown.heal
-          };
-          
-          handleButtonNavigation("a", cooldownState, unlockedItems);
+          handleButtonNavigation("a");
         } else if (menuStack[menuStack.length - 1] === "food") {
           // Handle food selection
           if (selectedFoodItem !== null) {
@@ -1134,7 +1101,8 @@ export function KawaiiDevice() {
       updatePoints,
       publicKey,
       saveActivityToDatabase,
-      isItemLocked
+      isItemLocked,
+      isOnCooldown
     ]
   );
   
@@ -1162,15 +1130,47 @@ export function KawaiiDevice() {
   };
 
   const renderMenuContent = () => {
-    // Debug message in console to identify what page should be showing
-    console.log("Current menu:", menuStack[menuStack.length - 1]);
-    console.log("Selected items:", { 
-      food: selectedFoodItem, 
-      play: selectedPlayItem, 
-      clean: selectedCleanItem, 
-      doctor: selectedDoctorItem 
-    });
-    console.log("Unlocked items:", unlockedItems);
+    if (isDead) {
+      return (
+        <>
+          <StatusHeader animatedPoints={animatedPoints} health={health} />
+          <div className="flex-grow flex flex-col items-center justify-center">
+            <div>
+            {getCatEmotion()}
+            </div>
+            <p className="text-red-500 font-bold mt-4 text-base">Your pet has died!</p>
+            <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">100</span></p>
+            
+            {showReviveConfirm ? (
+              <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
+                <p className="text-xs mb-2">Current points: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
+                <div className="flex space-x-2 justify-center">
+                  <button 
+                    onClick={handleReviveConfirm} 
+                    className="bg-green-500 text-white py-1 px-4 rounded-md text-xs"
+                  >
+                    Confirm
+                  </button>
+                  <button 
+                    onClick={handleReviveCancel} 
+                    className="bg-red-500 text-white py-1 px-4 rounded-md text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={handleReviveRequest} 
+                className="mt-2 bg-green-500 text-white py-1 px-6 rounded-md text-sm"
+              >
+                Revive
+              </button>
+            )}
+          </div>
+        </>
+      );
+    }
     
     // Main menu - show only points and health
     if (menuStack[menuStack.length - 1] === "main") {
@@ -1212,27 +1212,25 @@ export function KawaiiDevice() {
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select food to feed your pet:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
-          {/* Unlock prompt overlay - simplified minimal style */}
+          {/* Unlock prompt overlay */}
           {showUnlockPrompt && itemToUnlock.type === 'food' && (
-            <div className="absolute inset-0 bg-black/50 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
-                <h4 className="text-sm font-pixel text-[#4b6130] mb-2">Unlock {itemToUnlock.name || ''}?</h4>
-                
-                <p className="text-xs text-[#606845] mb-2 font-pixel">
-                  Cost: <span className="font-bold">{itemToUnlock.cost}</span>
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
                 </p>
-                <p className="text-xs text-[#606845] mb-3 font-pixel">
-                  Reward: <span className="font-bold">{itemToUnlock.index >= 2 ? premiumItems.food.benefits[itemToUnlock.index - 2] : 1}x</span> points
-                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.food.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
-                <div className="flex justify-between items-center mt-2 space-x-4">
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'yes' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'no' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
             </div>
           )}
@@ -1242,15 +1240,15 @@ export function KawaiiDevice() {
               const isLocked = isItemLocked('food', foodItem);
               
               return (
-                <div key={index} className="transform relative">
-                  <PixelIcon 
-                    icon={foodItem as any}
-                    isHighlighted={selectedFoodItem === index}
-                    label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
-                    cooldown={cooldowns.feed}
-                    maxCooldown={DEFAULT_COOLDOWNS.feed}
+                <div key={index} className="transform  relative">
+              <PixelIcon 
+                icon={foodItem as any}
+                isHighlighted={selectedFoodItem === index}
+                label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
+                cooldown={cooldowns.feed}
+                maxCooldown={DEFAULT_COOLDOWNS.feed}
                     isDisabled={isOnCooldown.feed || isDead || isLocked}
-                    onClick={() => {
+                onClick={() => {
                       if (isLocked) {
                         // Show unlock prompt
                         setItemToUnlock({
@@ -1261,27 +1259,31 @@ export function KawaiiDevice() {
                         });
                         setShowUnlockPrompt(true);
                       } else {
-                        setSelectedFoodItem(index);
-                        handleButtonClick("a");
+                  setSelectedFoodItem(index);
+                  handleButtonClick("a");
                       }
                     }}
                   />
                   
-                  {/* Lock overlay - simplified minimal style */}
+                  {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 ${selectedFoodItem === index ? 'bg-[#4b6130]/60' : 'bg-[#4b6130]/50'}`}>
-                        {/* No grid pattern, no decorative corners - keeping it minimal */}
-                      </div>
-                      <div className="z-10 flex flex-col items-center">
-                        {/* Simplified lock icon */}
-                          <div className="w-3 h-3 border-2 border-[#eff8cb] rounded-full"></div>
-                        {/* Minimal cost label */}
-                        <div className="px-2 py-0.5">
-                          <div className="font-pixel text-[#eff8cb] text-[10px]">
-                            {premiumItems.food.costs[index - 2]}
-                          </div>
+                      <div className={`absolute inset-0 rounded-lg ${selectedFoodItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedFoodItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedFoodItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.food.costs[index - 2]} pts
                         </div>
+                        {selectedFoodItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1299,29 +1301,27 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose a game to play:</div>
-          <div className="flex-grow flex items-center justify-center mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
-          {/* Unlock prompt overlay - simplified minimal style */}
+          {/* Unlock prompt overlay for play */}
           {showUnlockPrompt && itemToUnlock.type === 'play' && (
-            <div className="absolute inset-0 bg-black/50 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
-                <h4 className="text-sm font-pixel text-[#4b6130] mb-2">Unlock {itemToUnlock.name || ''}?</h4>
-                
-                <p className="text-xs text-[#606845] mb-2 font-pixel">
-                  Cost: <span className="font-bold">{itemToUnlock.cost}</span>
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
                 </p>
-                <p className="text-xs text-[#606845] mb-3 font-pixel">
-                  Reward: <span className="font-bold">{itemToUnlock.index >= 2 ? premiumItems.play.benefits[itemToUnlock.index - 2] : 1}x</span> points
-                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.play.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
-                <div className="flex justify-between items-center mt-2 space-x-4">
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'yes' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'no' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
             </div>
           )}
@@ -1331,15 +1331,15 @@ export function KawaiiDevice() {
               const isLocked = isItemLocked('play', playItem);
               
               return (
-                <div key={index} className="transform relative">
-                  <PixelIcon 
-                    icon={playItem as any}
-                    isHighlighted={selectedPlayItem === index}
-                    label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
-                    cooldown={cooldowns.play}
-                    maxCooldown={DEFAULT_COOLDOWNS.play}
+                <div key={index} className="transform  relative">
+              <PixelIcon 
+                icon={playItem as any}
+                isHighlighted={selectedPlayItem === index}
+                label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
+                cooldown={cooldowns.play}
+                maxCooldown={DEFAULT_COOLDOWNS.play}
                     isDisabled={isOnCooldown.play || isDead || isLocked}
-                    onClick={() => {
+                onClick={() => {
                       if (isLocked) {
                         // Show unlock prompt
                         setItemToUnlock({
@@ -1350,27 +1350,31 @@ export function KawaiiDevice() {
                         });
                         setShowUnlockPrompt(true);
                       } else {
-                        setSelectedPlayItem(index);
-                        handleButtonClick("a");
+                  setSelectedPlayItem(index);
+                  handleButtonClick("a");
                       }
                     }}
                   />
                   
-                  {/* Lock overlay - simplified minimal style */}
+                  {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 ${selectedPlayItem === index ? 'bg-[#4b6130]/60' : 'bg-[#4b6130]/50'}`}>
-                        {/* No grid pattern, no decorative corners - keeping it minimal */}
-                      </div>
-                      <div className="z-10 flex flex-col items-center">
-                        {/* Simplified lock icon */}
-                          <div className="w-3 h-3 border-2 border-[#eff8cb] rounded-full"></div>
-                        {/* Minimal cost label */}
-                        <div className="px-2 py-0.5">
-                          <div className="font-pixel text-[#eff8cb] text-[10px]">
-                            {premiumItems.play.costs[index - 2]}
-                          </div>
+                      <div className={`absolute inset-0 rounded-lg ${selectedPlayItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedPlayItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedPlayItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.play.costs[index - 2]} pts
                         </div>
+                        {selectedPlayItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1388,29 +1392,27 @@ export function KawaiiDevice() {
         <>
           <StatusHeader animatedPoints={animatedPoints} health={health} />
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Choose grooming method:</div>
-          <div className="flex-grow flex items-center justify-center mb-[12px]">{getCatEmotion()}</div>
+          <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
-          {/* Unlock prompt overlay - simplified minimal style */}
+          {/* Unlock prompt overlay for clean */}
           {showUnlockPrompt && itemToUnlock.type === 'clean' && (
-            <div className="absolute inset-0 bg-black/50 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
-                <h4 className="text-sm font-pixel text-[#4b6130] mb-2">Unlock {itemToUnlock.name || ''}?</h4>
-                
-                <p className="text-xs text-[#606845] mb-2 font-pixel">
-                  Cost: <span className="font-bold">{itemToUnlock.cost}</span>
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
                 </p>
-                <p className="text-xs text-[#606845] mb-3 font-pixel">
-                  Reward: <span className="font-bold">{itemToUnlock.index >= 2 ? premiumItems.clean.benefits[itemToUnlock.index - 2] : 1}x</span> points
-                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.clean.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
-                <div className="flex justify-between items-center mt-2 space-x-4">
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'yes' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'no' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
             </div>
           )}
@@ -1420,15 +1422,15 @@ export function KawaiiDevice() {
               const isLocked = isItemLocked('clean', cleanItem);
               
               return (
-                <div key={index} className="transform relative">
-                  <PixelIcon 
-                    icon={cleanItem as any}
-                    isHighlighted={selectedCleanItem === index}
-                    label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
-                    cooldown={cooldowns.clean}
-                    maxCooldown={DEFAULT_COOLDOWNS.clean}
+                <div key={index} className="transform  relative">
+              <PixelIcon 
+                icon={cleanItem as any}
+                isHighlighted={selectedCleanItem === index}
+                label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
+                cooldown={cooldowns.clean}
+                maxCooldown={DEFAULT_COOLDOWNS.clean}
                     isDisabled={isOnCooldown.clean || isDead || isLocked}
-                    onClick={() => {
+                onClick={() => {
                       if (isLocked) {
                         // Show unlock prompt
                         setItemToUnlock({
@@ -1439,27 +1441,31 @@ export function KawaiiDevice() {
                         });
                         setShowUnlockPrompt(true);
                       } else {
-                        setSelectedCleanItem(index);
-                        handleButtonClick("a");
+                  setSelectedCleanItem(index);
+                  handleButtonClick("a");
                       }
                     }}
                   />
                   
-                  {/* Lock overlay - simplified minimal style */}
+                  {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 ${selectedCleanItem === index ? 'bg-[#4b6130]/60' : 'bg-[#4b6130]/50'}`}>
-                        {/* No grid pattern, no decorative corners - keeping it minimal */}
-                      </div>
-                      <div className="z-10 flex flex-col items-center">
-                        {/* Simplified lock icon */}
-                          <div className="w-3 h-3 border-2 border-[#eff8cb] rounded-full"></div>
-                        {/* Minimal cost label */}
-                        <div className="px-2 py-0.5">
-                          <div className="font-pixel text-[#eff8cb] text-[10px]">
-                            {premiumItems.clean.costs[index - 2]}
-                          </div>
+                      <div className={`absolute inset-0 rounded-lg ${selectedCleanItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedCleanItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedCleanItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.clean.costs[index - 2]} pts
                         </div>
+                        {selectedCleanItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1479,27 +1485,25 @@ export function KawaiiDevice() {
           <div className="absolute top-[50px] left-0 right-0 text-center text-xs text-[#606845]">Select treatment option:</div>
           <div className="flex-grow flex items-center justify-center  mb-[12px]">{getCatEmotion()}</div>
           
-          {/* Unlock prompt overlay - simplified minimal style */}
+          {/* Unlock prompt overlay for doctor */}
           {showUnlockPrompt && itemToUnlock.type === 'doctor' && (
-            <div className="absolute inset-0 bg-black/50 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
-                <h4 className="text-sm font-pixel text-[#4b6130] mb-2">Unlock {itemToUnlock.name || ''}?</h4>
-                
-                <p className="text-xs text-[#606845] mb-2 font-pixel">
-                  Cost: <span className="font-bold">{itemToUnlock.cost}</span>
+            <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
+              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+                <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
+                <p className="text-xs mb-2">
+                  Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
                 </p>
-                <p className="text-xs text-[#606845] mb-3 font-pixel">
-                  Reward: <span className="font-bold">{itemToUnlock.index >= 2 ? premiumItems.doctor.benefits[itemToUnlock.index - 2] : 1}x</span> points
-                </p>
+                <p className="text-xs mb-3">This will give you {premiumItems.doctor.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
-                <div className="flex justify-between items-center mt-2 space-x-4">
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'yes' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                <div className="flex justify-between items-center px-4 mb-1 mt-3">
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-2 py-1 flex-1 ${unlockConfirmSelection === 'no' ? 'bg-[#a7ba75] text-[#4b6130] font-bold' : 'bg-[#eff8cb] text-[#606845]'}`}>
+                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
+                <p className="text-[10px] text-gray-500 mt-1">Use ← → to select, A to confirm, B to cancel</p>
               </div>
             </div>
           )}
@@ -1509,15 +1513,15 @@ export function KawaiiDevice() {
               const isLocked = isItemLocked('doctor', doctorItem);
               
               return (
-                <div key={index} className="transform relative">
-                  <PixelIcon 
-                    icon={doctorItem as any}
-                    isHighlighted={selectedDoctorItem === index}
-                    label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
-                    cooldown={cooldowns.heal}
-                    maxCooldown={DEFAULT_COOLDOWNS.heal}
+                <div key={index} className="transform  relative">
+              <PixelIcon 
+                icon={doctorItem as any}
+                isHighlighted={selectedDoctorItem === index}
+                label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
+                cooldown={cooldowns.heal}
+                maxCooldown={DEFAULT_COOLDOWNS.heal}
                     isDisabled={isOnCooldown.heal || isDead || isLocked}
-                    onClick={() => {
+                onClick={() => {
                       if (isLocked) {
                         // Show unlock prompt
                         setItemToUnlock({
@@ -1528,27 +1532,31 @@ export function KawaiiDevice() {
                         });
                         setShowUnlockPrompt(true);
                       } else {
-                        setSelectedDoctorItem(index);
-                        handleButtonClick("a");
+                  setSelectedDoctorItem(index);
+                  handleButtonClick("a");
                       }
                     }}
                   />
                   
-                  {/* Lock overlay - simplified minimal style */}
+                  {/* Lock overlay */}
                   {isLocked && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className={`absolute inset-0 ${selectedDoctorItem === index ? 'bg-[#4b6130]/60' : 'bg-[#4b6130]/50'}`}>
-                        {/* No grid pattern, no decorative corners - keeping it minimal */}
-                      </div>
-                      <div className="z-10 flex flex-col items-center">
-                        {/* Simplified lock icon */}
-                          <div className="w-3 h-3 border-2 border-[#eff8cb] rounded-full"></div>
-                        {/* Minimal cost label */}
-                        <div className="px-2 py-0.5">
-                          <div className="font-pixel text-[#eff8cb] text-[10px]">
-                            {premiumItems.doctor.costs[index - 2]}
-                          </div>
+                      <div className={`absolute inset-0 rounded-lg ${selectedDoctorItem === index ? 'bg-[#4b6130]/70 border-2 border-yellow-300 animate-pulse' : 'bg-black/60'}`}></div>
+                      <div className="z-10 text-white flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" 
+                          className={`h-7 w-7 ${selectedDoctorItem === index ? 'text-yellow-300' : 'text-white'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <div className={`text-[10px] mt-1 px-2 py-1 rounded ${selectedDoctorItem === index ? 'bg-yellow-300 text-[#4b6130] font-bold' : 'bg-gray-700'}`}>
+                          {premiumItems.doctor.costs[index - 2]} pts
                         </div>
+                        {selectedDoctorItem === index && (
+                          <div className="mt-1 text-[9px] text-yellow-300">Press A to unlock</div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1872,7 +1880,7 @@ export function KawaiiDevice() {
             </div>
                     
                     {/* Game screen - positioned according to SVG */}
-                    <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb]  z-[-1]">
+                    <div className="absolute top-[94px] left-[76px] w-[247px] h-[272px] bg-[#eff8cb] rounded-lg overflow-hidden z-[-1]">
                       <div className="relative w-full h-full p-3 flex flex-col items-center justify-between">
                 <div className="absolute inset-0 mix-blend-multiply opacity-90 pointer-events-none" />
                 {renderMenuContent()}
@@ -1883,7 +1891,7 @@ export function KawaiiDevice() {
                     {/* Left button */}
                     <button 
                       onClick={() => handleButtonClick("previous")}
-                      className="absolute rounded-full  focus:outline-none active:scale-95 transition-transform"
+                      className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
                       style={{ 
                         top: "395px", 
                         left: "80px", 
@@ -1892,13 +1900,13 @@ export function KawaiiDevice() {
                       }}
                       aria-label="Previous"
                     >
-                      <div className="absolute rounded-full inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)]  transition-all" />
+                      <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
                     
                     {/* Right button */}
                     <button 
                       onClick={() => handleButtonClick("next")}
-                      className="absolute rounded-full  focus:outline-none active:scale-95 transition-transform"
+                      className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
                       style={{ 
                         top: "395px", 
                         left: "142px", 
@@ -1907,13 +1915,13 @@ export function KawaiiDevice() {
                       }}
                       aria-label="Next"
                     >
-                      <div className="absolute rounded-full inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)]  transition-all" />
+                      <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
                     
                     {/* Accept button (A) */}
                     <button 
                       onClick={() => handleButtonClick("a")}
-                      className="absolute  rounded-full focus:outline-none active:scale-95 transition-transform"
+                      className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
                       style={{ 
                         top: "395px", 
                         left: "205px", 
@@ -1922,13 +1930,13 @@ export function KawaiiDevice() {
                       }}
                       aria-label="A"
                     >
-                      <div className="absolute rounded-full inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)]  transition-all" />
+                      <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
                     
                     {/* Cancel button (B) */}
                     <button 
                       onClick={() => handleButtonClick("b")}
-                      className="absolute  rounded-full focus:outline-none active:scale-95 transition-transform"
+                      className="absolute rounded-full overflow-hidden focus:outline-none active:scale-95 transition-transform"
                       style={{ 
                         top: "395px", 
                         left: "267px", 
@@ -1937,13 +1945,14 @@ export function KawaiiDevice() {
                       }}
                       aria-label="B"
                     >
-                      <div className="absolute rounded-full inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)]  transition-all" />
+                      <div className="absolute inset-0 bg-black/0 active:bg-[#697140e0] active:shadow-[inset_8px_8px_3px_rgba(0,0,0,0.25),inset_4px_4px_3px_rgba(0,0,0,0.25),inset_0px_0px_15px_rgba(0,0,0,0.4),-1px_-3px_0px_rgba(0,0,0,0.55)] rounded-full transition-all" />
                     </button>
                         </div>
                 </Tilt>
                     </div>
                 </div>
         </div>
+
         {/* Right column - Points Earned Panel */}
           <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] min-w-[280px] px-0">
           <PointsEarnedPanel 

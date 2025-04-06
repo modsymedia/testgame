@@ -1,6 +1,7 @@
 import { Header } from '@/components/ui/navigation/Header';
 import Image from 'next/image';
 import WelcomeOverlay from '@/components/ui/welcome-overlay';
+import BottomNavigation from '@/components/ui/navigation/BottomNavigation';
 
 export default function ConsoleLayout({
   children,
@@ -23,11 +24,16 @@ export default function ConsoleLayout({
       {/* Content */}
       <div className="relative z-10 flex flex-col min-h-screen justify-center">
         <Header />
-        {children}
+        <div className="pb-24">
+          {children}
+        </div>
       </div>
       
       {/* Welcome Overlay */}
       <WelcomeOverlay />
+      
+      {/* Bottom Mobile Navigation */}
+      <BottomNavigation />
     </div>
   );
 } 

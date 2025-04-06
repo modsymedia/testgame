@@ -5,7 +5,6 @@ import { useRouter } from 'next/router';
 import { dbService } from '../lib/database-service';
 import { WalletProvider } from '@/context/WalletContext';
 import { UserDataProvider } from '@/context/UserDataContext';
-import { UsernameModal } from '@/components/game/PetNameModal';
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -106,7 +105,6 @@ export default function App({ Component, pageProps }: AppProps) {
           </div>
         )}
         <Component {...pageProps} />
-        <UsernameModal />
       </UserDataProvider>
     </WalletProvider>
   );

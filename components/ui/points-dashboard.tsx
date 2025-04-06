@@ -41,13 +41,28 @@ export const PointsDashboard = ({
     
     try {
       const freshData = await dbService.getUserData(publicKey);
+      
+      // Check for error state or failed load
+      if (freshData?.loadFailed) {
+        console.error('Data load failed, cannot update points:', freshData.error);
+        return; // Don't update state with invalid data
+      }
+      
       if (freshData) {
-        setCurrentPoints(freshData.points || 0);
-        setCurrentClaimedPoints(freshData.claimedPoints || 0);
-        console.log('Dashboard data refreshed:', freshData.points);
+        // Make sure points exists and is a number before updating state
+        if (freshData.points !== undefined && typeof freshData.points === 'number') {
+          setCurrentPoints(freshData.points);
+          setCurrentClaimedPoints(freshData.claimedPoints || 0);
+          console.log('Dashboard data refreshed:', freshData.points);
+        } else {
+          console.error('Invalid points data:', freshData.points);
+        }
+      } else {
+        console.error('Failed to load user data: no data returned');
       }
     } catch (error) {
       console.error('Failed to refresh wallet data:', error);
+      // Don't update state on error
     }
   }, [publicKey]);
   
@@ -139,11 +154,11 @@ export const PointsDashboard = ({
           {/* My Points */}
           <PixelatedContainer>
             <div className="w-full">
-              <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">My Points</h2>
-              <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
+              <h2 className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">My Points</h2>
+              <div className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">
                 <span className="font-numbers">{Math.round(currentPoints).toLocaleString()}</span>
               </div>
-              <p className="text-lg font-pixelify text-[#304700]">
+              <p className="text-base md:text-lg font-pixelify text-[#304700]">
                 Earn more points by playing Gochi
               </p>
             </div>
@@ -152,11 +167,11 @@ export const PointsDashboard = ({
           {/* Potential Rewards */}
           <PixelatedContainer>
             <div className="w-full">
-              <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Potential Rewards</h2>
-              <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
+              <h2 className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">Potential Rewards</h2>
+              <div className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">
                 $<span className="font-numbers">{potentialRewards.toFixed(2)}</span>
               </div>
-              <p className="text-lg font-pixelify text-[#304700]">
+              <p className="text-base md:text-lg font-pixelify text-[#304700]">
                 Token price × Points = $<span className="font-numbers">{tokenPrice.toFixed(2)}</span> × <span className="font-numbers">{Math.round(currentPoints)}</span>
               </p>
             </div>
@@ -166,19 +181,19 @@ export const PointsDashboard = ({
           <PixelatedContainer className="md:col-span-2">
             <div className="w-full flex justify-between items-start">
               <div>
-                <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Claimed Points</h2>
-                <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
+                <h2 className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">Claimed Points</h2>
+                <div className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">
                   <span className="font-numbers">{Math.round(currentClaimedPoints).toLocaleString()}</span>
                 </div>
-                <p className="text-lg font-pixelify text-[#304700]">
+                <p className="text-base md:text-lg font-pixelify text-[#304700]">
                   Total points converted to rewards
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">
+                <div className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">
                   $ <span className="font-numbers">{dollarsCollected}</span>
                 </div>
-                <p className="text-lg font-pixelify text-[#304700]">
+                <p className="text-base md:text-lg font-pixelify text-[#304700]">
                   Total USD value collected
                 </p>
               </div>
@@ -188,12 +203,12 @@ export const PointsDashboard = ({
           {/* Wallet Information */}
           <PixelatedContainer className="md:col-span-2">
             <div className="w-full">
-              <h2 className="text-2xl font-pixelify text-[#304700] mb-2 font-bold">Wallet Information</h2>
-              <p className="font-mono text-lg text-[#304700] break-all">
+              <h2 className="text-xl md:text-2xl font-pixelify text-[#304700] mb-2 font-bold">Wallet Information</h2>
+              <p className="font-mono text-base md:text-lg text-[#304700] break-all">
                 {publicKey || "Not connected"}
               </p>
               {walletData?.username && (
-                <p className="text-lg font-pixelify text-[#304700] mt-2">
+                <p className="text-base md:text-lg font-pixelify text-[#304700] mt-2">
                   Pet Name: {walletData.username}
                 </p>
               )}
