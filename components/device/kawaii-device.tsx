@@ -1628,7 +1628,7 @@ export function KawaiiDevice() {
         <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2 mx-auto">
           <div 
             ref={deviceWrapperRef}
-            className="flex justify-center items-center w-full h-full min-h-[300px] sm:min-h-[calc(100vh-64px)] max-h-[100vh] relative"
+            className="flex justify-center items-center w-full h-full md:min-h-[300px] min-h-[calc(100vh-64px)] max-h-[100vh] relative"
           >
 
             <div 
