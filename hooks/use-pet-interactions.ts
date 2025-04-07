@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 import type { Interaction } from "@/types/interaction"
 import { capStat } from "@/utils/stats-helpers"
@@ -73,7 +73,8 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
   } = usePetAI(username, publicKey || '', initialStats);
   
   // Default stats - will be overridden by database values when loaded
-  const defaultStats = {
+  // Memoize defaultStats to stabilize its reference
+  const defaultStats = useMemo(() => ({
     food: 50,
     happiness: 40,
     cleanliness: 40,
@@ -81,7 +82,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     health: 30,
     isDead: false,
     points: 0
-  };
+  }), []); // Empty dependency array means it's only created once
   
   // Core stats - initialize with defaults, will be updated from DB
   const [food, setFood] = useState(defaultStats.food)
@@ -140,19 +141,19 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
             return true;
           } else {
             console.warn('No valid pet state data returned from API:', { success, data });
+            return false;
           }
         } else {
           // Try to extract error details
           let errorDetails = `HTTP ${response.status}`;
           try {
-            const errorText = await response.text();
+            const errorText = await response.text().catch(() => '');
             errorDetails = errorText || errorDetails;
-          } catch (e) {}
+          } catch { /* ignore */ }
           
           console.error(`Error response from pet-state API: ${errorDetails}`);
+          return false; // Ensure a boolean is returned on error
         }
-        
-        return false;
       } catch (error) {
         console.error(`Attempt ${retryCount + 1} failed to load pet state:`, error);
         return false;
@@ -229,6 +230,15 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     clean: false,
     heal: false
   })
+  
+  // Format cooldown time for display (e.g., "0:30")
+  const formatCooldownTime = useCallback((milliseconds: number): string => {
+    if (milliseconds <= 0) return '';
+    const seconds = Math.ceil(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }, []);
   
   // Add cooldown timers for display
   const [cooldownTimers, setCooldownTimers] = useState<CooldownTimers>({
@@ -324,16 +334,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
     }, 1000)
     
     return () => clearInterval(cooldownInterval)
-  }, [cooldowns])
-  
-  // Format cooldown time for display (e.g., "0:30")
-  const formatCooldownTime = useCallback((milliseconds: number): string => {
-    if (milliseconds <= 0) return '';
-    const seconds = Math.ceil(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }, []);
+  }, [cooldowns, formatCooldownTime])
   
   // Modified awardPoints function to prevent points from decreasing
   const awardPoints = useCallback((amount: number) => {
@@ -376,7 +377,7 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
         highestPointsRef.current = dbPoints;
       }
     }
-  }, [walletData?.petStats?.points]);
+  }, [walletData?.petStats?.points, points]);
   
   // Apply decay rates from AI or use defaults
   useEffect(() => {
@@ -413,12 +414,12 @@ export function usePetInteractions(initialStats: Partial<PetStats> = {}) {
       // Hourly Points = BaseRate × QualityMultiplier × StreakMultiplier
       
       // Calculate pet state quality (the higher the better)
-      const petState = {
+      /* const petState = {
         health: health,
         happiness: happiness,
         hunger: food,  // In our system, food = hunger
         cleanliness: cleanliness
-      };
+      }; */
       
       // Get consecutive days from wallet data or default to 0
       const consecutiveDays = walletData?.daysActive || 0;

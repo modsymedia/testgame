@@ -1,24 +1,20 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
 import Tilt from 'react-parallax-tilt';
 import { useMediaQuery } from 'react-responsive';
-import { StatusBar } from "@/components/ui/status-bar";
 import { PixelIcon } from "@/components/ui/pixel-icon";
 import { HappyCat, AlertCat, SadCat, TiredCat, HungryCat, DeadCat } from "@/components/pet/cat-emotions";
 import { usePetInteractions, DEFAULT_COOLDOWNS } from "@/hooks/use-pet-interactions";
 import { useMenuNavigation } from "@/hooks/use-menu-navigation";
 import { formatPoints } from "@/utils/stats-helpers";
 import { AIPetAdvisor } from "@/components/ui/ai-pet-advisor";
-import { PointAnimation } from "@/components/ui/point-animation";
 import { useWallet } from "@/context/WalletContext";
 import { useUserData } from "@/context/UserDataContext";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/forms/button";
-import { GPTLogsPanel } from "@/components/ui/gpt-logs-panel";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
 import { updateUserScore } from "@/utils/leaderboard";
 import CustomSlider from "@/components/game/CustomSlider";
@@ -32,6 +28,11 @@ interface UserActivity {
   points: number;
   timestamp: number;
 }
+
+// Define the type for PixelIcon icons based on the PixelIconProps in pixel-icon.tsx
+type PixelIconType = "food" | "clean" | "doctor" | "play" | "fish" | "cookie" | "catFood" | "kibble" | 
+                     "laser" | "feather" | "ball" | "puzzle" | "brush" | "bath" | "nails" | "dental" |
+                     "checkup" | "vitamins" | "vaccine" | "surgery" | "medicine";
 
 // Add this component near the top of the file, outside the KawaiiDevice component
 interface StatusHeaderProps {
@@ -87,7 +88,7 @@ const StatusHeader = ({ animatedPoints, health, isDatabaseReady }: StatusHeaderP
 
 export function KawaiiDevice() {
   const router = useRouter();
-  const { isConnected, publicKey, walletData, updatePoints, disconnect, burnPoints } = useWallet();
+  const { isConnected, publicKey, walletData, updatePoints, burnPoints } = useWallet();
   const { userData, updatePoints: updateUserDataPoints } = useUserData();
   
   // Add tilt configuration state
@@ -129,7 +130,6 @@ export function KawaiiDevice() {
     if (!deviceWrapperRef.current || !deviceContentRef.current) return;
     
     const deviceWrapper = deviceWrapperRef.current;
-    const deviceContent = deviceContentRef.current;
     
     // Create a resize observer to adjust scale when container size changes
     const resizeObserver = new ResizeObserver(entries => {
@@ -175,8 +175,8 @@ export function KawaiiDevice() {
     index: -1
   });
   
-  // Premium item costs and configuration
-  const premiumItems = {
+  // Premium item costs and configuration - Memoize this
+  const premiumItems = useMemo(() => ({
     food: {
       items: ["catFood", "kibble"],
       costs: [500, 1000],
@@ -197,7 +197,7 @@ export function KawaiiDevice() {
       costs: [500, 1000],
       benefits: [1.5, 2.0]
     }
-  };
+  }), []); // Empty dependency array means it's created only once
   
   // Check if an item is locked - moved to the top to prevent reference errors
   const isItemLocked = useCallback((category: string, itemName: string) => {
@@ -260,10 +260,7 @@ export function KawaiiDevice() {
     isPlaying,
     isCleaning,
     isHealing,
-    lastInteractionTime,
     setLastInteractionTime,
-    showInteraction,
-    currentInteraction,
     handleFeeding,
     handlePlaying,
     handleCleaning,
@@ -271,17 +268,14 @@ export function KawaiiDevice() {
     resetPet,
     cooldowns,
     isOnCooldown,
-    recentPointGain,
     aiAdvice,
     aiPersonality,
     aiPointMultiplier,
-    petMessage,
-    petReaction,
-    cooldownTimers
   } = usePetInteractions();
 
   // Save pet data to the database (moved here after hooks are defined)
-  const savePetStateToDatabase = async () => {
+  // Wrap in useCallback to stabilize its reference
+  const savePetStateToDatabase = useCallback(async () => {
     if (!publicKey) return;
     
     try {
@@ -315,13 +309,9 @@ export function KawaiiDevice() {
             try {
               const errorData = JSON.parse(errorText);
               errorMessage = errorData.error || errorData.message || errorText;
-            } catch (parseError) {
-              errorMessage = errorText;
-            }
+            } catch { /* ignore */ }
           }
-        } catch (e) {
-          // If we can't get the text, just use the status
-        }
+        } catch { /* ignore */ }
         
         console.error('Error saving pet state:', errorMessage);
         return;
@@ -332,22 +322,23 @@ export function KawaiiDevice() {
     } catch (error) {
       console.error('Failed to save pet state to database:', error);
     }
-  };
+  }, [publicKey, health, happiness, food, cleanliness, energy, isDead]); // Add dependencies
   
   // Save pet state whenever relevant stats change
   useEffect(() => {
     if (publicKey && isConnected) {
       // Use a debounce to avoid too many updates
       const debounceTimer = setTimeout(() => {
-        savePetStateToDatabase();
+        savePetStateToDatabase(); // Now using the memoized function
       }, 5000); // 5 second debounce
       
       return () => clearTimeout(debounceTimer);
     }
-  }, [food, happiness, cleanliness, energy, health, isDead, publicKey, isConnected]);
+  }, [food, happiness, cleanliness, energy, health, isDead, publicKey, isConnected, savePetStateToDatabase]); // Add savePetStateToDatabase
   
   // Function to save activity to database
-  const saveActivityToDatabase = async (activity: UserActivity) => {
+  // Wrap in useCallback to stabilize its reference
+  const saveActivityToDatabase = useCallback(async (activity: UserActivity) => {
     if (!publicKey) return;
     
     try {
@@ -361,7 +352,7 @@ export function KawaiiDevice() {
     } catch (error) {
       console.error("Failed to save activity to database:", error);
     }
-  };
+  }, [publicKey, savePetStateToDatabase]); // Add dependencies
 
   const {
     selectedMenuItem,
@@ -373,24 +364,12 @@ export function KawaiiDevice() {
     selectedDoctorItem,
     handleButtonNavigation,
     resetMenu,
-    setMenuStack,
     setSelectedMenuItem,
     setSelectedFoodItem,
     setSelectedPlayItem,
     setSelectedCleanItem,
     setSelectedDoctorItem,
   } = useMenuNavigation();
-
-  const [pointAnimationComplete, setPointAnimationComplete] = useState(true);
-  const handlePointAnimationComplete = useCallback(() => {
-    setPointAnimationComplete(true);
-  }, []);
-
-  useEffect(() => {
-    if (recentPointGain) {
-      setPointAnimationComplete(false)
-    }
-  }, [recentPointGain])
 
   // Keep track of last updated points to prevent loops
   const lastUpdatedPointsRef = useRef(0);
@@ -645,7 +624,7 @@ export function KawaiiDevice() {
   };
 
   // Add this function to get the premium benefit multiplier
-  const getPremiumMultiplier = useCallback((type: string, itemName: string, index: number) => {
+  const getPremiumMultiplier = useCallback((type: string, itemName: string/*, index: number*/) => {
     // Check if it's a premium item and is unlocked
     const isPremium = premiumItems[type as keyof typeof premiumItems]?.items.includes(itemName);
     const itemKey = `${type}-${itemName}`;
@@ -661,7 +640,7 @@ export function KawaiiDevice() {
     return 1;
   }, [premiumItems, unlockedItems]);
 
-  // Update simulateFeedingTilt to consistently use the ref for tilt position
+  // Moved this function definition above handleInteraction where it is used
   const simulateFeedingTilt = useCallback(() => {
     // Disable normal tilting
     setTiltConfig(prev => ({ ...prev, tiltEnable: false }));
@@ -757,7 +736,7 @@ export function KawaiiDevice() {
 
   // Modify the existing handleInteraction function to use premium multipliers
   const handleInteraction = useCallback(
-    async (option: string, selectedItem: number) => {
+    async (option: string/*, selectedItem: number*/) => {
       // ... existing code at the start of the function
       
       let pointsToAdd = 0;
@@ -770,7 +749,7 @@ export function KawaiiDevice() {
         itemName = foodItems[selectedFoodItem];
         
         // Apply premium multiplier to points
-        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedFoodItem);
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
         pointsToAdd = Math.floor(10 * aiPointMultiplier * premiumMultiplier);
         
         // Trigger the feeding tilt animation
@@ -801,7 +780,7 @@ export function KawaiiDevice() {
         itemName = playItems[selectedPlayItem];
         
         // Apply premium multiplier to points
-        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedPlayItem);
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
         pointsToAdd = Math.floor(15 * aiPointMultiplier * premiumMultiplier);
         
         // Handle playing
@@ -829,7 +808,7 @@ export function KawaiiDevice() {
         itemName = cleanItems[selectedCleanItem];
         
         // Apply premium multiplier to points
-        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedCleanItem);
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
         pointsToAdd = Math.floor(12 * aiPointMultiplier * premiumMultiplier);
         
         // Handle cleaning
@@ -857,7 +836,7 @@ export function KawaiiDevice() {
         itemName = doctorItems[selectedDoctorItem];
         
         // Apply premium multiplier to points
-        const premiumMultiplier = getPremiumMultiplier(itemType, itemName, selectedDoctorItem);
+        const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
         pointsToAdd = Math.floor(20 * aiPointMultiplier * premiumMultiplier);
         
         // Handle healing
@@ -886,7 +865,7 @@ export function KawaiiDevice() {
         updateUserDataPoints(userData.points + pointsToAdd);
         
         // Update leaderboard
-        updateUserScore(publicKey, points + pointsToAdd);
+        updateUserScore(publicKey, userData.points + pointsToAdd);
       }
       
       // Always reset the menu to go back to main screen after completing a task
@@ -903,7 +882,6 @@ export function KawaiiDevice() {
       handleDoctor,
       resetMenu,
       updatePoints,
-      points,
       publicKey,
       userData.points,
       updateUserDataPoints,
@@ -914,6 +892,35 @@ export function KawaiiDevice() {
       simulateFeedingTilt
     ]
   );
+
+  // Set up point animation tracking
+  // const [pointAnimations, setPointAnimations] = useState<PointAnimation[]>([]); // Unused
+  
+  // Handle revive confirmation
+  // Wrap in useCallback
+  const handleReviveRequest = useCallback(() => {
+    setShowReviveConfirm(true);
+  }, []); // No dependencies needed
+  
+  // Wrap in useCallback
+  const handleReviveConfirm = useCallback(async () => {
+    // Burn 50% of points through the wallet context
+    await burnPoints();
+    // Reset pet stats
+    resetPet();
+    // Hide confirmation dialog
+    setShowReviveConfirm(false);
+    
+    // Update leaderboard with the new score after revival
+    if (publicKey) {
+      updateUserScore(publicKey, Math.floor(points / 2));
+    }
+  }, [burnPoints, resetPet, publicKey, points]); // Add dependencies
+  
+  // Wrap in useCallback
+  const handleReviveCancel = useCallback(() => {
+    setShowReviveConfirm(false);
+  }, []); // No dependencies needed
 
   // Button navigation handler with proper integrations
   const handleButtonClick = useCallback(
@@ -927,10 +934,22 @@ export function KawaiiDevice() {
       
       if (isDead) {
         if (option === "a") {
-          // Reset game
-          resetPet();
-          resetMenu();
+          // If the pet is dead and A is pressed, trigger the revive request
+          if (!showReviveConfirm) {
+            handleReviveRequest();
+          } else {
+            // If confirmation is already showing, confirm the revival
+            handleReviveConfirm();
+          }
+          return;
         }
+        
+        if (option === "b" && showReviveConfirm) {
+          // If confirmation is showing and B is pressed, cancel
+          handleReviveCancel();
+          return;
+        }
+        
         return;
       }
 
@@ -946,7 +965,7 @@ export function KawaiiDevice() {
           // Confirm selection
           if (unlockConfirmSelection === 'yes') {
             // Process the unlock
-            const { type, name, cost, index } = itemToUnlock;
+            const { type, name, cost/*, index*/ } = itemToUnlock;
             if (userData.points >= cost) {
               // Deduct points
               updateUserDataPoints(userData.points - cost);
@@ -988,12 +1007,12 @@ export function KawaiiDevice() {
 
       if (option === "previous" || option === "next" || option === "b") {
         // Create a cooldown state object to pass to handleButtonNavigation
-        const cooldownState = {
+        /* const cooldownState = { // Unused
           feed: isOnCooldown.feed,
           play: isOnCooldown.play,
           clean: isOnCooldown.clean,
           heal: isOnCooldown.heal
-        };
+        }; */
         
         // Call handleButtonNavigation with just the option parameter
         handleButtonNavigation(option);
@@ -1020,7 +1039,7 @@ export function KawaiiDevice() {
               setUnlockConfirmSelection('no');
               setShowUnlockPrompt(true);
             } else {
-              await handleInteraction('food', selectedFoodItem);
+              await handleInteraction('food');
             }
           }
         } else if (menuStack[menuStack.length - 1] === "play") {
@@ -1040,7 +1059,7 @@ export function KawaiiDevice() {
               setUnlockConfirmSelection('no');
               setShowUnlockPrompt(true);
             } else {
-              await handleInteraction('play', selectedPlayItem);
+              await handleInteraction('play');
             }
           }
         } else if (menuStack[menuStack.length - 1] === "clean") {
@@ -1060,7 +1079,7 @@ export function KawaiiDevice() {
               setUnlockConfirmSelection('no');
               setShowUnlockPrompt(true);
             } else {
-              await handleInteraction('clean', selectedCleanItem);
+              await handleInteraction('clean');
             }
           }
         } else if (menuStack[menuStack.length - 1] === "doctor") {
@@ -1080,7 +1099,7 @@ export function KawaiiDevice() {
               setUnlockConfirmSelection('no');
               setShowUnlockPrompt(true);
             } else {
-              await handleInteraction('doctor', selectedDoctorItem);
+              await handleInteraction('doctor');
             }
           }
         }
@@ -1095,8 +1114,6 @@ export function KawaiiDevice() {
       selectedDoctorItem,
       handleButtonNavigation,
       handleInteraction,
-      resetMenu,
-      resetPet,
       setLastInteractionTime,
       lastInteractionUpdateRef,
       showUnlockPrompt,
@@ -1108,32 +1125,13 @@ export function KawaiiDevice() {
       publicKey,
       saveActivityToDatabase,
       isItemLocked,
-      isOnCooldown
+      handleReviveRequest,
+      handleReviveConfirm,
+      handleReviveCancel,
+      showReviveConfirm,
+      premiumItems // Add the memoized premiumItems object
     ]
   );
-  
-  // Handle revive confirmation
-  const handleReviveRequest = () => {
-    setShowReviveConfirm(true);
-  };
-  
-  const handleReviveConfirm = async () => {
-    // Burn 50% of points through the wallet context
-    await burnPoints();
-    // Reset pet stats
-    resetPet();
-    // Hide confirmation dialog
-    setShowReviveConfirm(false);
-    
-    // Update leaderboard with the new score after revival
-    if (publicKey) {
-      updateUserScore(publicKey, Math.floor(points / 2));
-    }
-  };
-  
-  const handleReviveCancel = () => {
-    setShowReviveConfirm(false);
-  };
 
   const renderMenuContent = () => {
     if (isDead) {
@@ -1145,33 +1143,41 @@ export function KawaiiDevice() {
             {getCatEmotion()}
             </div>
             <p className="text-red-500 font-bold mt-4 text-base">Your pet has died!</p>
-            <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">100</span></p>
+            <p className="text-xs mt-1 mb-2">Total tokens remaining: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
             
             {showReviveConfirm ? (
-              <div className="mt-2 p-2 bg-gray-100 rounded-md text-center">
-                <p className="text-xs mb-2">Current points: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
-                <div className="flex space-x-2 justify-center">
-                  <button 
-                    onClick={handleReviveConfirm} 
-                    className="bg-green-500 text-white py-1 px-4 rounded-md text-xs"
-                  >
-                    Confirm
-                  </button>
-                  <button 
-                    onClick={handleReviveCancel} 
-                    className="bg-red-500 text-white py-1 px-4 rounded-md text-xs"
-                  >
-                    Cancel
-                  </button>
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70">
+                <div className="bg-[#eff8cb] border-2 border-[#606845] p-4 text-center w-[80%]">
+                  <p className="text-sm font-bold text-[#4b6130] mb-2">Revive Your Pet?</p>
+                  <p className="text-xs mb-2">This will cost 50% of your tokens.</p>
+                  <p className="text-xs mb-2">Current points: <span className="font-numbers">{formatPoints(userData.points)}</span></p>
+                  <p className="text-xs mb-2">You will keep: <span className="font-numbers">{formatPoints(userData.points / 2)}</span></p>
+                  <div className="flex space-x-4 justify-center mt-3">
+                    <button 
+                      onClick={handleReviveConfirm} 
+                      className="bg-green-500 text-white py-1 px-4 text-xs"
+                    >
+                      Confirm
+                    </button>
+                    <button 
+                      onClick={handleReviveCancel} 
+                      className="bg-red-500 text-white py-1 px-4 text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
-              <button 
-                onClick={handleReviveRequest} 
-                className="mt-2 bg-green-500 text-white py-1 px-6 rounded-md text-sm"
-              >
-                Revive
-              </button>
+              <div className="mt-2 flex flex-col items-center">
+                <button 
+                  onClick={handleReviveRequest} 
+                  className="bg-green-500 text-white py-1 px-6 text-sm"
+                >
+                  Revive
+                </button>
+                <p className="text-xs mt-2 text-[#606845]">Press button <span className="font-bold">A</span> to revive your pet</p>
+              </div>
             )}
           </div>
         </>
@@ -1221,7 +1227,7 @@ export function KawaiiDevice() {
           {/* Unlock prompt overlay */}
           {showUnlockPrompt && itemToUnlock.type === 'food' && (
             <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
                 <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
                 <p className="text-xs mb-2">
                   Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
@@ -1229,10 +1235,10 @@ export function KawaiiDevice() {
                 <p className="text-xs mb-3">This will give you {premiumItems.food.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
                 <div className="flex justify-between items-center px-4 mb-1 mt-3">
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
@@ -1248,7 +1254,7 @@ export function KawaiiDevice() {
               return (
                 <div key={index} className="transform  relative">
               <PixelIcon 
-                icon={foodItem as any}
+                icon={foodItem as PixelIconType}
                 isHighlighted={selectedFoodItem === index}
                 label={foodItem === "catFood" ? "Cat Food" : foodItem.charAt(0).toUpperCase() + foodItem.slice(1)}
                 cooldown={cooldowns.feed}
@@ -1300,7 +1306,7 @@ export function KawaiiDevice() {
           {/* Unlock prompt overlay for play */}
           {showUnlockPrompt && itemToUnlock.type === 'play' && (
             <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
                 <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
                 <p className="text-xs mb-2">
                   Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
@@ -1308,10 +1314,10 @@ export function KawaiiDevice() {
                 <p className="text-xs mb-3">This will give you {premiumItems.play.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
                 <div className="flex justify-between items-center px-4 mb-1 mt-3">
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
@@ -1327,7 +1333,7 @@ export function KawaiiDevice() {
               return (
                 <div key={index} className="transform  relative">
               <PixelIcon 
-                icon={playItem as any}
+                icon={playItem as PixelIconType}
                 isHighlighted={selectedPlayItem === index}
                 label={playItem.charAt(0).toUpperCase() + playItem.slice(1)}
                 cooldown={cooldowns.play}
@@ -1378,7 +1384,7 @@ export function KawaiiDevice() {
           {/* Unlock prompt overlay for clean */}
           {showUnlockPrompt && itemToUnlock.type === 'clean' && (
             <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
                 <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
                 <p className="text-xs mb-2">
                   Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
@@ -1386,10 +1392,10 @@ export function KawaiiDevice() {
                 <p className="text-xs mb-3">This will give you {premiumItems.clean.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
                 <div className="flex justify-between items-center px-4 mb-1 mt-3">
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
@@ -1405,7 +1411,7 @@ export function KawaiiDevice() {
               return (
                 <div key={index} className="transform  relative">
               <PixelIcon 
-                icon={cleanItem as any}
+                icon={cleanItem as PixelIconType}
                 isHighlighted={selectedCleanItem === index}
                 label={cleanItem.charAt(0).toUpperCase() + cleanItem.slice(1)}
                 cooldown={cooldowns.clean}
@@ -1456,7 +1462,7 @@ export function KawaiiDevice() {
           {/* Unlock prompt overlay for doctor */}
           {showUnlockPrompt && itemToUnlock.type === 'doctor' && (
             <div className="absolute inset-0 bg-black/70 z-10 flex flex-col items-center justify-center">
-              <div className="bg-[#eff8cb] p-3 rounded-lg max-w-[80%] text-center">
+              <div className="bg-[#eff8cb] p-3 max-w-[80%] text-center">
                 <h4 className="text-sm font-bold text-[#4b6130] mb-2">Unlock Premium Item</h4>
                 <p className="text-xs mb-2">
                   Unlock <span className="font-bold">{itemToUnlock.name}</span> for <span className="font-bold">{itemToUnlock.cost}</span> points?
@@ -1464,10 +1470,10 @@ export function KawaiiDevice() {
                 <p className="text-xs mb-3">This will give you {premiumItems.doctor.benefits[itemToUnlock.index - 2]}x more points!</p>
                 
                 <div className="flex justify-between items-center px-4 mb-1 mt-3">
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'yes' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>
                     Yes
                   </div>
-                  <div className={`px-3 py-1 rounded ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
+                  <div className={`px-3 py-1 ${unlockConfirmSelection === 'no' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>
                     No
                   </div>
                 </div>
@@ -1483,7 +1489,7 @@ export function KawaiiDevice() {
               return (
                 <div key={index} className="transform  relative">
               <PixelIcon 
-                icon={doctorItem as any}
+                icon={doctorItem as PixelIconType}
                 isHighlighted={selectedDoctorItem === index}
                 label={doctorItem.charAt(0).toUpperCase() + doctorItem.slice(1)}
                 cooldown={cooldowns.heal}
@@ -1523,12 +1529,6 @@ export function KawaiiDevice() {
       );
     }
   };
-
-  // Add a logout function that disconnects the wallet and redirects to landing page
-  const handleLogout = useCallback(() => {
-    disconnect();
-    router.push('/');
-  }, [disconnect, router]);
 
   // Load unlocked items from database only
   useEffect(() => {
@@ -1670,10 +1670,10 @@ export function KawaiiDevice() {
                     secondaryGlareRef.current.style.opacity = "0.1";
                     
                     // Create a smooth animation to reset position
-                    let startX = tiltPositionRef.current.tiltAngleX;
-                    let startY = tiltPositionRef.current.tiltAngleY;
-                    let startTime = performance.now();
-                    let duration = 3000; // 3 seconds for a slower, smoother transition
+                    const startX = tiltPositionRef.current.tiltAngleX;
+                    const startY = tiltPositionRef.current.tiltAngleY;
+                    const startTime = performance.now();
+                    const duration = 3000; // 3 seconds for a slower, smoother transition
                     
                     const animateReset = (timestamp: number) => {
                       const elapsed = timestamp - startTime;
