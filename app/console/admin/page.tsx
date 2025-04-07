@@ -574,15 +574,15 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <PixelatedContainer className="p-3" bgcolor="#f0fff0">
               <div className="text-center">
-                <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                <div className="text-2xl font-numbers font-bold">{stats.totalUsers}</div>
                 <div className="text-xs text-gray-600">Total Users</div>
               </div>
             </PixelatedContainer>
 
             <PixelatedContainer className="p-3" bgcolor="#fff0f0">
               <div className="text-center">
-                <div className="text-2xl font-bold">
-                  {stats.totalPoints.toLocaleString()}
+                <div className="text-2xl font-numbers font-bold">
+                  <span className="numbers">{stats.totalPoints.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-600">Total Points</div>
               </div>
@@ -590,7 +590,7 @@ export default function AdminPage() {
 
             <PixelatedContainer className="p-3" bgcolor="#f0f0ff">
               <div className="text-center">
-                <div className="text-2xl font-bold">{stats.averageHealth}%</div>
+                <div className="text-2xl font-numbers font-bold">{stats.averageHealth}%</div>
                 <div className="text-xs text-gray-600">Average Pet Health</div>
               </div>
             </PixelatedContainer>
@@ -599,7 +599,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <PixelatedContainer className="p-3" bgcolor="#fffff0">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-numbers font-bold text-green-600">
                   {stats.activePets}
                 </div>
                 <div className="text-xs text-gray-600">Active Pets</div>
@@ -608,7 +608,7 @@ export default function AdminPage() {
 
             <PixelatedContainer className="p-3" bgcolor="#fff0ff">
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-numbers font-bold text-red-600">
                   {stats.deadPets}
                 </div>
                 <div className="text-xs text-gray-600">Dead Pets</div>
@@ -656,7 +656,7 @@ export default function AdminPage() {
                     <td className="px-4 py-2">{user.username}</td>
                     <td className="px-4 py-2">{user.walletAddress}</td>
                     <td className="px-4 py-2 text-right">
-                      {user.points.toLocaleString()}
+                      <span className="numbers">{user.points.toLocaleString()}</span>
                     </td>
                     <td className="px-4 py-2 text-center">
                       <span
@@ -872,9 +872,9 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">Health</span>
-              <span className="text-xs font-medium">
-                {petData?.health || 0}/100
-              </span>
+              <div className="text-xs font-medium">
+                <span className="numbers">{petData?.health || 0}/100</span>
+              </div>
             </div>
             <div className="w-full bg-[#ebffb7] rounded-full h-2">
               <div
@@ -890,9 +890,9 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">Happiness</span>
-              <span className="text-xs font-medium">
-                {petData?.happiness || 0}/100
-              </span>
+              <div className="text-xs font-medium">
+                <span className="numbers">{petData?.happiness || 0}/100</span>
+              </div>
             </div>
             <div className="w-full bg-[#ebffb7] rounded-full h-2">
               <div
@@ -908,9 +908,9 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">Food</span>
-              <span className="text-xs font-medium">
-                {petData?.hunger || 0}/100
-              </span>
+              <div className="text-xs font-medium">
+                <span className="numbers">{petData?.hunger || 0}/100</span>
+              </div>
             </div>
             <div className="w-full bg-[#ebffb7] rounded-full h-2">
               <div
@@ -926,9 +926,9 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">Cleanliness</span>
-              <span className="text-xs font-medium">
-                {petData?.cleanliness || 0}/100
-              </span>
+              <div className="text-xs font-medium">
+                <span className="numbers">{petData?.cleanliness || 0}/100</span>
+              </div>
             </div>
             <div className="w-full bg-[#ebffb7] rounded-full h-2">
               <div
@@ -944,9 +944,9 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">Energy</span>
-              <span className="text-xs font-medium">
-                {petData?.energy || 0}/100
-              </span>
+              <div className="text-xs font-medium">
+                <span className="numbers">{petData?.energy || 0}/100</span>
+              </div>
             </div>
             <div className="w-full bg-[#ebffb7] rounded-full h-2">
               <div
@@ -1068,8 +1068,8 @@ export default function AdminPage() {
 
             <div>
               <div className="text-xs text-gray-500">Points</div>
-              <div className="font-semibold text-sm">
-                {walletData.points?.toLocaleString() || "0"}
+              <div className="text-xl font-bold">
+                <span className="numbers">{walletData.points?.toLocaleString() || "0"}</span>
               </div>
             </div>
 
@@ -1120,7 +1120,7 @@ export default function AdminPage() {
           <div className="mb-3">
             <div className="text-xs text-gray-500">Current Points</div>
             <div className="text-xl font-bold">
-              {walletData.points?.toLocaleString() || "0"}
+              <span className="numbers">{walletData.points?.toLocaleString() || "0"}</span>
             </div>
           </div>
         )}
