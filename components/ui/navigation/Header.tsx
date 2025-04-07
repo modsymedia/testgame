@@ -58,7 +58,7 @@ export function Header() {
   ];
 
   return (
-    <header className="fixed top-0 left-0 w-full z-50 h-[48px] flex items-top gap-[5px] px-0">
+    <header className="sm:hidden fixed top-0 left-0 w-full z-50 h-[48px] flex items-top gap-[5px] px-0">
       {/* Mobile Menu Button */}
       <div className="lg:hidden ml-2">
         <PixelatedContainer

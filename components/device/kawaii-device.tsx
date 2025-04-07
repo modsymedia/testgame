@@ -1605,7 +1605,7 @@ export function KawaiiDevice() {
   }, [unlockedItems, publicKey]);
 
   return (
-    <div className="flex w-full min-h-screen sm:p-4 items-center justify-center p-4">
+    <div className="flex w-full min-h-screen sm:p-4 items-center justify-center p-4 sm:pt-0">
       
       {/* Responsive layout container */}
       <div className="flex flex-col lg:flex-row w-full max-w-[1400px] mx-auto gap-6 sm:gap-6 items-stretch justify-center">
@@ -1628,7 +1628,7 @@ export function KawaiiDevice() {
         <div className="w-full lg:w-2/4 flex flex-col items-center justify-start order-1 lg:order-2 mx-auto">
           <div 
             ref={deviceWrapperRef}
-            className="flex justify-center items-center w-full h-full min-h-[300px] max-md:min-h-[100vh] max-h-[100vh] relative"
+            className="flex justify-center items-center w-full h-full min-h-[300px] sm:min-h-[calc(100vh-64px)] max-h-[100vh] relative"
           >
 
             <div 
