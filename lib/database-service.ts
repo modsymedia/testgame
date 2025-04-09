@@ -413,36 +413,7 @@ export class DatabaseService {
     }
   }
 
-  // Add methods for persisting states to local storage as backup
-  private saveToLocalStorage(key: string, data: any): void {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`db_backup:${key}`, JSON.stringify({
-          data,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        console.error('Error saving to local storage:', error);
-      }
-    }
-  }
-
-  private loadFromLocalStorage(key: string): any {
-    if (typeof window !== 'undefined') {
-      try {
-        const item = localStorage.getItem(`db_backup:${key}`);
-        if (item) {
-          const parsed = JSON.parse(item);
-          return parsed.data;
-        }
-      } catch (error) {
-        console.error('Error loading from local storage:', error);
-      }
-    }
-    return null;
-  }
-
-  // Get user data with local storage fallback
+  // Get user data without local storage fallback
   public async getUserData(walletAddress: string): Promise<User | any | null> {
     // Check cache first
     const cacheKey = `user:${walletAddress}`;
@@ -455,14 +426,7 @@ export class DatabaseService {
         return this.cache.get(userDataCacheKey);
       }
       
-      // Try localStorage for custom data
-      const localData = this.loadFromLocalStorage(userDataCacheKey);
-      if (localData) {
-        this.cache.set(userDataCacheKey, localData);
-        return localData;
-      }
-      
-      // If not in cache or localStorage, fetch from the database
+      // Fetch from the database without localStorage fallback
       try {
         const response = await fetch(`/api/user/data?walletAddress=${encodeURIComponent(walletAddress)}`);
         if (response.ok) {
@@ -470,7 +434,6 @@ export class DatabaseService {
           if (data) {
             // Cache the data
             this.cache.set(userDataCacheKey, data);
-            this.saveToLocalStorage(userDataCacheKey, data);
             return data;
           }
         }
@@ -486,14 +449,6 @@ export class DatabaseService {
     // Regular user data lookup
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
-    }
-    
-    // Try localStorage as fallback for regular users too
-    const localData = this.loadFromLocalStorage(cacheKey);
-    if (localData && localData.walletAddress === walletAddress) {
-      console.log('Found user data in localStorage:', walletAddress);
-      this.cache.set(cacheKey, localData);
-      return localData;
     }
     
     try {
@@ -519,9 +474,6 @@ export class DatabaseService {
       
       // Cache the result
       this.cache.set(cacheKey, user);
-      
-      // Also save to localStorage as a backup
-      this.saveToLocalStorage(cacheKey, user);
       
       return user;
     } catch (error) {
@@ -671,7 +623,7 @@ export class DatabaseService {
       let responseData;
       try {
         responseData = await response.json();
-      } catch (e) {
+      } catch {
         responseData = { success: false, error: 'Failed to parse response' };
       }
       
@@ -760,9 +712,6 @@ export class DatabaseService {
           ...updateData
         };
         this.cache.set(cacheKey, updatedUser);
-        
-        // Also save to local storage as backup
-        this.saveToLocalStorage(cacheKey, updatedUser);
       }
       
       // Use API route for writes if enabled and in browser environment
@@ -778,7 +727,6 @@ export class DatabaseService {
       let paramIndex = 1;
       
       // Process each key in updateData using type-safe approach
-      type UserKey = keyof User;
       Object.entries(updateData).forEach(([key, value]) => {
         // Handle petState separately
         if (key === 'petState' || key === '_id' || key === 'walletAddress' || key === 'version') return;
@@ -1697,9 +1645,6 @@ export class DatabaseService {
       
       // Save to cache
       this.cache.set(cacheKey, updatedData);
-      
-      // Save to localStorage for offline persistence
-      this.saveToLocalStorage(cacheKey, updatedData);
       
       // Queue for database sync
       this.cache.queueOperation('user_data', 'update', {

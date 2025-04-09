@@ -67,11 +67,11 @@ export function WalletProvider({ children }: WalletProviderProps) {
   useEffect(() => {
     // Check every second for the global trigger
     const intervalId = setInterval(() => {
-      // @ts-ignore - check for global trigger
+      //  - check for global trigger
       if (typeof window !== 'undefined' && window.__forceShowPetNamePrompt) {
         console.log('Detected global trigger to show pet name prompt');
         setShowPetNamePrompt(true);
-        // @ts-ignore - reset the trigger
+        //  - reset the trigger
         window.__forceShowPetNamePrompt = false;
       }
     }, 1000);
@@ -160,6 +160,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
               const serverData = await fetchUserRank(key);
               if (serverData.success && serverData.userData) {
                 console.log('Loaded wallet data from server:', serverData.userData);
+                console.log('👤 Username from server data:', serverData.userData.username);
                 
                 // Use server data exclusively
                 const userData = {
@@ -712,6 +713,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const setUsername = async (username: string): Promise<boolean> => {
     if (!publicKey || !walletData) return false;
     
+    console.log('👤 Setting username to:', username);
+    
     try {
       // Use PUT endpoint specifically for username update
       const response = await fetch('/api/wallet', {
@@ -737,6 +740,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         username: username
       };
       
+      console.log('👤 Updated wallet data with new username:', updatedWalletData.username);
       setWalletData(updatedWalletData);
       
       // No longer a new user after completing setup

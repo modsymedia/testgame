@@ -97,12 +97,13 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
     } else {
       // Try to parse error response
       let errorMessage = 'Unknown error';
+      const responseText = await response.text(); // Read body as text first
       try {
-        const errorData = await response.json();
+        const errorData = JSON.parse(responseText); // Try parsing the text
         errorMessage = errorData.error || errorData.message || 'Unknown error';
-      } catch (e) {
-        // If JSON parse fails, use text
-        errorMessage = await response.text();
+      } catch {
+        // If JSON parse fails, use the raw text
+        errorMessage = responseText || 'Failed to read error response';
       }
       
       console.error(`Score update failed: ${errorMessage}`);

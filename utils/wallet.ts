@@ -313,13 +313,13 @@ export function getProvider(walletName?: string) {
   // If a specific wallet is requested
   if (walletName) {
     if (walletName === 'phantom') {
-      //@ts-ignore
+      //
       const provider = window.phantom?.solana;
       if (provider?.isPhantom) {
         return provider;
       }
     } else if (walletName === 'solflare') {
-      //@ts-ignore
+      //
       const provider = window.solflare;
       if (provider?.isSolflare) {
         return provider;
@@ -330,21 +330,21 @@ export function getProvider(walletName?: string) {
   
   // If no specific wallet is requested, try to find any available wallet
   // First try Phantom
-  //@ts-ignore
+  //
   const phantomProvider = window.phantom?.solana;
   if (phantomProvider?.isPhantom) {
     return phantomProvider;
   }
   
   // Then try Solflare
-  //@ts-ignore
+  //
   const solflareProvider = window.solflare;
   if (solflareProvider?.isSolflare) {
     return solflareProvider;
   }
   
   // Fallback for other Solana wallets
-  //@ts-ignore
+  //
   return window.solana;
 }
 
@@ -355,7 +355,7 @@ export function getAvailableWallets() {
   const wallets = [];
   
   // Check for Phantom
-  //@ts-ignore
+  //
   if (window.phantom?.solana?.isPhantom) {
     wallets.push({
       name: 'phantom',
@@ -365,7 +365,7 @@ export function getAvailableWallets() {
   }
   
   // Check for Solflare
-  //@ts-ignore
+  //
   if (window.solflare?.isSolflare) {
     wallets.push({
       name: 'solflare',

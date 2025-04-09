@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { sql } from '@vercel/postgres';
-import { User } from '@/lib/models';
+
 
 // Define a list of columns we know exist in the actual production database
 // This is based on the error message showing games_played doesn't exist

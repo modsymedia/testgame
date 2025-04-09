@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/feedback/dialog';
 import { Button } from '@/components/ui/forms/button';
 import { Alert, AlertDescription } from '@/components/ui/feedback/alert';
+import Image from 'next/image'; // Importing Image from next/image
 
 export function WalletSelectModal() {
   const { connect, error, availableWallets } = useWallet();
@@ -57,13 +58,13 @@ export function WalletSelectModal() {
                 <div className="grid grid-cols-2 gap-4">
                   <a href="https://phantom.app/" target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" className="w-full flex items-center justify-center gap-2">
-                      <img src="https://www.phantom.app/img/logo.png" alt="Phantom" className="h-6 w-6" />
+                      <Image src="https://www.phantom.app/img/logo.png" alt="Phantom" width={24} height={24} /> {/* Using Image component */}
                       <span>Phantom</span>
                     </Button>
                   </a>
                   <a href="https://solflare.com/" target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" className="w-full flex items-center justify-center gap-2">
-                      <img src="https://solflare.com/assets/logo.svg" alt="Solflare" className="h-6 w-6" />
+                      <Image src="https://solflare.com/assets/logo.svg" alt="Solflare" width={24} height={24} /> {/* Using Image component */}
                       <span>Solflare</span>
                     </Button>
                   </a>
@@ -79,10 +80,12 @@ export function WalletSelectModal() {
                   className="flex items-center justify-between py-6"
                 >
                   <div className="flex items-center">
-                    <img 
+                    <Image 
                       src={wallet.icon} 
                       alt={wallet.label} 
-                      className="h-8 w-8 mr-4"
+                      width={32} 
+                      height={32} 
+                      className="mr-4" // Using Image component
                     />
                     <span>{wallet.label}</span>
                   </div>

@@ -12,7 +12,6 @@ interface PointsDisplayProps {
 
 export function PointsDisplay({ 
   points: externalPoints, 
-  claimedPoints: externalClaimedPoints,
   multiplier: externalMultiplier,
   isLoading: externalIsLoading,
   lastUpdated,

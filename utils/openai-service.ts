@@ -278,8 +278,8 @@ function generateOfflinePetBehavior(petName: string, petState: PetState, action?
   
   // Messages based on action
   let message = "";
-  let updatedStats = null;
-  let reward = 0;
+  const updatedStats = null;
+  const reward = 0;
   
   switch(action) {
     case 'feed':

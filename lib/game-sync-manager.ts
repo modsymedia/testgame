@@ -1,4 +1,4 @@
-import { User, GameSession, DataChangeEvent, SyncOperation } from './models';
+import { GameSession, DataChangeEvent } from './models';
 import { dbService } from './database-service';
 
 export const SYNC_INTERVAL_MS = 2000; // 2 seconds

@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
+import { motion } from "framer-motion";
 import PixelatedContainer from "@/components/game/PixelatedContainer";
 import Image from "next/image";
 import CustomSlider from "@/components/game/CustomSlider";
@@ -15,7 +13,7 @@ interface AIPetAdvisorProps {
   energy: number;
   health: number;
   aiAdvice?: string;
-  aiPersonality?: any;
+  aiPersonality?: string[];
   className?: string;
 }
 
@@ -30,8 +28,6 @@ export function AIPetAdvisor({
   aiPersonality,
   className = "",
 }: AIPetAdvisorProps) {
-  const [isOpen, setIsOpen] = useState(true);
-
   // Get default mood based on stats
   const getDefaultMood = () => {
     if (isDead) return "Your pet has passed away.";
@@ -113,6 +109,11 @@ export function AIPetAdvisor({
                   <div className="text-sm font-pixelify ">
                     {getAdvice()}
                   </div>
+                  {aiPersonality && aiPersonality.length > 0 && (
+                    <div className="text-xs font-pixelify mt-1 text-[#304700]/70">
+                      Personality: {aiPersonality.join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
             </PixelatedContainer>

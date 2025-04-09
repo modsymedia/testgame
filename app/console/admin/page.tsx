@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/forms/button";
 import { Input } from "@/components/ui/forms/input";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 
 // Define statistics type
 interface StatsData {

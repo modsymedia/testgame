@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import PixelatedContainer from '@/components/game/PixelatedContainer';
-import { PointsEarnedPanel } from './points-earned-panel';
 import { GPTLogsPanel } from './gpt-logs-panel';
 import { useWallet } from '@/context/WalletContext';
 import { dbService } from '@/lib/database-service';
@@ -26,14 +25,6 @@ export const PointsDashboard = ({
   const [currentPoints, setCurrentPoints] = useState(initialPoints);
   const [currentClaimedPoints, setCurrentClaimedPoints] = useState(initialClaimedPoints);
   
-  // State for points earned panel - using real data from wallet
-  const [pointsPerSecond, setPointsPerSecond] = useState(1.3);
-  const [timeUntilUpdate, setTimeUntilUpdate] = useState(30.0);
-  const [progress, setProgress] = useState(0);
-  const [nextPoints, setNextPoints] = useState(currentPoints + 10);
-  
-  // Get user multiplier from wallet data
-  const pointsMultiplier = walletData?.multiplier || 1.0;
   
   // Fetch latest wallet data
   const refreshWalletData = useCallback(async () => {
@@ -112,39 +103,20 @@ export const PointsDashboard = ({
   
   // Initialize values on component mount and when wallet data changes
   useEffect(() => {
-    if (walletData) {
-      // Initialize with real values from wallet data
-      setPointsPerSecond(calculatePointsPerSecond());
-      setTimeUntilUpdate(calculateTimeUntilNextUpdate());
-      setProgress(calculateProgress());
-      setNextPoints(currentPoints + Math.round(10 * (walletData.multiplier || 1.0)));
-    }
+
   }, [walletData, currentPoints, calculatePointsPerSecond, calculateTimeUntilNextUpdate, calculateProgress]);
   
   // Update the timer and progress bar every second
   useEffect(() => {
     if (!walletData) return;
     
-    const interval = setInterval(() => {
-      setTimeUntilUpdate(calculateTimeUntilNextUpdate());
-      setProgress(calculateProgress());
-    }, 1000);
-    
-    return () => clearInterval(interval);
   }, [walletData, calculateTimeUntilNextUpdate, calculateProgress]);
   
   // Calculate potential rewards based on current points
   const potentialRewards = currentPoints * tokenPrice;
   
   // Prepare the points data to pass to the panel
-  const pointsEarnedData = {
-    currentPoints: currentPoints,
-    nextPoints: nextPoints,
-    pointsPerSecond: pointsPerSecond,
-    timeUntilUpdate: timeUntilUpdate,
-    progress: progress,
-    pointsMultiplier: pointsMultiplier
-  };
+
 
   return (
     <div className="max-w-7xl mx-auto flex gap-6 flex-wrap">

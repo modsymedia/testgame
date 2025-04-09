@@ -19,7 +19,6 @@ const tailAnimation = {
 };
 
 interface CatEmotionProps {
-  eyeExpression?: React.ReactNode;
   selectedMenuItem?: number | null;
   hygieneTaskOnCooldown?: boolean;
   foodTaskOnCooldown?: boolean;
@@ -31,8 +30,6 @@ interface CatEmotionProps {
 
 // Modified CatBase to use an image instead of text characters
 const CatBase: React.FC<CatEmotionProps> = ({
-  eyeExpression,
-  selectedMenuItem,
   hygieneTaskOnCooldown,
   foodTaskOnCooldown,
   playTaskOnCooldown,
@@ -137,7 +134,6 @@ const CatBase: React.FC<CatEmotionProps> = ({
 );
 
 // Keep the original eyes for reference but they won't be visible with the image
-const BlinkingEyes = () => <></>;
 
 export const HappyCat = ({
   hygieneTaskOnCooldown,

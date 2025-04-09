@@ -97,13 +97,12 @@ export async function POST(request: Request) {
       WHERE wallet_address = ${walletAddress}
     `;
     
-    let result;
     const timestamp = new Date().toISOString();
     
     if (!existingPet || existingPet.length === 0) {
       // Pet doesn't exist, create it with validated values
       console.log(`Creating new pet state for wallet: ${walletAddress}`);
-      result = await sql`
+      await sql`
         INSERT INTO pet_states (
           wallet_address, health, happiness, hunger, cleanliness,
           energy, is_dead, last_state_update
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
     } else {
       // Pet exists, update its state with validated values
       console.log(`Updating pet state for wallet: ${walletAddress}`);
-      result = await sql`
+      await sql`
         UPDATE pet_states 
         SET health = ${validatedHealth},
             happiness = ${validatedHappiness},

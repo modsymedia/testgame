@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { sql } from '@vercel/postgres';
 
 // Define columns we know exist from our analysis
-const SAFE_COLUMNS = ['points', 'score', 'wallet_address'];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow POST method

@@ -6,11 +6,10 @@ import { useWallet } from '@/context/WalletContext';
 import { Button } from '@/components/ui/forms/button';
 import { Alert, AlertDescription } from '@/components/ui/feedback/alert';
 import { WalletSelectModal } from '@/components/game/WalletSelectModal';
-import Image from 'next/image';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { disconnect, isConnected, walletData, error, isNewUser, currentWalletName } = useWallet();
+  const { disconnect, isConnected, error, isNewUser, currentWalletName } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
 
   // Redirect to game if already connected, unless new user setup is needed

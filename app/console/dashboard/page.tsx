@@ -8,7 +8,7 @@ import { dbService } from '@/lib/database-service';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isConnected, walletData, publicKey } = useWallet();
+  const { isConnected, publicKey } = useWallet();
   const tokenPrice = 0.05; // Example token price in USD
   
   // Local state for dashboard data

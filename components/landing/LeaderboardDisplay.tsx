@@ -7,8 +7,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/data-display/table";
 import { Trophy } from "lucide-react";
@@ -25,11 +23,9 @@ export default function LeaderboardDisplay() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalEntries, setTotalEntries] = useState(0);
   const { isConnected, publicKey, walletData } = useWallet();
   const [userRank, setUserRank] = useState<number | null>(null);
   const [userData, setUserData] = useState<any>(null);
-  const [totalUsers, setTotalUsers] = useState<number>(0);
 
   const ENTRIES_PER_PAGE = 6; // All pages show 6 entries
 
@@ -72,8 +68,6 @@ export default function LeaderboardDisplay() {
           const userRankResult = await fetchUserRank(publicKey);
           if (userRankResult.success) {
             setUserRank(userRankResult.rank);
-            setTotalUsers(userRankResult.totalUsers);
-
             // Also store the user data from the server
             if (userRankResult.userData) {
               console.log(
@@ -96,7 +90,6 @@ export default function LeaderboardDisplay() {
 
       // Update total entries if we have that information
       if (result.total > 0) {
-        setTotalEntries(result.total);
         calculateTotalPages(result.total);
       }
     } catch (err) {
@@ -143,7 +136,6 @@ export default function LeaderboardDisplay() {
           const result = await fetchUserRank(publicKey);
           if (result.success) {
             setUserRank(result.rank);
-            setTotalUsers(result.totalUsers);
 
             // Store the user data from the server
             if (result.userData) {
@@ -303,7 +295,7 @@ export default function LeaderboardDisplay() {
                 {displayedEntries.map((entry) => (
                   <TableRow
                     key={entry.walletAddress}
-                    className={`border-0 text-[14px] sm:text-[16px] uppercase ${
+                    className={`flex border-0 text-[14px] sm:text-[16px] uppercase ${
                       entry.walletAddress === publicKey ? "bg-[#ebffb7]/30" : ""
                     }`}
                   >

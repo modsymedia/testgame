@@ -5,6 +5,18 @@ import { useRouter } from 'next/router';
 import { dbService } from '../lib/database-service';
 import { WalletProvider } from '@/context/WalletContext';
 import { UserDataProvider } from '@/context/UserDataContext';
+import { initDatabase } from '../lib/database-schema';
+
+// Initialize the database when the app starts on the server side
+if (typeof window === 'undefined') {
+  initDatabase()
+    .then(success => {
+      console.log(`Database initialization ${success ? 'successful' : 'failed'}`);
+    })
+    .catch(error => {
+      console.error('Error during database initialization:', error);
+    });
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();

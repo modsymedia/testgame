@@ -195,7 +195,7 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
       {referralData && (
         <div className="space-y-2">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Share your referral code and earn 10% of your friends' points (up to 1,000 points per referral)
+            Share your referral code and earn 10% of your friends&apos; points (up to 1,000 points per referral)
           </p>
           
           <div className="flex gap-2">

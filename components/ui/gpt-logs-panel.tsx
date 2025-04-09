@@ -7,7 +7,6 @@ import { useIsMobile } from "./use-mobile";
 
 export const GPTLogsPanel = () => {
   const [logs, setLogs] = useState<GPTLogEntry[]>([]);
-  const [isExpanded, setIsExpanded] = useState(true);
   const [activeFilter, setActiveFilter] = useState<
     "all" | "petBehavior" | "petMessage"
   >("all");
@@ -62,11 +61,6 @@ export const GPTLogsPanel = () => {
     };
   }, [getFilteredLogs]); // Only depend on the memoized function
 
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
-    setExpandedLog(null); // Reset expanded log when toggling panel
-    setShowCount(isExpanded ? 5 : 10); // Show more logs when expanded
-  };
 
   const formatTimestamp = (date: Date) => {
     return new Date(date).toLocaleTimeString([], {

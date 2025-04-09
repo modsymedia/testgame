@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { User, PetState, HourlyPool } from './models';
+import { PetState, HourlyPool } from './models';
 
 /**
  * Combines multiple class strings or objects into a single string,
@@ -94,29 +94,6 @@ export function calculateWeightedPoints(basePoints: number, tokensHeld: number):
   return basePoints * calculateHoldingMultiplier(tokensHeld);
 }
 
-/**
- * Calculate user's SOL reward from a pool
- * Formula: (UserWeightedPoints ÷ TotalWeightedPoints) × HourlySOLPool
- * With minimum reward of 0.001 SOL and maximum of 5% of the pool
- */
-export function calculateUserSolReward(
-  userWeightedPoints: number,
-  totalWeightedPoints: number,
-  hourlyPoolAmount: number
-): number {
-  // Minimum reward threshold of 0.001 SOL per the spec
-  const minReward = 0.001;
-  
-  // Calculate share of the pool
-  const share = userWeightedPoints / totalWeightedPoints;
-  
-  // Calculate raw reward
-  const rawReward = share * hourlyPoolAmount;
-  
-  // Apply minimum threshold and maximum cap (5% of pool) per the spec
-  const maxReward = hourlyPoolAmount * 0.05;
-  return Math.max(minReward, Math.min(maxReward, rawReward));
-}
 
 /**
  * Calculate daily SOL reward pool

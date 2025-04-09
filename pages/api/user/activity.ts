@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { sql, db } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { v4 as uuidv4 } from 'uuid';
 
 // Define types for API request

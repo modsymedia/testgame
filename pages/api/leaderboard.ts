@@ -14,8 +14,6 @@ type LeaderboardEntry = {
 };
 
 const leaderboardCache: LeaderboardEntry[] = [];
-let lastCacheUpdate = 0;
-const CACHE_TTL = 60 * 1000; // 1 minute
 
 export default async function handler(
   req: NextApiRequest,
@@ -124,7 +122,6 @@ export default async function handler(
           
           // Clear cache to reflect new data
           leaderboardCache.length = 0;
-          lastCacheUpdate = 0;
           
           return res.status(200).json({
             success: true,
