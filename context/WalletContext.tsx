@@ -3,9 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   getProvider, 
-  calculateMultiplier,
   saveWalletData, 
-  loadWalletData,
   getAvailableWallets
 } from '@/utils/wallet';
 import { fetchUserRank } from '@/utils/leaderboard';
@@ -68,11 +66,11 @@ export function WalletProvider({ children }: WalletProviderProps) {
     // Check every second for the global trigger
     const intervalId = setInterval(() => {
       //  - check for global trigger
-      if (typeof window !== 'undefined' && window.__forceShowPetNamePrompt) {
+      if (typeof window !== 'undefined' && (window as any).__forceShowPetNamePrompt) {
         console.log('Detected global trigger to show pet name prompt');
         setShowPetNamePrompt(true);
         //  - reset the trigger
-        window.__forceShowPetNamePrompt = false;
+        (window as any).__forceShowPetNamePrompt = false;
       }
     }, 1000);
 
