@@ -1,27 +1,25 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { sql } from '@vercel/postgres';
+import { sql } from '@vercel/postgres'; // Restore direct sql import
+// import { dbService } from '@/lib/database-service'; // Remove dbService import
+// import { User } from '@/lib/models'; // Remove User import, use local interface
 
-// Define the interface for user data
-interface UserData {
+// Restore the local UserData interface definition
+interface UserData { 
   _id: any;
   walletAddress: string;
-  username: string;
-  score: number;
-  gamesPlayed: number;
-  lastPlayed: Date;
-  createdAt: Date;
-  points: number;
-  dailyPoints: number;
-  lastPointsUpdate: Date;
-  daysActive: number;
-  consecutiveDays: number;
-  referralCode: string;
-  referredBy?: string;
-  referralCount: number;
-  referralPoints: number;
-  tokenBalance: number;
-  multiplier: number;
-  petState?: {
+  username?: string; // Optional fields based on schema/usage
+  score?: number;
+  gamesPlayed?: number;
+  lastPlayed?: Date;
+  createdAt?: Date;
+  points?: number;
+  dailyPoints?: number;
+  lastPointsUpdate?: Date;
+  daysActive?: number;
+  consecutiveDays?: number;
+  tokenBalance?: number;
+  multiplier?: number;
+  petState?: { 
     health: number;
     happiness: number;
     hunger: number;
@@ -29,10 +27,10 @@ interface UserData {
     energy: number;
     lastStateUpdate: Date;
     qualityScore: number;
-    lastMessage: string;
-    lastReaction: string;
+    lastMessage?: string; // Optional based on usage
+    lastReaction?: string; // Optional based on usage
     isDead: boolean;
-    lastInteractionTime: Date;
+    lastInteractionTime?: Date; // Optional based on usage
   };
 }
 
@@ -51,29 +49,23 @@ export default async function handler(
   }
 
   try {
-    // Check if this is a custom user data request (starts with user_data_)
+    // Restore original logic: Handle user_data_ prefix separately
     if (walletAddress.includes('user_data_')) {
-      // For custom user data, we need to check the database for saved data
+      // Query a specific table for custom user data (assuming a user_data table)
       const actualWalletAddress = walletAddress.replace('user_data_', '');
-      
-      // Query for custom user data
       const result = await sql`
-        SELECT * FROM user_data 
+        SELECT data FROM user_data 
         WHERE wallet_address = ${actualWalletAddress}
         ORDER BY created_at DESC LIMIT 1
-      `;
+      `; // Adjust table/column names if needed
 
       if (result.rows.length > 0) {
-        // If data exists, return it
-        const userData = result.rows[0];
-        // Return the JSON data directly
-        return res.status(200).json(userData.data || {});
+        return res.status(200).json(result.rows[0].data || {});
       } else {
-        // No data found, return empty object
-        return res.status(200).json({});
+        return res.status(200).json({}); // Return empty object if no custom data
       }
     } else {
-      // For regular user data
+      // Handle regular user data lookup from users table
       const result = await sql`
         SELECT * FROM users WHERE wallet_address = ${walletAddress}
       `;
@@ -82,32 +74,28 @@ export default async function handler(
         return res.status(404).json({ error: 'User not found' });
       }
 
-      // Convert from database format to frontend format
-      const userData = result.rows[0];
+      const dbUser = result.rows[0];
       
-      // Convert to camelCase and handle dates
+      // Manual conversion from snake_case (DB) to camelCase (Frontend)
       const user: UserData = {
-        _id: userData.id,
-        walletAddress: userData.wallet_address,
-        username: userData.username,
-        score: userData.score || 0,
-        gamesPlayed: userData.games_played || 0,
-        lastPlayed: userData.last_played ? new Date(userData.last_played) : new Date(),
-        createdAt: userData.created_at ? new Date(userData.created_at) : new Date(),
-        points: userData.points || 0,
-        dailyPoints: userData.daily_points || 0,
-        lastPointsUpdate: userData.last_points_update ? new Date(userData.last_points_update) : new Date(),
-        daysActive: userData.days_active || 0,
-        consecutiveDays: userData.consecutive_days || 0,
-        referralCode: userData.referral_code || '',
-        referredBy: userData.referred_by || undefined,
-        referralCount: userData.referral_count || 0,
-        referralPoints: userData.referral_points || 0,
-        tokenBalance: userData.token_balance || 0,
-        multiplier: userData.multiplier || 1.0,
+        _id: dbUser.id,
+        walletAddress: dbUser.wallet_address,
+        username: dbUser.username,
+        score: dbUser.score,
+        gamesPlayed: dbUser.games_played,
+        lastPlayed: dbUser.last_played ? new Date(dbUser.last_played) : undefined,
+        createdAt: dbUser.created_at ? new Date(dbUser.created_at) : undefined,
+        points: dbUser.points,
+        dailyPoints: dbUser.daily_points,
+        lastPointsUpdate: dbUser.last_points_update ? new Date(dbUser.last_points_update) : undefined,
+        daysActive: dbUser.days_active,
+        consecutiveDays: dbUser.consecutive_days,
+        tokenBalance: dbUser.token_balance,
+        multiplier: dbUser.multiplier,
+        // lastInteractionTime, cooldowns etc. can be added if needed by frontend
       };
 
-      // Get pet state if it exists
+      // Join pet state
       const petStateResult = await sql`
         SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
       `;
@@ -125,14 +113,15 @@ export default async function handler(
           lastMessage: petState.last_message,
           lastReaction: petState.last_reaction,
           isDead: petState.is_dead,
-          lastInteractionTime: petState.last_interaction_time ? new Date(petState.last_interaction_time) : new Date(),
+          lastInteractionTime: petState.last_interaction_time ? new Date(petState.last_interaction_time) : undefined,
         };
       }
 
       return res.status(200).json(user);
     }
+
   } catch (error) {
-    console.error('Error fetching user data:', error);
+    console.error('Error fetching user data API:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 } 

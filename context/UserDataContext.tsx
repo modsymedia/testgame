@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet } from './WalletContext';
 import { dbService } from '@/lib/database-service';
-import { pointsManager } from '@/lib/points-manager';
+import { PointsManager } from '@/lib/points-manager';
 
 // Types for user data
 interface UserData {
@@ -11,7 +11,7 @@ interface UserData {
   claimedPoints: number;
   multiplier: number;
   rank: number | null;
-  referralCode: string | null;
+  UID: string | null;
   referralCount: number;
   lastLogin: number;
   lastSync: number;
@@ -24,7 +24,7 @@ const defaultUserData: UserData = {
   claimedPoints: 0,
   multiplier: 1.0,
   rank: null,
-  referralCode: null,
+  UID: null,
   referralCount: 0,
   lastLogin: Date.now(),
   lastSync: Date.now(),
@@ -42,11 +42,11 @@ interface UserDataContextType {
   updateUsername: (username: string) => Promise<boolean>;
   resetUserData: () => void;
   getReferralData: () => Promise<{
-    referralCode: string | null;
+    UID: string | null;
     referralCount: number;
     totalEarned: number;
   }>;
-  validateReferralCode: (code: string) => Promise<{
+  validateUID: (code: string) => Promise<{
     valid: boolean;
     referrerWalletAddress?: string;
     pointsAwarded?: number;
@@ -58,7 +58,7 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 
 // Provider component
 export function UserDataProvider({ children }: { children: React.ReactNode }) {
-  const { isConnected, publicKey, disconnect } = useWallet();
+  const { isConnected, publicKey } = useWallet();
   const [userData, setUserData] = useState<UserData>(defaultUserData);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +73,27 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   
   // Debounce sync requests
   const syncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get instance of PointsManager
+  const pointsManagerInstance = PointsManager.instance;
+
+  // --- START Referral Code Handling ---
+  useEffect(() => {
+    // Only run on client
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refCode = urlParams.get('ref');
+      if (refCode) {
+        // Store the referral code in session storage
+        sessionStorage.setItem('pendingUID', refCode);
+        console.log('Referral code found in URL and stored:', refCode);
+        // Optional: Remove the ref from the URL to clean it up
+        // const nextUrl = window.location.pathname;
+        // window.history.replaceState({}, '', nextUrl);
+      }
+    }
+  }, []); // Run only once on initial mount
+  // --- END Referral Code Handling ---
 
   // Memoize the syncWithServer function to prevent dependency cycle
   const syncWithServer = useCallback(async () => {
@@ -183,7 +204,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           claimedPoints: walletData.claimedPoints || 0,
           multiplier: walletData.multiplier || 1.0,
           rank: walletData.rank || null,
-          referralCode: walletData.referralCode || null,
+          UID: walletData.UID || null,
           referralCount: walletData.referralCount || 0,
           lastLogin: walletData.lastLogin || Date.now(),
           lastSync: Date.now(),
@@ -193,7 +214,34 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         console.log('No wallet data found, creating new wallet');
         // Create new user data if it doesn't exist
         try {
-          await dbService.createWallet(publicKey);
+          const createResult = await dbService.createWallet(publicKey);
+          
+          // --- START Process Referral Code after creation ---
+          if (createResult) {
+            const storedRefCode = sessionStorage.getItem('pendingUID');
+            if (storedRefCode) {
+              console.log(`[UserDataContext] Processing stored referral code: ${storedRefCode} for new user ${publicKey}`);
+              try {
+                const validationResult = await validateUID(storedRefCode);
+                if (validationResult.valid) {
+                  console.log(`[UserDataContext] Referral code ${storedRefCode} successfully applied for ${publicKey}. Referrer: ${validationResult.referrerWalletAddress}`);
+                  // Optionally, trigger a toast or notification for the new user
+                } else {
+                  console.warn(`[UserDataContext] Stored referral code ${storedRefCode} was invalid for user ${publicKey}.`);
+                }
+                // Clear the code from session storage regardless of validity
+                console.log(`[UserDataContext] Removing referral code ${storedRefCode} from session storage.`);
+                sessionStorage.removeItem('pendingUID');
+              } catch (validationError) {
+                console.error(`[UserDataContext] Error validating referral code ${storedRefCode}:`, validationError);
+                // Still remove the code to prevent retries on error
+                console.log(`[UserDataContext] Removing referral code ${storedRefCode} from session storage after error.`);
+                sessionStorage.removeItem('pendingUID');
+              }
+            }
+          }
+          // --- END Process Referral Code after creation ---
+          
           setUserData({
             ...defaultUserData,
             lastSync: Date.now()
@@ -221,13 +269,31 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Function that uses pointsManager to execute operations correctly
+  const executePointsManagerOperation = async <T extends any[]>(operation: string, ...args: T): Promise<Record<string, any>> => {
+    try {
+      // Check if the operation exists on the pointsManager instance
+      const fn = pointsManagerInstance[operation as keyof typeof pointsManagerInstance];
+      if (typeof fn === 'function') {
+        // Call the function with the provided arguments
+        return await (fn as (...args: T) => Promise<Record<string, any>>)(...args);
+      } else {
+        console.error(`The operation "${operation}" is not available on pointsManager`);
+        return { success: false, error: `Operation not supported: ${operation}` };
+      }
+    } catch (error) {
+      console.error(`Error executing pointsManager operation "${operation}":`, error);
+      return { success: false, error };
+    }
+  };
+
   // Update points
   const updatePoints = async (newPoints: number): Promise<boolean> => {
     if (!publicKey || !isConnected) return false;
     
     try {
       // Store the current state before update for recovery
-      const previousPoints = userData.points;
+      // const previousPoints = userData.points; // Commented out as it's unused
       
       // Update points locally first for immediate feedback
       setUserData(prevData => ({
@@ -251,8 +317,21 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             }));
           }
           
-          // Use the pointsManager to update the points
-          await pointsManager.updatePoints(publicKey, newPoints);
+          // Calculate the difference to award
+          const pointDifference = newPoints - userData.points;
+          
+          if (pointDifference !== 0) {
+            // Use the appropriate method from pointsManagerInstance (awardPoints instead of updatePoints)
+            // with operation 'earn' for positive or 'spend' for negative changes
+            await pointsManagerInstance.awardPoints(
+              publicKey,
+              Math.abs(pointDifference),
+              'interaction',
+              pointDifference > 0 ? 'earn' : 'spend',
+              { source: 'context-update' }
+            );
+          }
+          
           return true;
         } catch (serverError) {
           console.warn(`Server update attempt ${retries + 1} failed:`, serverError);
@@ -324,9 +403,9 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         lastSync: Date.now()
       }));
       
-      // Try to update on server
+      // Try to update on server - use awardPoints with negative amount
       try {
-        await pointsManager.claimPoints(publicKey, amount);
+        await executePointsManagerOperation('awardPoints', publicKey, amount, 'interaction', 'spend', { source: 'claim' });
       } catch (serverError) {
         console.error('Server claim failed but local state updated:', serverError);
         // We continue since local state is already updated
@@ -367,20 +446,25 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const getReferralData = async () => {
     if (!publicKey || !isConnected) {
       return {
-        referralCode: null,
+        UID: null,
         referralCount: 0,
         totalEarned: 0
       };
     }
     
     try {
-      // Get referral data from points manager
-      return await pointsManager.getReferralData(publicKey);
+      // Use the executePointsManagerOperation helper
+      const result = await executePointsManagerOperation('getUserPointsData', publicKey);
+      return {
+        UID: userData.UID,
+        referralCount: userData.referralCount,
+        totalEarned: result.points || 0
+      };
     } catch (err) {
       console.error('Failed to get referral data:', err);
       setError('Failed to get referral data. Please try again.');
       return {
-        referralCode: userData.referralCode,
+        UID: userData.UID,
         referralCount: userData.referralCount,
         totalEarned: 0
       };
@@ -388,14 +472,25 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Validate a referral code
-  const validateReferralCode = async (code: string) => {
+  const validateUID = async (code: string) => {
     if (!publicKey || !isConnected) {
       return { valid: false };
     }
     
     try {
-      // Validate referral code using points manager
-      return await pointsManager.validateReferralCode(code, publicKey);
+      // Implement fallback validation using database service directly
+      try {
+        // Call the appropriate database service method if available
+        return await dbService.validateReferralCode?.(code, publicKey) || { valid: false };
+      } catch (dbError) {
+        console.warn('Database validation failed, attempting direct validation:', dbError);
+        
+        // Manual validation approach if needed
+        return { 
+          valid: false,
+          message: 'Referral validation not implemented'
+        };
+      }
     } catch (err) {
       console.error('Failed to validate referral code:', err);
       setError('Failed to validate referral code. Please try again.');
@@ -470,7 +565,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         updateUsername,
         resetUserData,
         getReferralData,
-        validateReferralCode
+        validateUID
       }}
     >
       {children}

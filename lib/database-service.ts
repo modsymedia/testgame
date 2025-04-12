@@ -194,10 +194,6 @@ export class DatabaseService {
           last_points_update TIMESTAMP,
           days_active INTEGER DEFAULT 0,
           consecutive_days INTEGER DEFAULT 0,
-          referral_code TEXT UNIQUE,
-          referred_by TEXT,
-          referral_count INTEGER DEFAULT 0,
-          referral_points INTEGER DEFAULT 0,
           token_balance INTEGER DEFAULT 0,
           multiplier REAL DEFAULT 1.0,
           last_interaction_time TIMESTAMP,
@@ -417,32 +413,44 @@ export class DatabaseService {
   public async getUserData(walletAddress: string): Promise<User | any | null> {
     // Check cache first
     const cacheKey = `user:${walletAddress}`;
-    const userDataCacheKey = `user_data_${walletAddress}`;
+    const userDataCacheKey = `user_data_${walletAddress}`; // Keep specific cache key for custom data
     
     // Check if we're looking for custom user data
-    if (walletAddress.includes('user_data_')) {
+    if (walletAddress.startsWith('user_data_')) { // Use startsWith for clarity
       // First check cache for custom data
       if (this.cache.has(userDataCacheKey)) {
         return this.cache.get(userDataCacheKey);
       }
       
-      // Fetch from the database without localStorage fallback
+      // Directly query the database for custom data instead of fetching API
       try {
-        const response = await fetch(`/api/user/data?walletAddress=${encodeURIComponent(walletAddress)}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data) {
-            // Cache the data
-            this.cache.set(userDataCacheKey, data);
-            return data;
-          }
+        // Extract the actual wallet address
+        const actualWalletAddress = walletAddress.substring('user_data_'.length); 
+        
+        // Query the 'user_data' table (assuming this table exists)
+        // Adjust table and column names if necessary
+        const result = await sql`
+          SELECT data 
+          FROM user_data 
+          WHERE wallet_address = ${actualWalletAddress}
+          ORDER BY created_at DESC 
+          LIMIT 1 
+        `;
+
+        if (result.rows.length > 0) {
+          const customData = result.rows[0].data || {};
+          // Cache the custom data
+          this.cache.set(userDataCacheKey, customData);
+          return customData;
+        } else {
+          // No custom data found, cache and return empty object
+          this.cache.set(userDataCacheKey, {});
+          return { /* error: 'Custom user data not found', loadFailed: false */ }; // Return empty object, not error
         }
-        // If fetch fails, return null with error flag instead of empty object
-        return { error: 'Failed to fetch user data', loadFailed: true };
-      } catch (fetchError) {
-        console.error('Error fetching user data from API:', fetchError);
-        // Return error object instead of empty object
-        return { error: 'Failed to fetch user data', loadFailed: true };
+      } catch (dbError) {
+        console.error('Error fetching custom user data directly from DB:', dbError);
+        // Return error object consistent with other paths
+        return { error: 'Failed to fetch custom user data from DB', loadFailed: true, details: dbError };
       }
     }
     
@@ -495,8 +503,7 @@ export class DatabaseService {
       const result = await sql`
         INSERT INTO users (
           wallet_address, username, score, games_played, last_played, created_at,
-          points, daily_points, last_points_update, days_active, consecutive_days,
-          referral_code, referred_by, referral_count, referral_points, token_balance,
+          points, daily_points, last_points_update, days_active, consecutive_days, token_balance,
           multiplier, last_interaction_time, cooldowns, recent_point_gain, last_point_gain_time
         ) VALUES (
           ${userData.walletAddress},
@@ -510,10 +517,6 @@ export class DatabaseService {
           ${userData.lastPointsUpdate ? userData.lastPointsUpdate.toISOString() : new Date().toISOString()},
           ${userData.daysActive || 0},
           ${userData.consecutiveDays || 0},
-          ${userData.referralCode || null},
-          ${userData.referredBy || null},
-          ${userData.referralCount || 0},
-          ${userData.referralPoints || 0},
           ${userData.tokenBalance || 0},
           ${userData.multiplier || 1.0},
           ${userData.lastInteractionTime ? userData.lastInteractionTime.toISOString() : new Date().toISOString()},
@@ -1156,12 +1159,21 @@ export class DatabaseService {
       const created = new Date();
       const lastPlayed = new Date();
       
+      // Generate a unique user ID that will be used as the referral code
+      // Format: First 3 chars of publicKey + timestamp in base36 + 4 random chars
+      const uidPrefix = publicKey.substring(0, 3);
+      const timestamp = Date.now().toString(36);
+      const randomChars = Math.random().toString(36).substring(2, 6);
+      const uid = `${uidPrefix}${timestamp.substring(timestamp.length - 4)}${randomChars}`;
+      
+      console.log(`Creating new wallet for ${publicKey} with UID: ${uid}`);
+      
       const defaultData = {
         wallet_address: publicKey,
         points: initialData.points || 0,
         multiplier: initialData.multiplier || 1.0,
         created_at: created,
-        last_played: lastPlayed
+        last_played: lastPlayed,
       };
       
       // Simple INSERT with minimal fields
@@ -1324,6 +1336,13 @@ export class DatabaseService {
       // Process each update
       for (let i = 0; i < pendingUpdates.length; i++) {
         const update = pendingUpdates[i];
+        
+        // Ensure walletAddress exists and is a valid string before processing
+        if (!update || typeof update.walletAddress !== 'string' || !update.walletAddress) {
+            console.warn('Skipping invalid pending update (missing/invalid walletAddress):', update);
+            successfulUpdates.push(i); // Mark as processed to remove it
+            continue; // Skip to the next update
+        }
         
         try {
           // Update the user's points
@@ -1675,15 +1694,11 @@ function rowToUser(row: any): User {
       lastPointsUpdate: new Date(),
       daysActive: 0,
       consecutiveDays: 0,
-      referralCode: '',
-      referralCount: 0,
-      referralPoints: 0
     };
   }
 
   // Convert database row to User, with fallbacks for all properties
   return {
-    _id: row.id ? row.id.toString() : undefined,
     walletAddress: row.wallet_address,
     username: row.username,
     score: row.score || 0,
@@ -1697,10 +1712,6 @@ function rowToUser(row: any): User {
     daysActive: row.days_active || 0,
     consecutiveDays: row.consecutive_days || 0,
     // These fields may not exist in the actual database
-    referralCode: row.referral_code || '',
-    referredBy: row.referred_by || undefined,
-    referralCount: row.referral_count || 0,
-    referralPoints: row.referral_points || 0,
     tokenBalance: row.token_balance || 0,
     multiplier: row.multiplier || 1.0,
     lastInteractionTime: row.last_interaction_time ? new Date(row.last_interaction_time) : undefined,

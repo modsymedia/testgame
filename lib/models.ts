@@ -1,24 +1,21 @@
 // Import other necessary types
 
 export interface User {
-  _id?: string;
+  _id?: string; // Optional _id field
   walletAddress: string;
   username?: string;
-  score: number;
-  gamesPlayed: number;
-  lastPlayed: Date;
-  createdAt: Date;
+  score?: number;
+  gamesPlayed?: number;
+  lastPlayed?: Date;
+  createdAt?: Date;
   // Points system additions
-  points: number;
-  dailyPoints: number;
+  points?: number;
+  dailyPoints?: number;
   claimedPoints?: number;
-  lastPointsUpdate: Date;
-  daysActive: number;
-  consecutiveDays: number;
-  referralCode: string;
+  lastPointsUpdate?: Date;
+  daysActive?: number;
+  consecutiveDays?: number;
   referredBy?: string;
-  referralCount: number;
-  referralPoints: number;
   // Referral tracking
   hasBeenReferred?: boolean;
   // Token holdings (for post-launch)
@@ -27,15 +24,16 @@ export interface User {
   multiplier?: number;
   // Interaction tracking
   lastInteractionTime?: Date;
-  cooldowns?: Record<string, number>;
+  cooldowns?: Record<string, number>; // { [action: string]: timestamp }
   recentPointGain?: number;
   lastPointGainTime?: Date;
   // Pet state metrics
-  petState?: PetState;
+  petState?: PetState; // Optional PetState
   // Premium unlocks
   unlockedItems?: {[key: string]: boolean};
   // Version for sync
-  version?: number;
+  version?: number; // Optional version field
+  lastOnline?: number;
 }
 
 export interface PetState {

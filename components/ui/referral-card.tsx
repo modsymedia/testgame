@@ -4,14 +4,14 @@ import { Input } from '@/components/ui/forms/input';
 import { toast } from '@/components/ui/use-toast';
 
 export interface ReferralCardProps {
-  referralCode?: string | null;
+  UID?: string | null;
   referralCount?: number;
   walletConnected?: boolean;
   walletAddress?: string;
 }
 
 interface ReferralData {
-  referralCode: string;
+  UID: string;
   referralCount: number;
   referralPoints: number;
 }
@@ -40,7 +40,7 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
         }
         
         setReferralData({
-          referralCode: data.referralCode,
+          UID: data.UID,
           referralCount: data.referralCount,
           referralPoints: data.referralPoints
         });
@@ -56,9 +56,9 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
   }, [walletAddress]);
   
   const handleCopyCode = () => {
-    if (!referralData?.referralCode) return;
+    if (!referralData?.UID) return;
     
-    navigator.clipboard.writeText(referralData.referralCode)
+    navigator.clipboard.writeText(referralData.UID)
       .then(() => {
         toast({
           title: "Copied to clipboard!",
@@ -100,7 +100,7 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
         },
         body: JSON.stringify({
           walletAddress,
-          referralCode: applyCode
+          UID: applyCode
         }),
       });
       
@@ -128,10 +128,10 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
   };
   
   const shareReferralLink = () => {
-    if (!referralData?.referralCode) return;
+    if (!referralData?.UID) return;
     
-    const shareText = `Join me on GOCHI Game! Use my referral code: ${referralData.referralCode} to get started!`;
-    const shareUrl = `${window.location.origin}?ref=${referralData.referralCode}`;
+    const shareText = `Join me on GOCHI Game! Use my referral code: ${referralData.UID} to get started!`;
+    const shareUrl = `${window.location.origin}?ref=${referralData.UID}`;
     
     if (navigator.share) {
       navigator.share({
@@ -200,7 +200,7 @@ export function ReferralCard({ walletAddress }: ReferralCardProps) {
           
           <div className="flex gap-2">
             <div className="flex-1 p-2 bg-white dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 font-mono">
-              {referralData.referralCode}
+              {referralData.UID}
             </div>
             <Button variant="outline" onClick={handleCopyCode}>
               Copy

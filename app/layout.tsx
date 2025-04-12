@@ -4,6 +4,8 @@ import { WalletProvider } from '@/context/WalletContext'
 import { UserDataProvider } from '@/context/UserDataContext'
 import { PointsProvider } from '@/context/PointsContext'
 import BackgroundMusic from '@/components/ui/BackgroundMusic'
+import { Toaster } from "@/components/ui/feedback/toaster"
+import ReferralSuccess from "@/components/ui/ReferralSuccess"
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -31,6 +33,8 @@ export default function RootLayout({
               <main>
                 {children}
               </main>
+              <Toaster />
+              <ReferralSuccess />
             </PointsProvider>
           </UserDataProvider>
         </WalletProvider>

@@ -1,11 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  getProvider, 
-  saveWalletData, 
-  getAvailableWallets
-} from '@/utils/wallet';
+import {   getProvider,   saveWalletData,getAvailableWallets} from '@/utils/wallet';
 import { fetchUserRank } from '@/utils/leaderboard';
 
 interface WalletContextType {

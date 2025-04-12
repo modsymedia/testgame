@@ -36,9 +36,9 @@ export const BottomNavigation = () => {
       icon: "/assets/icons/header/dashbaord.svg",
     },
     {
-      label: "LLM Info",
-      href: "/console/llm-info",
-      icon: "/assets/icons/info.svg",
+      label: "Referrals",
+      href: "/console/referral",
+      icon: "/assets/icons/referral.svg",
     },
     {
       label: "Gochi",

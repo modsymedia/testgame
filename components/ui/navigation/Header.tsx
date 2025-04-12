@@ -45,6 +45,12 @@ export function Header() {
       width: 155,
       iconPath: "/assets/icons/header/leaderboard.svg",
     },
+    {
+      path: "/console/referral",
+      label: "Referrals",
+      width: 124,
+      iconPath: "/assets/icons/header/referral.svg",
+    },
     // Show admin option only on localhost
     ...(typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||

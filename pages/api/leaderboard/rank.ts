@@ -1,14 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { neon } from '@neondatabase/serverless';
+// import { dbService } from '@/lib/database-service'; // Remove dbService import
+import { sql } from '@vercel/postgres'; // Ensure sql from vercel/postgres is imported
 
-// Create a SQL client with your connection string
-const sql = neon(process.env.DATABASE_URL || '');
+// Local UserData interface or import needed if used
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ 
       success: false, 
@@ -16,7 +15,6 @@ export default async function handler(
     });
   }
 
-  // Get wallet address from query
   const { wallet } = req.query;
   
   if (!wallet || typeof wallet !== 'string') {
@@ -27,93 +25,78 @@ export default async function handler(
   }
 
   try {
-    // Get complete user data including username and points
+    // Restore original logic: Find user directly
     const userCheck = await sql`
-      SELECT wallet_address, username, points, last_points_update 
+      SELECT id, wallet_address, username, points, last_points_update 
       FROM users 
       WHERE wallet_address = ${wallet}
     `;
 
-    let userData;
+    let dbUser;
     let userScore = 0;
     
-    if (userCheck.length === 0) {
-      console.log(`User ${wallet} not found in database, creating new user entry`);
-      
-      // Create a new user
+    if (userCheck.rows.length === 0) {
+      console.log(`User ${wallet} not found in database, creating new user entry via API`);
+      // Restore original logic: Create user directly if not found
       try {
-        // Create a new user with default values
+        const created = new Date().toISOString();
+        const defaultUsername = `User_${wallet.substring(0, 4)}`;
+        // Use minimal required fields for creation
         await sql`
           INSERT INTO users (
             wallet_address, points, last_points_update, created_at, username
           ) VALUES (
             ${wallet},
             0,
-            ${new Date().toISOString()},
-            ${new Date().toISOString()},
-            ${`Pet_${wallet.substring(0, 4)}`}
+            ${created},
+            ${created},
+            ${defaultUsername}
           )
+          RETURNING id, wallet_address, username, points, last_points_update
         `;
-        
-        // Now retrieve the newly created user
-        const newUser = await sql`
-          SELECT wallet_address, username, points, last_points_update 
-          FROM users 
-          WHERE wallet_address = ${wallet}
+        // Fetch the newly created user again to be sure
+        const newUserResult = await sql`
+           SELECT id, wallet_address, username, points, last_points_update 
+           FROM users 
+           WHERE wallet_address = ${wallet}
         `;
-        
-        if (newUser.length > 0) {
-          userData = newUser[0];
+        if (newUserResult.rows.length > 0) {
+            dbUser = newUserResult.rows[0];
         } else {
-          // If we still can't get the user, return a generated one
-          userData = {
-            wallet_address: wallet,
-            username: `Pet_${wallet.substring(0, 4)}`,
-            points: 0,
-            last_points_update: new Date().toISOString()
-          };
+             // Fallback if creation failed or wasn't found immediately
+             console.error('Failed to retrieve user immediately after creation attempt.');
+             return res.status(500).json({ success: false, error: 'Failed to create or retrieve user' });
         }
+
       } catch (createError) {
-        console.error('Error creating new user:', createError);
-        // Return a generated user object as fallback
-        userData = {
-          wallet_address: wallet,
-          username: `Pet_${wallet.substring(0, 4)}`,
-          points: 0,
-          last_points_update: new Date().toISOString()
-        };
+        console.error('Error creating new user in rank API:', createError);
+        return res.status(500).json({ success: false, error: 'Error creating user' });
       }
     } else {
-      userData = userCheck[0];
-      userScore = userData.points || 0;
+      dbUser = userCheck.rows[0];
+      userScore = dbUser.points || 0;
     }
 
-    // Get pet state data if available
+    // Fetch pet state directly
     const petStateCheck = await sql`
       SELECT * FROM pet_states
       WHERE wallet_address = ${wallet}
     `;
 
-    // Format the pet state data if it exists
-    const petState = petStateCheck.length > 0 ? {
-      health: petStateCheck[0].health,
-      happiness: petStateCheck[0].happiness,
-      hunger: petStateCheck[0].hunger,
-      cleanliness: petStateCheck[0].cleanliness,
-      energy: petStateCheck[0].energy,
-      isDead: petStateCheck[0].is_dead || false,
-      qualityScore: petStateCheck[0].quality_score || 0
-    } : {
-      health: 30,
-      happiness: 40,
-      hunger: 50, 
-      cleanliness: 40,
-      energy: 30,
-      isDead: false,
-      qualityScore: 0
+    // Format pet state or use defaults
+    const petState = petStateCheck.rows.length > 0 ? {
+      health: petStateCheck.rows[0].health,
+      happiness: petStateCheck.rows[0].happiness,
+      hunger: petStateCheck.rows[0].hunger,
+      cleanliness: petStateCheck.rows[0].cleanliness,
+      energy: petStateCheck.rows[0].energy,
+      isDead: petStateCheck.rows[0].is_dead || false,
+      qualityScore: petStateCheck.rows[0].quality_score || 0
+    } : { /* Default values if no pet state found */
+      health: 100, happiness: 100, hunger: 100, cleanliness: 100, energy: 100, isDead: false, qualityScore: 0
     };
 
-    // Count how many users have more points than this user
+    // Calculate rank directly
     const rankResult = await sql`
       WITH user_ranks AS (
         SELECT 
@@ -132,20 +115,19 @@ export default async function handler(
       WHERE wallet_address = ${wallet}
     `;
 
-    // Use dense_rank for position (handles ties better)
-    const rank = rankResult[0]?.dense_rank || 0;
-    const totalUsers = rankResult[0]?.total_users || 0;
+    const rank = rankResult.rows[0]?.dense_rank || 0;
+    const totalUsers = rankResult.rows[0]?.total_users || 0;
 
-    // Return the user's rank, score, and complete data
+    // Return the data using DB results
     return res.status(200).json({
       success: true,
       rank,
       totalUsers,
       userData: {
-        walletAddress: userData.wallet_address,
-        username: userData.username || `Pet_${wallet.substring(0, 4)}`,
+        walletAddress: dbUser.wallet_address,
+        username: dbUser.username || `User_${wallet.substring(0, 4)}`, // Use consistent default
         points: userScore,
-        lastUpdated: userData.last_points_update,
+        lastUpdated: dbUser.last_points_update ? new Date(dbUser.last_points_update).toISOString() : undefined,
         petState
       }
     });

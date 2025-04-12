@@ -34,10 +34,8 @@ export async function initializeDb() {
         last_points_update TIMESTAMP,
         days_active INTEGER DEFAULT 0,
         consecutive_days INTEGER DEFAULT 0,
-        referral_code TEXT UNIQUE,
+        UID TEXT UNIQUE,
         referred_by TEXT,
-        referral_count INTEGER DEFAULT 0,
-        referral_points INTEGER DEFAULT 0,
         multiplier REAL DEFAULT 1.0
       )
     `;

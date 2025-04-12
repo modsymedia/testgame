@@ -89,7 +89,7 @@ const StatusHeader = ({ animatedPoints, health, isDatabaseReady }: StatusHeaderP
 export function KawaiiDevice() {
   const router = useRouter();
   const { isConnected, publicKey, walletData, updatePoints, burnPoints } = useWallet();
-  const { userData, updatePoints: updateUserDataPoints } = useUserData();
+  const { userData, updatePoints: updateUserDataPoints } = useUserData(); 
   
   // Add tilt configuration state
   const [tiltConfig, setTiltConfig] = useState({
@@ -1531,64 +1531,24 @@ export function KawaiiDevice() {
   };
 
   // Load unlocked items from database only
-  useEffect(() => {
-    async function loadUnlockedItems() {
-      if (!publicKey) return;
+  useCallback(async () => {
+    if (!publicKey) return;
+    try {
+      // Fetch the full user data object
+      const userData = await dbService.getUserData(publicKey); 
+      // Remove line: const customUserData = await dbService.getUserData(`user_data_${publicKey}`);
       
-      try {
-        // First, set default unlocks for first 2 items in each category
-        const defaultUnlocks: {[key: string]: boolean} = {};
-        
-        // Unlock the first 2 items in each category by default
-        // Food: fish, cookie
-        defaultUnlocks['food-fish'] = true;
-        defaultUnlocks['food-cookie'] = true;
-        
-        // Play: laser, feather
-        defaultUnlocks['play-laser'] = true;
-        defaultUnlocks['play-feather'] = true;
-        
-        // Clean: brush, bath
-        defaultUnlocks['clean-brush'] = true;
-        defaultUnlocks['clean-bath'] = true;
-        
-        // Doctor: checkup, medicine
-        defaultUnlocks['doctor-checkup'] = true;
-        defaultUnlocks['doctor-medicine'] = true;
-        
-        // Only load unlocked items from database, no localStorage fallback
-        try {
-          const customUserData = await dbService.getUserData(`user_data_${publicKey}`);
-          if (customUserData && customUserData.unlockedItems) {
-            console.log('Loaded unlocked items from database');
-            // Merge default unlocks with saved unlocks
-            setUnlockedItems({...defaultUnlocks, ...customUserData.unlockedItems});
-            return;
-          }
-        } catch (dbError) {
-          console.warn('Failed to load unlocked items from database:', dbError);
-        }
-        
-        // If no database data, just use defaults
-        console.log('No unlocked items found in database, using defaults');
-        setUnlockedItems(defaultUnlocks);
-      } catch (error) {
-        console.error("Error loading unlocked items:", error);
-        // If error, still set default unlocks
-        const defaultUnlocks: {[key: string]: boolean} = {};
-        defaultUnlocks['food-fish'] = true;
-        defaultUnlocks['food-cookie'] = true;
-        defaultUnlocks['play-laser'] = true;
-        defaultUnlocks['play-feather'] = true;
-        defaultUnlocks['clean-brush'] = true;
-        defaultUnlocks['clean-bath'] = true;
-        defaultUnlocks['doctor-checkup'] = true;
-        defaultUnlocks['doctor-medicine'] = true;
-        setUnlockedItems(defaultUnlocks);
+      // Check if userData is valid and contains unlockedItems
+      if (userData && !userData.loadFailed && userData.unlockedItems) {
+        setUnlockedItems(userData.unlockedItems);
+      } else {
+        // If custom data fetch failed or is empty, use default (empty object)
+        setUnlockedItems({});
       }
+    } catch (error) {
+      console.error("Error loading unlocked items:", error);
+      setUnlockedItems({}); // Fallback on error
     }
-    
-    loadUnlockedItems();
   }, [publicKey]);
 
   // Save unlocked items to database only, not localStorage
@@ -1910,19 +1870,36 @@ export function KawaiiDevice() {
 
         {/* Right column - Points Earned Panel */}
           <div className="w-full lg:w-1/4 flex justify-center order-3 min-h-[200px] min-w-[280px] px-0">
-          <PointsEarnedPanel 
+          <PointsEarnedPanel
               className="w-full h-full"
               currentPoints={userData.points}
             pointsMultiplier={walletData?.multiplier || 1.0}
               recentActivities={userActivities}
               isLoading={isActivitiesLoading}
-            onPointsEarned={useCallback((earnedPoints: number) => {
-                const newPoints = userData.points + earnedPoints;
-              if (newPoints !== lastUpdatedPointsRef.current) {
-                  updateUserDataPoints(newPoints);
-                lastUpdatedPointsRef.current = newPoints;
-              }
-              }, [userData.points, lastUpdatedPointsRef, updateUserDataPoints])}
+            onPointsEarned={useCallback(async (earnedPoints: number) => {
+                // Added guard condition and logging
+                if (!publicKey || earnedPoints <= 0) {
+                    console.log(`[onPointsEarned] Skipping point update. PublicKey: ${publicKey}, EarnedPoints: ${earnedPoints}`);
+                    return; 
+                }
+
+                console.log(`[onPointsEarned] START: Awarding ${earnedPoints} points to ${publicKey}. Current points: ${userData.points}`);
+                try {
+                    // Calculate new total points
+                    const newPoints = userData.points + earnedPoints;
+                    
+                    // Use updateUserDataPoints to handle both local state and server update
+                    const success = await updateUserDataPoints(newPoints);
+                    
+                    if (success) {
+                        console.log(`[onPointsEarned] SUCCESS: Points updated. New total: ${newPoints}`);
+                    } else {
+                        console.error(`[onPointsEarned] FAILURE: Failed to update points to ${newPoints}`);
+                    }
+                } catch (error) {
+                    console.error(`[onPointsEarned] EXCEPTION during points update for ${publicKey}:`, error);
+                }
+            }, [publicKey, userData.points, updateUserDataPoints])} // Added userData.points back for logging comparison
           />
         </div>
       </div>

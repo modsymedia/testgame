@@ -7,7 +7,7 @@ import { EventEmitter } from 'events';
 export type PointOperation = 'earn' | 'spend' | 'bonus' | 'penalty' | 'refund';
 
 // Point source tracking
-export type PointSource = 'gameplay' | 'daily' | 'achievement' | 'referral' | 'streak' | 'interaction' | 'purchase';
+export type PointSource = 'gameplay' | 'daily' | 'achievement' /* | 'referral' */ | 'streak' | 'interaction' | 'purchase';
 
 // Point transaction record
 export interface PointTransaction {
@@ -27,7 +27,7 @@ export interface PointsConfig {
     gameplay: number;
     daily: number;
     achievement: Record<string, number>;
-    referral: number;
+    // referral: number; // Removed
     streak: number;
     interaction: number;
   };
@@ -37,7 +37,7 @@ export interface PointsConfig {
     consecutiveDaysMin: number; // Minimum consecutive days for streak bonus
     consecutiveDaysMultiplier: number; // Multiplier per consecutive day
     maxConsecutiveDaysMultiplier: number; // Cap on consecutive days multiplier
-    referralMultiplier: number; // Multiplier for referral points
+    // referralMultiplier: number; // Removed
   };
   
   // Cooldowns for different point sources (in milliseconds)
@@ -66,7 +66,7 @@ export const DEFAULT_POINTS_CONFIG: PointsConfig = {
       'daily_streak_30': 1000,
       'pet_max_stats': 500,
     },
-    referral: 200,
+    // referral: 200, // Removed
     streak: 20,
     interaction: 5
   },
@@ -74,7 +74,7 @@ export const DEFAULT_POINTS_CONFIG: PointsConfig = {
     consecutiveDaysMin: 3,
     consecutiveDaysMultiplier: 0.1, // 10% per day after min
     maxConsecutiveDaysMultiplier: 2.0, // Max 2x multiplier
-    referralMultiplier: 0.05 // 5% per referral
+    // referralMultiplier: 0.05 // Removed
   },
   cooldowns: {
     interaction: 60 * 1000, // 1 minute
@@ -213,8 +213,9 @@ export class PointsManager {
     let multiplier = 1.0;
     
     // Consecutive days multiplier
-    if (user.consecutiveDays >= this.config.multipliers.consecutiveDaysMin) {
-      const daysOverMin = user.consecutiveDays - this.config.multipliers.consecutiveDaysMin;
+    const consecutiveDays = user.consecutiveDays ?? 0;
+    if (consecutiveDays >= this.config.multipliers.consecutiveDaysMin) {
+      const daysOverMin = consecutiveDays - this.config.multipliers.consecutiveDaysMin;
       const streakMultiplier = 1 + Math.min(
         daysOverMin * this.config.multipliers.consecutiveDaysMultiplier,
         this.config.multipliers.maxConsecutiveDaysMultiplier - 1
@@ -222,11 +223,11 @@ export class PointsManager {
       multiplier *= streakMultiplier;
     }
     
-    // Referral multiplier
-    if (user.referralCount > 0) {
+    // Referral multiplier - REMOVED
+    /* if (user.referralCount > 0) {
       const referralMultiplier = 1 + (user.referralCount * this.config.multipliers.referralMultiplier);
       multiplier *= referralMultiplier;
-    }
+    } */
     
     return Math.round(multiplier * 100) / 100; // Round to 2 decimal places
   }
@@ -281,7 +282,7 @@ export class PointsManager {
         return {
           success: false,
           points: 0,
-          total: user.points,
+          total: user.points ?? 0,
           multiplier: user.multiplier || 1.0
         };
       }
@@ -333,7 +334,7 @@ export class PointsManager {
       // Update user data with new points
       const updatedUser = {
         ...user,
-        points: user.points + adjustedPoints,
+        points: (user.points ?? 0) + adjustedPoints,
         dailyPoints,
         lastPointsUpdate: now,
         multiplier,
@@ -396,11 +397,12 @@ export class PointsManager {
       }
       
       // Check if user has enough points
-      if (user.points < amount) {
+      const userPoints = user.points ?? 0;
+      if (userPoints < amount) {
         return {
           success: false,
           points: 0,
-          total: user.points
+          total: userPoints
         };
       }
       
@@ -420,7 +422,7 @@ export class PointsManager {
       // Update user data with new points
       const updatedUser = {
         ...user,
-        points: user.points - amount,
+        points: userPoints - amount,
         lastPointsUpdate: new Date()
       };
       
@@ -467,7 +469,7 @@ export class PointsManager {
         return {
           success: false,
           points: 0,
-          total: user.points
+          total: user.points ?? 0
         };
       }
       
@@ -546,7 +548,7 @@ export class PointsManager {
         return {
           success: false,
           points: 0,
-          total: user.points,
+          total: user.points ?? 0,
           daysActive: user.daysActive || 0,
           streak: user.consecutiveDays || 0
         };
@@ -713,59 +715,6 @@ export class PointsManager {
       );
     } catch (error) {
       console.error('Error awarding interaction points:', error);
-      return {
-        success: false,
-        points: 0,
-        total: 0
-      };
-    }
-  }
-  
-  // Award referral points
-  public async awardReferralPoints(
-    referrerWalletAddress: string,
-    referredWalletAddress: string
-  ): Promise<{success: boolean, points: number, total: number}> {
-    try {
-      // Award points to referrer
-      const referralPoints = this.config.baseValues.referral;
-      
-      const result = await this.awardPoints(
-        referrerWalletAddress,
-        referralPoints,
-        'referral',
-        'earn',
-        { referredWallet: referredWalletAddress }
-      );
-      
-      if (result.success) {
-        // Update referral count
-        const referrer = await this.getUserData(referrerWalletAddress);
-        if (referrer) {
-          await dbService.updateUserData(referrerWalletAddress, {
-            ...referrer,
-            referralCount: (referrer.referralCount || 0) + 1,
-            referralPoints: (referrer.referralPoints || 0) + result.points
-          });
-        }
-        
-        // Update referred user
-        const referred = await this.getUserData(referredWalletAddress);
-        if (referred) {
-          await dbService.updateUserData(referredWalletAddress, {
-            ...referred,
-            referredBy: referrerWalletAddress
-          });
-        }
-      }
-      
-      return {
-        success: result.success,
-        points: result.points,
-        total: result.total
-      };
-    } catch (error) {
-      console.error('Error awarding referral points:', error);
       return {
         success: false,
         points: 0,
@@ -955,322 +904,6 @@ export class PointsManager {
       return success;
     } catch (err) {
       console.error('Error persisting transaction:', err);
-      return false;
-    }
-  }
-
-  // Get referral data for a user
-  public async getReferralData(walletAddress: string): Promise<{
-    referralCode: string | null;
-    referralCount: number;
-    totalEarned: number;
-  }> {
-    try {
-      // Since we might not have referral features in the database yet,
-      // return mock data for now
-      console.log(`Getting referral data for: ${walletAddress}`);
-      
-      // Generate a temporary referral code based on wallet address
-      const tempCode = walletAddress.substring(0, 6) + Math.random().toString(36).substring(2, 6);
-      
-      return {
-        referralCode: tempCode,
-        referralCount: 0,
-        totalEarned: 0
-      };
-      
-      // Uncomment this when the database supports referrals
-      /*
-      const userData = await this.getUserData(walletAddress);
-      
-      if (!userData) {
-        return {
-          referralCode: null,
-          referralCount: 0,
-          totalEarned: 0
-        };
-      }
-      
-      // Calculate total earned from referrals
-      const referralTransactions = this.getTransactionHistory(walletAddress)
-        .filter(tx => tx.source === 'referral' && tx.operation === 'earn');
-          
-      const totalEarned = referralTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-      
-      return {
-        referralCode: userData.referralCode || null,
-        referralCount: userData.referralCount || 0,
-        totalEarned
-      };
-      */
-    } catch (error) {
-      console.error('Error getting referral data:', error);
-      return {
-        referralCode: null,
-        referralCount: 0, 
-        totalEarned: 0
-      };
-    }
-  }
-  
-  // Update referral count for a user
-  public async updateReferralCount(walletAddress: string, increment: number = 1): Promise<boolean> {
-    try {
-      const userData = await this.getUserData(walletAddress);
-      
-      if (!userData) {
-        return false;
-      }
-      
-      const currentCount = userData.referralCount || 0;
-      const newCount = currentCount + increment;
-      
-      // Update user data
-      await dbService.updateUserData(walletAddress, {
-        referralCount: newCount,
-        multiplier: this.calculateMultiplier({
-          ...userData,
-          referralCount: newCount
-        })
-      });
-      
-      // Emit event for UI updates
-      this.eventEmitter.emit('referral-updated', {
-        walletAddress,
-        referralCount: newCount
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error updating referral count:', error);
-      return false;
-    }
-  }
-  
-  // Validate a referral code and process the referral
-  public async validateReferralCode(
-    referralCode: string, 
-    newUserWalletAddress: string
-  ): Promise<{
-    valid: boolean;
-    referrerWalletAddress?: string;
-    pointsAwarded?: number;
-  }> {
-    try {
-      // Since we might not have referral_code in the database,
-      // return a basic success response for now
-      console.log(`Validating referral code: ${referralCode} for user: ${newUserWalletAddress}`);
-      
-      // For testing, treat any referral code as valid to avoid errors
-      return {
-        valid: true,
-        referrerWalletAddress: "demo-referrer-address", // Dummy value
-        pointsAwarded: 100 // Dummy value
-      };
-      
-      // Uncomment this once the database schema supports referrals
-      /*
-      // Find user with this referral code
-      const users = await dbService.queryUsers({
-        referralCode: referralCode
-      });
-      
-      if (users.length === 0) {
-        return { valid: false };
-      }
-      
-      const referrer = users[0];
-      const referrerWalletAddress = referrer.walletAddress;
-      
-      // Make sure the referee is not the same as the referrer
-      if (referrerWalletAddress === newUserWalletAddress) {
-        return { valid: false };
-      }
-      
-      // Check if this new user has already been referred (prevent fraud)
-      const newUserData = await this.getUserData(newUserWalletAddress);
-      if (newUserData && newUserData.hasBeenReferred) {
-        return { valid: false };
-      }
-      
-      // Process the referral
-      const result = await this.awardReferralPoints(referrerWalletAddress, newUserWalletAddress);
-      
-      if (result.success) {
-        // Update referral count for referrer
-        await this.updateReferralCount(referrerWalletAddress);
-        
-        // Mark new user as having been referred
-        await dbService.updateUserData(newUserWalletAddress, {
-          hasBeenReferred: true,
-          referredBy: referrerWalletAddress
-        });
-        
-        return {
-          valid: true,
-          referrerWalletAddress,
-          pointsAwarded: result.points
-        };
-      }
-      
-      return { valid: false };
-      */
-    } catch (error) {
-      console.error('Error validating referral code:', error);
-      return { valid: false };
-    }
-  }
-  
-  // Update points directly (for admin or special operations)
-  public async updatePoints(walletAddress: string, newPoints: number): Promise<boolean> {
-    try {
-      // Get the most recent user data from database
-      const userData = await this.getUserData(walletAddress);
-      
-      if (!userData) {
-        return false;
-      }
-      
-      // Check if there's a pending transaction for this user
-      if (this.pendingTransactions.some(tx => 
-        tx.walletAddress === walletAddress && !tx.isProcessed)) {
-        // Add this update to the pending transactions to ensure it's processed in order
-        this.pendingTransactions.push({
-          walletAddress,
-          amount: newPoints - (userData.points || 0),
-          operation: 'earn',
-          source: 'gameplay',
-          timestamp: new Date(),
-          metadata: {
-            isDirectUpdate: true,
-            newPoints: newPoints,
-            oldPoints: userData.points || 0
-          }
-        });
-        
-        // Process pending transactions to ensure updates happen in order
-        await this.processPendingTransactions();
-        return true;
-      }
-      
-      // Create a record to track this change
-      const transaction: PointTransaction = {
-        walletAddress,
-        amount: 0, // Not adding/subtracting but setting directly
-        operation: 'earn',
-        source: 'gameplay',
-        timestamp: new Date(),
-        metadata: {
-          isDirectUpdate: true,
-          newPoints: newPoints,
-          oldPoints: userData.points || 0
-        }
-      };
-      
-      // Add to transaction history
-      this.addTransaction(transaction);
-      
-      // Update user data with new points
-      await dbService.updateUserData(walletAddress, {
-        points: newPoints
-      });
-      
-      // Update cache
-      this.userPointsCache[walletAddress] = {
-        ...this.userPointsCache[walletAddress] || {},
-        points: newPoints,
-        lastUpdate: new Date(),
-        lastSyncTime: Date.now()
-      };
-      
-      // Save to cache storage
-      this.saveCacheToStorage();
-      
-      // Emit event for UI updates
-      this.eventEmitter.emit('points-updated', {
-        walletAddress,
-        points: newPoints
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error updating points directly:', error);
-      
-      // Store the update in the pending transactions to retry later
-      this.pendingTransactions.push({
-        walletAddress,
-        amount: 0,
-        operation: 'earn',
-        source: 'gameplay',
-        timestamp: new Date(),
-        metadata: {
-          isDirectUpdate: true,
-          newPoints: newPoints,
-          errorRetry: true
-        }
-      });
-      
-      return false;
-    }
-  }
-  
-  // Claim points (convert to rewards or tokens)
-  public async claimPoints(walletAddress: string, amount: number): Promise<boolean> {
-    try {
-      const userData = await this.getUserData(walletAddress);
-      
-      if (!userData) {
-        return false;
-      }
-      
-      // Make sure user has enough points
-      if (userData.points < amount) {
-        return false;
-      }
-      
-      // Calculate new points value
-      const newPoints = userData.points - amount;
-      
-      // Create a transaction record
-      const transaction: PointTransaction = {
-        walletAddress,
-        amount: -amount,
-        operation: 'spend',
-        source: 'purchase',
-        timestamp: new Date(),
-        metadata: {
-          reason: 'point_claim',
-          previousBalance: userData.points,
-          newBalance: newPoints
-        }
-      };
-      
-      // Add transaction to history
-      this.addTransaction(transaction);
-      
-      // Update user data with new points
-      await dbService.updateUserData(walletAddress, {
-        points: newPoints,
-        claimedPoints: (userData.claimedPoints || 0) + amount
-      });
-      
-      // Update cache
-      this.userPointsCache[walletAddress] = {
-        ...this.userPointsCache[walletAddress] || {},
-        points: newPoints,
-        lastUpdate: new Date()
-      };
-      
-      // Emit events for UI updates
-      this.eventEmitter.emit('points-claimed', {
-        walletAddress,
-        amount,
-        newBalance: newPoints
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error claiming points:', error);
       return false;
     }
   }
