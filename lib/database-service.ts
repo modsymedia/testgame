@@ -1,14 +1,8 @@
-import { sql, db } from '@vercel/postgres';
-import { User, PetState, GameSession, SyncStatus, SyncOperation } from './models';
+import { sql } from '@vercel/postgres';
+import { db } from '@vercel/postgres';
+import { User, PetState, LeaderboardEntry, GameSession, SyncStatus, SyncOperation } from './models';
 import { EventEmitter } from 'events';
-
-// Define LeaderboardEntry interface
-interface LeaderboardEntry {
-  walletAddress: string;
-  username: string | null;
-  score: number;
-  rank: number;
-}
+import crypto from 'crypto';
 
 // Add configuration for API-based access
 const USE_API_FOR_WRITE_OPERATIONS = true; // Switch to true to use API routes instead of direct DB access
@@ -409,87 +403,95 @@ export class DatabaseService {
     }
   }
 
-  // Get user data without local storage fallback
-  public async getUserData(walletAddress: string): Promise<User | any | null> {
-    // Check cache first
+  // Get user data with caching and conflict resolution
+  public async getUserData(walletAddress: string): Promise<User | null> {
     const cacheKey = `user:${walletAddress}`;
-    const userDataCacheKey = `user_data_${walletAddress}`; // Keep specific cache key for custom data
-    
-    // Check if we're looking for custom user data
-    if (walletAddress.startsWith('user_data_')) { // Use startsWith for clarity
-      // First check cache for custom data
-      if (this.cache.has(userDataCacheKey)) {
-        return this.cache.get(userDataCacheKey);
-      }
-      
-      // Directly query the database for custom data instead of fetching API
-      try {
-        // Extract the actual wallet address
-        const actualWalletAddress = walletAddress.substring('user_data_'.length); 
-        
-        // Query the 'user_data' table (assuming this table exists)
-        // Adjust table and column names if necessary
-        const result = await sql`
-          SELECT data 
-          FROM user_data 
-          WHERE wallet_address = ${actualWalletAddress}
-          ORDER BY created_at DESC 
-          LIMIT 1 
-        `;
 
-        if (result.rows.length > 0) {
-          const customData = result.rows[0].data || {};
-          // Cache the custom data
-          this.cache.set(userDataCacheKey, customData);
-          return customData;
-        } else {
-          // No custom data found, cache and return empty object
-          this.cache.set(userDataCacheKey, {});
-          return { /* error: 'Custom user data not found', loadFailed: false */ }; // Return empty object, not error
-        }
-      } catch (dbError) {
-        console.error('Error fetching custom user data directly from DB:', dbError);
-        // Return error object consistent with other paths
-        return { error: 'Failed to fetch custom user data from DB', loadFailed: true, details: dbError };
-      }
-    }
-    
-    // Regular user data lookup
+    // 1. Check cache first
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey);
+      const cachedData = this.cache.get(cacheKey);
+      // Check if cached data indicates a failed load, if so, retry fetching
+      if (!cachedData?.loadFailed) {
+           // If UID is missing in cache, attempt to backfill (but don't await here to avoid blocking)
+           if (cachedData && !cachedData.uid) {
+               console.log(`Cached data for ${walletAddress} missing UID. Attempting background backfill.`);
+               this.backfillUid(walletAddress).catch(err => {
+                   console.error(`Background UID backfill failed for ${walletAddress}:`, err);
+               });
+           }
+        return cachedData;
+      }
+      console.log("Cached data indicated previous load failure. Refetching...")
     }
-    
+
     try {
+      // 2. Fetch from database if not in cache or cache indicates failure
       const result = await sql`
         SELECT * FROM users WHERE wallet_address = ${walletAddress}
       `;
-      
-      if (result.rows.length === 0) {
-        console.log('User not found in database:', walletAddress);
-        return { error: 'User not found', loadFailed: true };
+
+      if (result.rows.length > 0) {
+        const userData = rowToUser(result.rows[0]);
+
+        // ---> Backfill UID logic <--- 
+        if (!userData.uid) {
+          console.warn(`UID missing for user ${walletAddress}. Generating and saving new UID.`);
+          try {
+            // Generate new UID
+            const timestampPart = Date.now().toString(36);
+            const randomPart = crypto.randomBytes(4).toString('hex');
+            const newUid = `${timestampPart}-${randomPart}`;
+            
+            // Update the database with the new UID
+            const updateSuccess = await this.updateUserData(walletAddress, { uid: newUid });
+            
+            if (updateSuccess) {
+              console.log(`Successfully backfilled UID ${newUid} for user ${walletAddress}`);
+              userData.uid = newUid; // Update the object we're about to return/cache
+            } else {
+              console.error(`Failed to save backfilled UID for user ${walletAddress}.`);
+               // Proceed with null uid for now, maybe retry later?
+            }
+          } catch(backfillError) {
+             console.error(`Error during UID backfill for ${walletAddress}:`, backfillError);
+             // Proceed with null uid
+          }
+        }
+        // ---> End Backfill UID logic <--- 
+
+        this.cache.set(cacheKey, userData); // Cache the potentially updated user data
+        return userData;
+      } else {
+        console.log(`No user data found for wallet: ${walletAddress}`);
+        // Cache the fact that the load failed (user not found)
+        this.cache.set(cacheKey, { loadFailed: true, error: 'User not found' });
+        return null;
       }
-      
-      const user = rowToUser(result.rows[0]);
-      
-      // Get pet state if it exists
-      const petState = await sql`
-        SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
-      `;
-      
-      if (petState.rows.length > 0) {
-        user.petState = rowToPetState(petState.rows[0]);
-      }
-      
-      // Cache the result
-      this.cache.set(cacheKey, user);
-      
-      return user;
     } catch (error) {
-      console.error('Error finding user:', error);
-      
-      // Return error object instead of null
-      return { error: 'Database error', loadFailed: true, details: error };
+      console.error('Error fetching user data:', error);
+      // Cache the fact that the load failed
+      this.cache.set(cacheKey, { loadFailed: true, error: error instanceof Error ? error.message : 'Unknown fetch error' });
+      return null;
     }
+  }
+  
+  // Helper function for background UID backfill (used for cached data)
+  private async backfillUid(walletAddress: string): Promise<void> {
+      // Re-fetch data directly to ensure we have the latest DB state
+       const result = await sql`SELECT uid FROM users WHERE wallet_address = ${walletAddress}`;
+       if (result.rows.length > 0 && !result.rows[0].uid) {
+            const timestampPart = Date.now().toString(36);
+            const randomPart = crypto.randomBytes(4).toString('hex');
+            const newUid = `${timestampPart}-${randomPart}`;
+            await this.updateUserData(walletAddress, { uid: newUid });
+            console.log(`Background backfill successful for ${walletAddress} with UID: ${newUid}`);
+            
+            // Update cache directly after successful DB update
+            const currentCached = this.cache.get(`user:${walletAddress}`);
+            if (currentCached && !currentCached.loadFailed) {
+                this.cache.set(`user:${walletAddress}`, { ...currentCached, uid: newUid });
+            }
+       }
   }
 
   // Create a new user
@@ -502,13 +504,12 @@ export class DatabaseService {
       // Only include fields known to exist in the database
       const result = await sql`
         INSERT INTO users (
-          wallet_address, username, score, games_played, last_played, created_at,
+          wallet_address, username, games_played, last_played, created_at,
           points, daily_points, last_points_update, days_active, consecutive_days, token_balance,
           multiplier, last_interaction_time, cooldowns, recent_point_gain, last_point_gain_time
         ) VALUES (
           ${userData.walletAddress},
           ${userData.username || null},
-          ${userData.score || 0},
           ${userData.gamesPlayed || 0},
           ${userData.lastPlayed ? userData.lastPlayed.toISOString() : new Date().toISOString()},
           ${userData.createdAt ? userData.createdAt.toISOString() : new Date().toISOString()},
@@ -581,10 +582,6 @@ export class DatabaseService {
       // Handle fields in a type-safe way
       if ('points' in updateData && updateData.points !== undefined) {
         simplifiedUpdateData.points = updateData.points;
-      }
-      
-      if ('score' in updateData && updateData.score !== undefined) {
-        simplifiedUpdateData.score = updateData.score;
       }
       
       if ('multiplier' in updateData && updateData.multiplier !== undefined) {
@@ -1080,39 +1077,23 @@ export class DatabaseService {
   }
 
   // Add a new method for fetching leaderboard data
-  public async getLeaderboard(type: 'points' | 'score' = 'points', limit: number = 10): Promise<LeaderboardEntry[]> {
+  public async getLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
     try {
-      let query;
-      
-      if (type === 'points') {
-        query = await sql`
-          SELECT 
-            wallet_address as walletAddress, 
-            username, 
-            points as score,
-            ROW_NUMBER() OVER (ORDER BY points DESC) as rank
-          FROM users
-          ORDER BY points DESC
-          LIMIT ${limit}
-        `;
-      } else {
-        query = await sql`
-          SELECT 
-            wallet_address as walletAddress, 
-            username, 
-            score,
-            ROW_NUMBER() OVER (ORDER BY score DESC) as rank
-          FROM users
-          ORDER BY score DESC
-          LIMIT ${limit}
-        `;
-      }
-      
-      return query.rows.map((row: any) => ({
-        walletAddress: row.walletaddress,
+      const query = sql`
+        SELECT wallet_address, username, points,
+               ROW_NUMBER() OVER (ORDER BY points DESC) as rank
+        FROM users
+        ORDER BY points DESC
+        LIMIT ${limit}
+      `;
+
+      const result = await query;
+
+      return result.rows.map((row: any): LeaderboardEntry => ({
+        walletAddress: row.wallet_address,
         username: row.username,
-        score: row.score,
-        rank: row.rank
+        points: row.points || 0,
+        rank: parseInt(row.rank, 10)
       }));
     } catch (error) {
       console.error('Error getting leaderboard:', error);
@@ -1152,48 +1133,42 @@ export class DatabaseService {
     }
   }
   
-  // Create a new wallet
-  public async createWallet(publicKey: string, initialData: any = {}): Promise<boolean> {
+  /**
+   * Creates a new wallet entry in the database
+   * Generates a unique UID based on timestamp and randomness
+   */
+  public async createWallet(walletAddress: string): Promise<User | null> {
     try {
-      // Only use fields we know exist in both schemas
-      const created = new Date();
-      const lastPlayed = new Date();
+      // Generate unique UID
+      const timestampPart = Date.now().toString(36);
+      const randomPart = crypto.randomBytes(4).toString('hex');
+      const uid = `${timestampPart}-${randomPart}`;
       
-      // Generate a unique user ID that will be used as the referral code
-      // Format: First 3 chars of publicKey + timestamp in base36 + 4 random chars
-      const uidPrefix = publicKey.substring(0, 3);
-      const timestamp = Date.now().toString(36);
-      const randomChars = Math.random().toString(36).substring(2, 6);
-      const uid = `${uidPrefix}${timestamp.substring(timestamp.length - 4)}${randomChars}`;
-      
-      console.log(`Creating new wallet for ${publicKey} with UID: ${uid}`);
-      
-      const defaultData = {
-        wallet_address: publicKey,
-        points: initialData.points || 0,
-        multiplier: initialData.multiplier || 1.0,
-        created_at: created,
-        last_played: lastPlayed,
-      };
-      
-      // Simple INSERT with minimal fields
-      await sql`
-        INSERT INTO users (
-          wallet_address, points, multiplier, created_at, last_played
-        ) VALUES (
-          ${defaultData.wallet_address}, ${defaultData.points}, ${defaultData.multiplier}, 
-          ${created.toISOString()}, ${lastPlayed.toISOString()}
-        )
+      // Use the imported sql object directly, not this.sql
+      const result = await sql`
+        INSERT INTO users (wallet_address, created_at, last_login, uid) 
+        VALUES (${walletAddress}, NOW(), NOW(), ${uid})
         ON CONFLICT (wallet_address) DO NOTHING
+        RETURNING *;
       `;
       
-      // Cache the new wallet data
-      this.cache.set(`user:${publicKey}`, defaultData);
-      
-      return true;
+      // Check if a row was affected/returned
+      if (result && result.rowCount > 0 && result.rows.length > 0) {
+        const newUser = result.rows[0]; // Access the first row
+        console.log(`Created new wallet for ${walletAddress} with UID: ${uid}`);
+        const userObject = rowToUser(newUser); // Convert row to User object
+        this.cache.set(`user:${walletAddress}`, userObject); // Cache the User object
+        return userObject;
+      } else {
+        // Wallet likely already existed, fetch existing data
+        console.warn(`Wallet ${walletAddress} already exists or insert failed, fetching existing data.`);
+        // Ensure getUserData returns Promise<User | null>
+        const existingUser: User | null = await this.getUserData(walletAddress);
+        return existingUser;
+      }
     } catch (error) {
       console.error('Error creating wallet:', error);
-      return false;
+      return null;
     }
   }
   
@@ -1685,7 +1660,6 @@ function rowToUser(row: any): User {
     console.error('Invalid row data provided to rowToUser');
     return {
       walletAddress: '',
-      score: 0,
       gamesPlayed: 0,
       lastPlayed: new Date(),
       createdAt: new Date(),
@@ -1701,7 +1675,6 @@ function rowToUser(row: any): User {
   return {
     walletAddress: row.wallet_address,
     username: row.username,
-    score: row.score || 0,
     gamesPlayed: row.games_played || 0,
     lastPlayed: row.last_played ? new Date(row.last_played) : new Date(),
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
@@ -1711,32 +1684,14 @@ function rowToUser(row: any): User {
     lastPointsUpdate: row.last_points_update ? new Date(row.last_points_update) : new Date(),
     daysActive: row.days_active || 0,
     consecutiveDays: row.consecutive_days || 0,
-    // These fields may not exist in the actual database
     tokenBalance: row.token_balance || 0,
     multiplier: row.multiplier || 1.0,
     lastInteractionTime: row.last_interaction_time ? new Date(row.last_interaction_time) : undefined,
     cooldowns: row.cooldowns || {},
     recentPointGain: row.recent_point_gain || 0,
     lastPointGainTime: row.last_point_gain_time ? new Date(row.last_point_gain_time) : undefined,
-    version: row.version || 1
-  };
-}
-
-// Helper function to convert database row to PetState
-function rowToPetState(row: any): PetState {
-  return {
-    health: row.health,
-    happiness: row.happiness,
-    hunger: row.hunger,
-    cleanliness: row.cleanliness,
-    energy: row.energy,
-    lastStateUpdate: new Date(row.last_state_update),
-    qualityScore: row.quality_score,
-    lastMessage: row.last_message,
-    lastReaction: row.last_reaction,
-    isDead: row.is_dead,
-    lastInteractionTime: row.last_interaction_time ? new Date(row.last_interaction_time) : undefined,
-    version: row.version || 1
+    version: row.version || 1,
+    uid: row.uid || null
   };
 }
 

@@ -88,7 +88,7 @@ export function PointsLeaderboard({ walletAddress, limit = 10 }: PointsLeaderboa
         </div>
         <div className="font-medium flex items-center gap-2">
           <Image src="/assets/icons/coin.png" width={24} height={24} alt="Points" className="inline-block" />
-          {entry.points?.toLocaleString() || entry.score.toLocaleString()}
+          {entry.points.toLocaleString()}
         </div>
       </div>
     ));

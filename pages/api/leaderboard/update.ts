@@ -10,51 +10,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   
   try {
-    const { walletAddress, score, points } = req.body;
+    const { walletAddress, points } = req.body;
     
     // Validate input
     if (!walletAddress || typeof walletAddress !== 'string') {
       return res.status(400).json({ error: 'Invalid wallet address', success: false });
     }
     
-    if (score === undefined && points === undefined) {
-      return res.status(400).json({ error: 'Either score or points must be provided', success: true });
-    }
-    
-    // Prepare update data - only include fields we know exist
-    const updateData: Record<string, any> = {};
-    
-    if (score !== undefined && typeof score === 'number') {
-      updateData.score = score;
-    }
-    
-    if (points !== undefined && typeof points === 'number') {
-      updateData.points = points;
+    if (points === undefined || typeof points !== 'number') {
+      return res.status(400).json({ error: 'Valid points must be provided', success: false });
     }
     
     // Perform a direct simplified update for maximum compatibility
-    if (points !== undefined) {
-      try {
-        await sql`UPDATE users SET points = ${points} WHERE wallet_address = ${walletAddress}`;
-      } catch (pointsError) {
-        console.error('Error updating points:', pointsError);
-      }
-    }
-    
-    if (score !== undefined) {
-      try {
-        await sql`UPDATE users SET score = ${score} WHERE wallet_address = ${walletAddress}`;
-      } catch (scoreError) {
-        console.error('Error updating score:', scoreError);
-      }
+    try {
+      await sql`UPDATE users SET points = ${points} WHERE wallet_address = ${walletAddress}`;
+    } catch (pointsError) {
+      console.error('Error updating points:', pointsError);
+      return res.status(500).json({ error: 'Failed to update points', success: false });
     }
     
     let rank = 0;
     
     // Try to get rank if possible
     try {
-      // Use score or points for ranking, based on what was updated
-      const rankField = score !== undefined ? 'score' : 'points';
+      const rankField = 'points';
       
       const rankQuery = `
         SELECT COUNT(*) AS rank 

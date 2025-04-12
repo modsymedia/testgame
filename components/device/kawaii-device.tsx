@@ -16,9 +16,9 @@ import { useWallet } from "@/context/WalletContext";
 import { useUserData } from "@/context/UserDataContext";
 import { useRouter } from "next/navigation";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
-import { updateUserScore } from "@/utils/leaderboard";
+import { updateUserPoints } from "@/utils/leaderboard";
 import CustomSlider from "@/components/game/CustomSlider";
-import { dbService } from "@/lib/database-service";
+import { dbService } from "@/lib/database-service"; // Re-add dbService import
 
 // Add this interface for activities right after the imports
 interface UserActivity {
@@ -89,7 +89,9 @@ const StatusHeader = ({ animatedPoints, health, isDatabaseReady }: StatusHeaderP
 export function KawaiiDevice() {
   const router = useRouter();
   const { isConnected, publicKey, walletData, updatePoints, burnPoints } = useWallet();
-  const { userData, updatePoints: updateUserDataPoints } = useUserData(); 
+  // Get unlockedItems and updateUnlockedItems from context
+  const { userData, updatePoints: updateUserDataPoints, updateUnlockedItems } = useUserData(); 
+  const { unlockedItems = {} } = userData; // Use unlockedItems from context, default to {}
   
   // Add tilt configuration state
   const [tiltConfig, setTiltConfig] = useState({
@@ -165,7 +167,6 @@ export function KawaiiDevice() {
   }, [isSmallScreen, isMediumScreen, isLargeScreen]);
   
   // Add premium item unlock tracking
-  const [unlockedItems, setUnlockedItems] = useState<{[key: string]: boolean}>({});
   const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
   const [unlockConfirmSelection, setUnlockConfirmSelection] = useState<'yes' | 'no'>('no');
   const [itemToUnlock, setItemToUnlock] = useState<{type: string, name: string, cost: number, index: number}>({
@@ -200,16 +201,22 @@ export function KawaiiDevice() {
   }), []); // Empty dependency array means it's created only once
   
   // Check if an item is locked - moved to the top to prevent reference errors
-  const isItemLocked = useCallback((category: string, itemName: string) => {
-    // Generate a key for the item
-    const itemKey = `${category}-${itemName}`;
-    
-    // Check if it's a premium item
-    const isPremium = premiumItems[category as keyof typeof premiumItems]?.items.includes(itemName);
-    
-    // If it's premium and not unlocked, it's locked
-    return isPremium && !unlockedItems[itemKey];
-  }, [unlockedItems, premiumItems]);
+  const isItemLocked = useCallback(
+    (type: string, name: string): boolean => {
+      // Check if this item type exists in premiumItems and if the item name is listed there
+      const isPremium = premiumItems[type as keyof typeof premiumItems]?.items.includes(name);
+      
+      // If it's not a premium item, it's considered unlocked by default
+      if (!isPremium) {
+        return false;
+      }
+      
+      // If it IS a premium item, check if it's in the unlockedItems map
+      const itemKey = `${type}-${name}`;
+      return !unlockedItems[itemKey]; // It's locked if it's NOT in the map
+    },
+    [unlockedItems, premiumItems] // Add premiumItems to the dependency array
+  );
   
   // Add state to track the most recent task type
   const [mostRecentTask, setMostRecentTask] = useState<string | null>(null);
@@ -340,19 +347,13 @@ export function KawaiiDevice() {
   // Wrap in useCallback to stabilize its reference
   const saveActivityToDatabase = useCallback(async (activity: UserActivity) => {
     if (!publicKey) return;
-    
     try {
-      // Save activity to the database using the service
+      // Assuming dbService has a method like saveActivity
       await dbService.saveUserActivity(publicKey, activity);
-      
-      // After saving activity, also update pet state in the database
-      await savePetStateToDatabase();
-      
-      console.log("Activity saved to DB:", activity.name);
     } catch (error) {
-      console.error("Failed to save activity to database:", error);
+      console.error("Failed to save activity:", error);
     }
-  }, [publicKey, savePetStateToDatabase]); // Add dependencies
+  }, [publicKey]); // dbService is likely a singleton/stable, so not needed here if imported
 
   const {
     selectedMenuItem,
@@ -444,7 +445,7 @@ export function KawaiiDevice() {
         // Then update leaderboard - this is less critical
         if (userData.points > 0 && publicKey) {
           try {
-            const updated = await updateUserScore(publicKey, userData.points);
+            const updated = await updateUserPoints(publicKey, userData.points);
           if (updated) {
             console.log('🏆 Leaderboard updated successfully');
             }
@@ -473,7 +474,7 @@ export function KawaiiDevice() {
   useEffect(() => {
     if (isDead && isConnected && publicKey && points > 0) {
       // Save final score to leaderboard
-      updateUserScore(publicKey, points)
+      updateUserPoints(publicKey, points)
         .catch(err => console.error('Error updating leaderboard on death:', err));
     }
   }, [isDead, isConnected, publicKey, points]);
@@ -548,36 +549,30 @@ export function KawaiiDevice() {
                                       mostRecentTask={mostRecentTask} />;
     if (isFeeding)
       return (
-        <motion.div animate={{ rotate: [0, -5, 5, -5, 0] }} transition={{ duration: 0.5 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
-                   foodTaskOnCooldown={isOnCooldown.feed}
-                   playTaskOnCooldown={isOnCooldown.play}
-                   healTaskOnCooldown={isOnCooldown.heal}
-                   sickStatus={isSick}
-                   mostRecentTask={mostRecentTask} />
-        </motion.div>
+        <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                 foodTaskOnCooldown={isOnCooldown.feed}
+                 playTaskOnCooldown={isOnCooldown.play}
+                 healTaskOnCooldown={isOnCooldown.heal}
+                 sickStatus={isSick}
+                 mostRecentTask={mostRecentTask} />
       );
     if (isPlaying)
       return (
-        <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: 2, duration: 0.3 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
-                   foodTaskOnCooldown={isOnCooldown.feed}
-                   playTaskOnCooldown={isOnCooldown.play}
-                   healTaskOnCooldown={isOnCooldown.heal}
-                   sickStatus={isSick}
-                   mostRecentTask="play" />
-        </motion.div>
+        <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                 foodTaskOnCooldown={isOnCooldown.feed}
+                 playTaskOnCooldown={isOnCooldown.play}
+                 healTaskOnCooldown={isOnCooldown.heal}
+                 sickStatus={isSick}
+                 mostRecentTask="play" />
       );
     if (isCleaning)
       return (
-        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 0.5 }}>
-          <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
-                   foodTaskOnCooldown={isOnCooldown.feed}
-                   playTaskOnCooldown={isOnCooldown.play}
-                   healTaskOnCooldown={isOnCooldown.heal}
-                   sickStatus={isSick}
-                   mostRecentTask={mostRecentTask} />
-        </motion.div>
+        <HappyCat hygieneTaskOnCooldown={isOnCooldown.clean} 
+                 foodTaskOnCooldown={isOnCooldown.feed}
+                 playTaskOnCooldown={isOnCooldown.play}
+                 healTaskOnCooldown={isOnCooldown.heal}
+                 sickStatus={isSick}
+                 mostRecentTask={mostRecentTask} />
       );
     if (isHealing)
       return (
@@ -865,7 +860,7 @@ export function KawaiiDevice() {
         updateUserDataPoints(userData.points + pointsToAdd);
         
         // Update leaderboard
-        updateUserScore(publicKey, userData.points + pointsToAdd);
+        updateUserPoints(publicKey, userData.points + pointsToAdd);
       }
       
       // Always reset the menu to go back to main screen after completing a task
@@ -913,7 +908,7 @@ export function KawaiiDevice() {
     
     // Update leaderboard with the new score after revival
     if (publicKey) {
-      updateUserScore(publicKey, Math.floor(points / 2));
+      updateUserPoints(publicKey, Math.floor(points / 2));
     }
   }, [burnPoints, resetPet, publicKey, points]); // Add dependencies
   
@@ -975,7 +970,8 @@ export function KawaiiDevice() {
               
               // Unlock the item - use consistent hyphenated format
               const itemKey = `${type}-${name}`;
-              setUnlockedItems(prev => ({...prev, [itemKey]: true}));
+              const newUnlockedItems = { ...unlockedItems, [itemKey]: true };
+              await updateUnlockedItems(newUnlockedItems);
               
               // Record activity
               const activityId = uuidv4();
@@ -1129,7 +1125,9 @@ export function KawaiiDevice() {
       handleReviveConfirm,
       handleReviveCancel,
       showReviveConfirm,
-      premiumItems // Add the memoized premiumItems object
+      premiumItems, // Add the memoized premiumItems object
+      unlockedItems, // From UserDataContext
+      updateUnlockedItems, // From UserDataContext
     ]
   );
 
@@ -1529,40 +1527,6 @@ export function KawaiiDevice() {
       );
     }
   };
-
-  // Load unlocked items from database only
-  useCallback(async () => {
-    if (!publicKey) return;
-    try {
-      // Fetch the full user data object
-      const userData = await dbService.getUserData(publicKey); 
-      // Remove line: const customUserData = await dbService.getUserData(`user_data_${publicKey}`);
-      
-      // Check if userData is valid and contains unlockedItems
-      if (userData && !userData.loadFailed && userData.unlockedItems) {
-        setUnlockedItems(userData.unlockedItems);
-      } else {
-        // If custom data fetch failed or is empty, use default (empty object)
-        setUnlockedItems({});
-      }
-    } catch (error) {
-      console.error("Error loading unlocked items:", error);
-      setUnlockedItems({}); // Fallback on error
-    }
-  }, [publicKey]);
-
-  // Save unlocked items to database only, not localStorage
-  useEffect(() => {
-    if (!publicKey || Object.keys(unlockedItems).length === 0) return;
-    
-    // Save to database only
-    try {
-      dbService.saveUserData(publicKey, { unlockedItems });
-      console.log('Saved unlocked items to database');
-    } catch (error) {
-      console.error('Failed to save unlocked items to database:', error);
-    }
-  }, [unlockedItems, publicKey]);
 
   return (
     <div className="flex w-full min-h-screen sm:p-4 items-center justify-center p-4 sm:pt-0">

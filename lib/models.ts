@@ -4,7 +4,6 @@ export interface User {
   _id?: string; // Optional _id field
   walletAddress: string;
   username?: string;
-  score?: number;
   gamesPlayed?: number;
   lastPlayed?: Date;
   createdAt?: Date;
@@ -34,6 +33,7 @@ export interface User {
   // Version for sync
   version?: number; // Optional version field
   lastOnline?: number;
+  uid?: string | null; // Add uid field
 }
 
 export interface PetState {
@@ -54,9 +54,8 @@ export interface PetState {
 export interface LeaderboardEntry {
   walletAddress: string;
   username?: string;
-  score: number;
   rank: number;
-  points?: number; // For points leaderboard
+  points: number;
 }
 
 export interface PointsLeaderboard {
@@ -68,7 +67,7 @@ export interface PointsLeaderboard {
 
 export interface GameResult {
   walletAddress: string;
-  score: number;
+  points: number;
   timestamp: Date;
 }
 

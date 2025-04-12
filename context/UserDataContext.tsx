@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useWallet } from './WalletContext';
 import { dbService } from '@/lib/database-service';
 import { PointsManager } from '@/lib/points-manager';
+import { User } from '@/lib/models';
 
 // Types for user data
 interface UserData {
@@ -14,6 +15,8 @@ interface UserData {
   lastLogin: number;
   lastSync: number;
   username: string | null;
+  uid: string | null;
+  unlockedItems?: Record<string, boolean>;
 }
 
 // Default user data
@@ -24,7 +27,9 @@ const defaultUserData: UserData = {
   rank: null,
   lastLogin: Date.now(),
   lastSync: Date.now(),
-  username: null
+  username: null,
+  uid: null,
+  unlockedItems: {}
 };
 
 // Context types
@@ -37,6 +42,7 @@ interface UserDataContextType {
   claimPoints: (amount: number) => Promise<boolean>;
   updateUsername: (username: string) => Promise<boolean>;
   resetUserData: () => void;
+  updateUnlockedItems: (newItems: Record<string, boolean>) => Promise<void>;
 }
 
 // Create the context
@@ -161,8 +167,10 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       console.log('Attempting to load user data for wallet:', publicKey);
-      // Fetch user data from database service
+      // Fetch standard user data
       const walletData = await dbService.getWalletByPublicKey(publicKey);
+      // Fetch custom user data (assuming unlockedItems are stored here)
+      const customData = await dbService.getUserData(`user_data_${publicKey}`);
       
       if (walletData) {
         console.log('Wallet data found:', JSON.stringify(walletData, null, 2));
@@ -173,23 +181,30 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           rank: walletData.rank || null,
           lastLogin: walletData.lastLogin || Date.now(),
           lastSync: Date.now(),
-          username: walletData.username || null
+          username: walletData.username || null,
+          uid: walletData.uid || null,
+          unlockedItems: customData?.unlockedItems || {}
         });
       } else {
         console.log('No wallet data found, creating new wallet');
         // Create new user data if it doesn't exist
         try {
-          await dbService.createWallet(publicKey);
+          // Explicitly type newWallet as User | null
+          const newWallet: User | null = await dbService.createWallet(publicKey);
           
           setUserData({
             ...defaultUserData,
-            lastSync: Date.now()
+            uid: newWallet?.uid || null,
+            unlockedItems: {}
           });
+          // Create initial custom data entry
+          await dbService.saveUserData(publicKey, { unlockedItems: {} });
         } catch (createErr) {
           console.error('Failed to create new wallet:', createErr);
           // Still set default data even if creation fails
           setUserData({
             ...defaultUserData,
+            unlockedItems: {},
             lastSync: Date.now()
           });
         }
@@ -200,6 +215,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       // Set default data even on error
       setUserData({
         ...defaultUserData,
+        unlockedItems: {},
         lastSync: Date.now()
       });
       setError('Failed to load user data. Please try again.');
@@ -386,6 +402,24 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   };
 
+  // Add function to update unlocked items
+  const updateUnlockedItems = async (newItems: Record<string, boolean>): Promise<void> => {
+    if (!publicKey) return;
+    
+    // Optimistically update local state
+    setUserData(prev => ({ ...prev, unlockedItems: newItems }));
+    
+    try {
+      // Save to database
+      await dbService.saveUserData(publicKey, { unlockedItems: newItems });
+    } catch (error) {
+      console.error("Failed to save unlocked items:", error);
+      // Optionally revert local state or show error
+      // For simplicity, we don't revert here but log the error.
+      setError('Failed to save item unlock status.');
+    }
+  };
+
   // Handle online status changes with reduced logging
   useEffect(() => {
     // Define the event handler
@@ -445,7 +479,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         syncWithServer,
         claimPoints,
         updateUsername,
-        resetUserData
+        resetUserData,
+        updateUnlockedItems
       }}
     >
       {children}

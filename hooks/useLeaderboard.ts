@@ -3,7 +3,7 @@ import { LeaderboardEntry } from '../lib/models';
 import { dbService } from '../lib/database-service';
 
 interface UseLeaderboardOptions {
-  type?: 'points' | 'score';
+  type?: 'points';
   limit?: number;
   autoFetch?: boolean;
 }
@@ -13,9 +13,8 @@ function convertLeaderboardEntry(entry: any): LeaderboardEntry {
   return {
     walletAddress: entry.walletAddress,
     username: entry.username || undefined, // Convert null to undefined
-    score: entry.score,
     rank: entry.rank,
-    points: entry.score // If this is a points leaderboard, use score as points
+    points: entry.points || 0 // Assume entry has points, fallback to 0
   };
 }
 
@@ -29,10 +28,9 @@ export function useLeaderboard(options: UseLeaderboardOptions = {}) {
       setIsLoading(true);
       setError(null);
       
-      const type = options.type || 'points';
       const limit = options.limit || 10;
       
-      const data = await dbService.getLeaderboard(type, limit);
+      const data = await dbService.getLeaderboard(limit);
       // Convert db entries to model format
       const modelEntries = data.map(convertLeaderboardEntry);
       setLeaderboard(modelEntries);
@@ -42,7 +40,7 @@ export function useLeaderboard(options: UseLeaderboardOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [options.type, options.limit]);
+  }, [options.limit]);
 
   // Subscribe to leaderboard changes
   useEffect(() => {

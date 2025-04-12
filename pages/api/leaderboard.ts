@@ -8,7 +8,7 @@ const sql = neon(process.env.DATABASE_URL || '');
 type LeaderboardEntry = {
   walletAddress: string;
   username: string;
-  score: number;
+  points: number;
   lastUpdated: Date;
   rank: number;
 };
@@ -39,7 +39,7 @@ export default async function handler(
           SELECT 
             wallet_address, 
             username, 
-            points as score, 
+            points,
             last_points_update as last_played
           FROM users 
           WHERE points > 0 
@@ -52,7 +52,7 @@ export default async function handler(
         const leaderboard = result.map((row, index) => ({
           walletAddress: row.wallet_address,
           username: row.username || `Pet_${row.wallet_address.substring(0, 4)}`,
-          score: row.score || 0,
+          points: row.points || 0,
           lastUpdated: row.last_played || new Date(),
           rank: offset + index + 1
         }));
@@ -77,9 +77,9 @@ export default async function handler(
         });
       }
     } else if (req.method === 'POST') {
-      const { walletAddress, score, username } = req.body;
+      const { walletAddress, points, username } = req.body;
       
-      if (!walletAddress || score === undefined) {
+      if (!walletAddress || points === undefined) {
         return res.status(400).json({ 
           success: false, 
           error: 'Missing required fields' 
@@ -94,15 +94,15 @@ export default async function handler(
         `;
         
         const userExists = userResult.length > 0;
-        const currentScore = userExists ? userResult[0].score : 0;
+        const currentPoints = userExists ? userResult[0].points : 0;
         
         // Only update if new score is higher
-        if (!userExists || score > currentScore) {
+        if (!userExists || points > currentPoints) {
           if (userExists) {
             // Update existing user
             await sql`
               UPDATE users 
-              SET points = ${score}, last_points_update = ${new Date().toISOString()} 
+              SET points = ${points}, last_points_update = ${new Date().toISOString()} 
               WHERE wallet_address = ${walletAddress}
             `;
           } else {
@@ -112,7 +112,7 @@ export default async function handler(
                 wallet_address, points, last_points_update, created_at, username
               ) VALUES (
                 ${walletAddress}, 
-                ${score}, 
+                ${points}, 
                 ${new Date().toISOString()}, 
                 ${new Date().toISOString()},
                 ${username || `Pet_${walletAddress.substring(0, 4)}`}

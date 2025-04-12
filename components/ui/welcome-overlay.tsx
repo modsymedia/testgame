@@ -5,11 +5,8 @@ import { useWallet } from '@/context/WalletContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import PixelatedContainer from '@/components/game/PixelatedContainerBig';
 
-interface WelcomeOverlayProps {
-  duration?: number; // Duration in milliseconds before auto-dismissal
-}
 
-const WelcomeOverlay = ({ duration = 3000 }: WelcomeOverlayProps) => {
+const WelcomeOverlay = () => {
   const [visible, setVisible] = useState(false);
   const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

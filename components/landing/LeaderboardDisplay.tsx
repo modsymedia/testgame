@@ -328,7 +328,7 @@ export default function LeaderboardDisplay() {
                         className="inline-block"
                       />
                       <span className="text-[14px] sm:text-[16px] font-numbers">
-                        {entry.score.toLocaleString()}
+                        {entry.points.toLocaleString()}
                       </span>
                     </TableCell>
                   </TableRow>

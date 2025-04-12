@@ -91,7 +91,8 @@ async function createUsersTable() {
       last_interaction_time TIMESTAMP,
       cooldowns JSONB DEFAULT '{}'::jsonb,
       recent_point_gain INTEGER DEFAULT 0,
-      last_point_gain_time TIMESTAMP
+      last_point_gain_time TIMESTAMP,
+      uid TEXT UNIQUE NOT NULL
     )
   `;
   

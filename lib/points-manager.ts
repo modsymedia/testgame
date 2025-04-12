@@ -676,7 +676,6 @@ export class PointsManager {
           await dbService.updateUserData(walletAddress, {
             ...updatedUser,
             gamesPlayed: (updatedUser.gamesPlayed || 0) + 1,
-            score: Math.max(updatedUser.score || 0, score), // Update high score
             lastPlayed: new Date()
           });
         }
@@ -881,7 +880,7 @@ export class PointsManager {
       
       // Create the update object with the correct type
       const updatedUser: Partial<User> = {
-        points: userData.points + transaction.amount,
+        points: (userData.points || 0) + transaction.amount,
         recentPointGain: transaction.amount,
         lastPointGainTime: new Date(),
         lastPointsUpdate: new Date()

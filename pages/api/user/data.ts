@@ -8,7 +8,6 @@ interface UserData {
   _id: any;
   walletAddress: string;
   username?: string; // Optional fields based on schema/usage
-  score?: number;
   gamesPlayed?: number;
   lastPlayed?: Date;
   createdAt?: Date;
@@ -81,7 +80,6 @@ export default async function handler(
         _id: dbUser.id,
         walletAddress: dbUser.wallet_address,
         username: dbUser.username,
-        score: dbUser.score,
         gamesPlayed: dbUser.games_played,
         lastPlayed: dbUser.last_played ? new Date(dbUser.last_played) : undefined,
         createdAt: dbUser.created_at ? new Date(dbUser.created_at) : undefined,

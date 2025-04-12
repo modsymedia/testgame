@@ -7,6 +7,52 @@ dotenv.config({ path: '.env.development.local' });
 // Create a SQL client
 const sql = neon(process.env.DATABASE_URL || '');
 
+// Function to create/update the users table
+async function manageUsersTable() {
+  console.log('Managing users table...');
+  try {
+    // Ensure the table exists (using the schema from database-schema.ts)
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        wallet_address TEXT UNIQUE NOT NULL,
+        username TEXT,
+        score INTEGER DEFAULT 0,
+        games_played INTEGER DEFAULT 0,
+        last_played TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        points INTEGER DEFAULT 0,
+        daily_points INTEGER DEFAULT 0,
+        last_points_update TIMESTAMP,
+        days_active INTEGER DEFAULT 0,
+        consecutive_days INTEGER DEFAULT 0,
+        token_balance INTEGER DEFAULT 0,
+        multiplier REAL DEFAULT 1.0,
+        last_interaction_time TIMESTAMP,
+        cooldowns JSONB DEFAULT '{}'::jsonb,
+        recent_point_gain INTEGER DEFAULT 0,
+        last_point_gain_time TIMESTAMP,
+        uid TEXT UNIQUE -- Initially allow NULL
+      )
+    `;
+    // Add the NOT NULL constraint separately if the column exists
+    await sql`ALTER TABLE users ALTER COLUMN uid SET NOT NULL;`;
+    console.log('Users table managed successfully');
+    return true;
+  } catch (error) {
+    // Ignore specific error if column already has NOT NULL
+    if (error.message && error.message.includes('uid" is an identity column')) {
+        console.log('UID column already configured correctly.');
+        return true; 
+    } else if (error.message && error.message.includes('column "uid" of relation "users" contains null values')) {
+        console.warn('Cannot add NOT NULL constraint to UID as existing rows have NULL. Update existing users manually.');
+        return true; // Proceed without adding NOT NULL constraint for now
+    }
+    console.error('Error managing users table:', error);
+    return false;
+  }
+}
+
 // Function to create the pet_states table
 async function createPetStatesTable() {
   console.log('Creating pet_states table...');
@@ -38,31 +84,18 @@ async function createPetStatesTable() {
 
 // Main function to run the script
 async function main() {
-  console.log('Starting database schema verification...');
+  console.log('Starting database schema management...');
   
   try {
-    // List existing tables
-    const tables = await sql`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `;
+    // Manage users table (create/add column)
+    await manageUsersTable();
+
+    // Manage pet_states table (create)
+    await createPetStatesTable();
     
-    console.log('Existing tables:', tables.map(t => t.table_name));
-    
-    // Check if pet_states table exists
-    const petStatesExists = tables.some(t => t.table_name === 'pet_states');
-    
-    if (petStatesExists) {
-      console.log('pet_states table already exists');
-    } else {
-      console.log('pet_states table does not exist, creating...');
-      await createPetStatesTable();
-    }
-    
-    console.log('Database schema verification completed');
+    console.log('Database schema management completed');
   } catch (error) {
-    console.error('Error during database verification:', error);
+    console.error('Error during database management:', error);
   }
 }
 

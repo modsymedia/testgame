@@ -1,7 +1,11 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import {   getProvider,   saveWalletData,getAvailableWallets} from '@/utils/wallet';
+import { 
+  getProvider, 
+  saveWalletData, 
+  getAvailableWallets
+} from '@/utils/wallet';
 import { fetchUserRank } from '@/utils/leaderboard';
 
 interface WalletContextType {
@@ -13,6 +17,7 @@ interface WalletContextType {
   updatePoints: (points: number) => Promise<number | undefined>;
   burnPoints: () => Promise<number | undefined>;
   error: string | null;
+  isLoading: boolean;
   isNewUser: boolean;
   showPetNamePrompt: boolean;
   setUsername: (username: string) => Promise<boolean>;
@@ -29,6 +34,7 @@ const defaultContext: WalletContextType = {
   updatePoints: async () => undefined,
   burnPoints: async () => undefined,
   error: null,
+  isLoading: false,
   isNewUser: false,
   showPetNamePrompt: false,
   setUsername: async () => false,
@@ -134,269 +140,163 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
     // Check if wallet was previously connected
     const checkConnection = async () => {
+      setIsLoading(true); // Start loading
+      setError(null); // Clear previous errors
+      setShowPetNamePrompt(false); // Reset prompt initially
+      setIsNewUser(false); // Reset new user flag initially
+
       try {
         const provider = getProvider();
         if (provider && provider.isConnected && provider.publicKey) {
-          setIsConnected(true);
           const key = provider.publicKey.toString();
-          setPublicKey(key);
+          console.log("Checking connection for key:", key);
           
-          // Set the current wallet name
+          // Set connection state early
+          setIsConnected(true);
+          setPublicKey(key);
+
+          // Set the current wallet name based on provider
           if ((provider as any).isPhantom) {
             setCurrentWalletName('phantom');
           } else if ((provider as any).isSolflare) {
             setCurrentWalletName('solflare');
           }
-          
+
           try {
-            // Only fetch data from server, not local storage
-            try {
-              const serverData = await fetchUserRank(key);
-              if (serverData.success && serverData.userData) {
-                console.log('Loaded wallet data from server:', serverData.userData);
-                console.log('👤 Username from server data:', serverData.userData.username);
-                
-                // Use server data exclusively
-                const userData = {
-                  username: serverData.userData.username || `User_${key.substring(0, 4)}`,
-                  points: serverData.userData.points || 0,
-                  multiplier: serverData.userData.multiplier || 1.0,
-                  lastLogin: Date.now(),
-                  daysActive: serverData.userData.daysActive || 0,
-                  consecutiveDays: serverData.userData.consecutiveDays || 0,
-                  petStats: {
-                    ...(serverData.userData.petState ? {
-                      food: serverData.userData.petState.hunger || 50,
-                      happiness: serverData.userData.petState.happiness || 40,
-                      cleanliness: serverData.userData.petState.cleanliness || 40,
-                      energy: serverData.userData.petState.energy || 30,
-                      health: serverData.userData.petState.health || 30,
-                      isDead: serverData.userData.petState.isDead || false,
-                      points: serverData.userData.points || 0
-                    } : {
-                      food: 50,
-                      happiness: 40,
-                      cleanliness: 40,
-                      energy: 30,
-                      health: 30,
-                      isDead: false,
-                      points: 0
-                    })
-                  }
-                };
-                
-                setWalletData(userData);
-              } else {
-                // If no server data, initialize with default data
-                const defaultData = {
-                  username: `User_${key.substring(0, 4)}`,
-                  points: 0,
-                  multiplier: 1.0,
-                  lastLogin: Date.now(),
-                  daysActive: 0,
-                  consecutiveDays: 0,
-                  petStats: {
-                    food: 50,
-                    happiness: 40,
-                    cleanliness: 40,
-                    energy: 30,
-                    health: 30,
-                    isDead: false,
-                    points: 0
-                  }
-                };
-                
-                // Save default data to server
-                await saveWalletData(key, defaultData);
-                
-                setWalletData(defaultData);
-              }
-            } catch (serverErr) {
-              console.error('Error fetching server data:', serverErr);
-              
-              // Use minimal default data if server fails
-              const defaultData = {
-                username: `User_${key.substring(0, 4)}`,
-                points: 0,
-                multiplier: 1.0,
+            // Fetch user data from server
+            const serverData = await fetchUserRank(key);
+            console.log("Server data fetched in checkConnection:", serverData);
+
+            if (serverData.success && serverData.userData && serverData.userData.username) {
+              // User exists and has a username
+              console.log('Existing user found with username:', serverData.userData.username);
+              const userData = {
+                uid: serverData.userData.uid, // Assume backend returns UID
+                username: serverData.userData.username,
+                points: serverData.userData.points || 0,
+                multiplier: serverData.userData.multiplier || 1.0,
                 lastLogin: Date.now(),
-                daysActive: 0,
-                consecutiveDays: 0,
-                petStats: {
-                  food: 50,
-                  happiness: 40,
-                  cleanliness: 40,
-                  energy: 30,
-                  health: 30,
-                  isDead: false,
-                  points: 0
+                daysActive: serverData.userData.daysActive || 0,
+                consecutiveDays: serverData.userData.consecutiveDays || 0,
+                petStats: { // Map petState to petStats
+                    food: serverData.userData.petState?.hunger ?? 50,
+                    happiness: serverData.userData.petState?.happiness ?? 40,
+                    cleanliness: serverData.userData.petState?.cleanliness ?? 40,
+                    energy: serverData.userData.petState?.energy ?? 30,
+                    health: serverData.userData.petState?.health ?? 30,
+                    isDead: serverData.userData.petState?.isDead ?? false,
+                    points: serverData.userData.points || 0 // Reuse main points? Check logic
                 }
               };
-              
-              setWalletData(defaultData);
+              setWalletData(userData);
+              setIsNewUser(false);
+              setShowPetNamePrompt(false);
+            } else {
+              // New user or user without username
+              console.log('New user or user without username detected.');
+              setWalletData(null); // Clear any potentially stale data
+              setIsNewUser(true);
+              setShowPetNamePrompt(true);
+              // Do not save default data here, wait for setUsername
             }
-          } catch (err) {
-            console.error('Error loading wallet data:', err);
-            // Continue with connection even if data load fails
+          } catch (fetchErr) {
+            console.error('Error fetching user data during checkConnection:', fetchErr);
+            setError('Failed to load user data. Please try again.');
+            // Don't assume new user on fetch error, keep existing state but show error
+            // Reset potentially problematic state
+             setWalletData(null);
+             setIsNewUser(false); // Uncertain state, don't force prompt
+             setShowPetNamePrompt(false);
+             // Keep isConnected true if provider connection succeeded
           }
-
-          // Always show the pet name prompt on any wallet connection
-          setShowPetNamePrompt(true);
+        } else {
+           console.log("No active provider connection found.");
+           // Ensure disconnected state if no provider/key
+           setIsConnected(false);
+           setPublicKey(null);
+           setWalletData(null);
+           setCurrentWalletName(null);
         }
       } catch (error) {
         console.error('Error checking wallet connection:', error);
+        setError('An error occurred while checking wallet status.');
+         // Reset all state on major error
+         setIsConnected(false);
+         setPublicKey(null);
+         setWalletData(null);
+         setCurrentWalletName(null);
+         setIsNewUser(false);
+         setShowPetNamePrompt(false);
+      } finally {
+        setIsLoading(false); // Stop loading
       }
     };
 
     checkConnection();
     
-    // Set up event listeners for wallet connection changes
-    const handleConnect = async () => {
-      try {
-        const provider = getProvider();
-        if (provider && provider.publicKey) {
-          setIsConnected(true);
-          const key = provider.publicKey.toString();
-          setPublicKey(key);
-          
-          // Set the current wallet name
-          if ((provider as any).isPhantom) {
-            setCurrentWalletName('phantom');
-          } else if ((provider as any).isSolflare) {
-            setCurrentWalletName('solflare');
-          }
-          
-          try {
-            // Only fetch data from server, not local storage
-            try {
-              const serverData = await fetchUserRank(key);
-              if (serverData.success && serverData.userData) {
-                console.log('Loaded wallet data from server on connect event:', serverData.userData);
-                
-                // Use server data exclusively
-                const userData = {
-                  username: serverData.userData.username || `User_${key.substring(0, 4)}`,
-                  points: serverData.userData.points || 0,
-                  multiplier: serverData.userData.multiplier || 1.0,
-                  lastLogin: Date.now(),
-                  daysActive: serverData.userData.daysActive || 0,
-                  consecutiveDays: serverData.userData.consecutiveDays || 0,
-                  petStats: {
-                    ...(serverData.userData.petState ? {
-                      food: serverData.userData.petState.hunger || 50,
-                      happiness: serverData.userData.petState.happiness || 40,
-                      cleanliness: serverData.userData.petState.cleanliness || 40,
-                      energy: serverData.userData.petState.energy || 30,
-                      health: serverData.userData.petState.health || 30,
-                      isDead: serverData.userData.petState.isDead || false,
-                      points: serverData.userData.points || 0
-                    } : {
-                      food: 50,
-                      happiness: 40,
-                      cleanliness: 40,
-                      energy: 30,
-                      health: 30,
-                      isDead: false,
-                      points: 0
-                    })
-                  }
-                };
-                
-                setWalletData(userData);
-              } else {
-                // Initialize with default data if no server data
-                const defaultData = {
-                  username: `User_${key.substring(0, 4)}`,
-                  points: 0,
-                  multiplier: 1.0,
-                  lastLogin: Date.now(),
-                  daysActive: 0,
-                  consecutiveDays: 0,
-                  petStats: {
-                    food: 50,
-                    happiness: 40,
-                    cleanliness: 40,
-                    energy: 30,
-                    health: 30,
-                    isDead: false,
-                    points: 0
-                  }
-                };
-                
-                // Save default data to server
-                await saveWalletData(key, defaultData);
-                
-                setWalletData(defaultData);
-              }
-            } catch (serverErr) {
-              console.error('Error fetching server data on connect event:', serverErr);
-              
-              // Use minimal default data if server fails
-              const defaultData = {
-                username: `User_${key.substring(0, 4)}`,
-                points: 0,
-                multiplier: 1.0,
-                lastLogin: Date.now(),
-                daysActive: 0,
-                consecutiveDays: 0,
-                petStats: {
-                  food: 50,
-                  happiness: 40,
-                  cleanliness: 40,
-                  energy: 30,
-                  health: 30,
-                  isDead: false,
-                  points: 0
-                }
-              };
-              
-              setWalletData(defaultData);
-            }
-          } catch (dataErr) {
-            console.error('Error loading wallet data after connect:', dataErr);
-            // Continue with default data if needed
-          }
+    // Setup event listeners (consider simplifying or moving logic)
+    const provider = getProvider();
+    let connectHandler: (() => void) | null = null;
+    let disconnectHandler: (() => void) | null = null;
 
-          // Always show the pet name prompt on connect event
-          setShowPetNamePrompt(true);
-        }
-      } catch (error) {
-        console.error('Error in connect handler:', error);
-      }
-    };
-    
-    const handleDisconnect = () => {
-      try {
+    if (provider) {
+      connectHandler = () => {
+        console.log("Wallet emitted 'connect' event. Re-checking connection state.");
+        // Re-run checkConnection to handle state properly after external connect event
+        checkConnection();
+      };
+      
+      disconnectHandler = () => {
+        console.log("Wallet emitted 'disconnect' event.");
+        setError(null); // Clear errors on disconnect
         setIsConnected(false);
         setPublicKey(null);
         setWalletData(null);
         setCurrentWalletName(null);
-      } catch (error) {
-        console.error('Error in disconnect handler:', error);
-      }
-    };
-    
-    // Add event listeners
-    try {
-      const provider = getProvider();
-      if (provider) {
-        provider.on('connect', handleConnect);
-        provider.on('disconnect', handleDisconnect);
-      }
-    } catch (error) {
-      console.error('Error setting up wallet event listeners:', error);
+        setIsNewUser(false);
+        setShowPetNamePrompt(false);
+        setIsLoading(false);
+      };
+      
+      provider.on('connect', connectHandler);
+      provider.on('disconnect', disconnectHandler);
+
+      // Also listen for account changes
+      provider.on('accountChanged', (newPublicKey: any) => {
+         console.log("Wallet emitted 'accountChanged' event.");
+         if (newPublicKey) {
+            const key = newPublicKey.toString();
+             if (key !== publicKey) {
+                 console.log("Account changed to:", key);
+                 // Treat account change like a new connection check
+                 checkConnection();
+             }
+         } else {
+             // If account changed to null/undefined, treat as disconnect
+             if (disconnectHandler) {
+                 disconnectHandler();
+             }
+         }
+      });
     }
-    
-    // No cleanup for now since we can't reliably remove listeners
+
     return () => {
-      // Skip cleanup to avoid errors - the component will be unmounted anyway
-      // This is a workaround since Phantom's API doesn't have a clean way to remove listeners
+      if (provider) {
+         if (connectHandler) provider.removeListener('connect', connectHandler);
+         if (disconnectHandler) provider.removeListener('disconnect', disconnectHandler);
+         // Assuming accountChanged listener removal is similar if needed
+         // provider.removeListener('accountChanged', accountChangeHandler);
+      }
     };
-  }, []);
+    // Only run on mount
+  }, []); // <-- IMPORTANT: Empty dependency array ensures this runs only once
   
   const connect = async (walletName?: string): Promise<boolean> => {
-    setError(null); // Clear previous errors
-    
+    setError(null);
+    setIsLoading(true);
+    setShowPetNamePrompt(false); // Reset prompt
+    setIsNewUser(false); // Reset flag
+
     try {
       console.log(`Attempting to connect wallet: ${walletName || 'default'}`);
       const provider = getProvider(walletName);
@@ -406,6 +306,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
           : 'Solana';
         console.error(`${walletLabel} wallet provider not found`);
         setError(`${walletLabel} wallet not found. Please install it to continue.`);
+        setIsLoading(false);
         return false;
       }
       
@@ -421,15 +322,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
       } catch (error) {
         console.warn('Wallet provider is not responsive:', error);
         setError('Could not establish connection with wallet. Please refresh the page or restart your browser.');
+        setIsLoading(false);
         return false;
       }
       
       if (!isProviderResponsive) {
         setError('Could not establish connection with wallet. Please refresh the page or restart your browser.');
+        setIsLoading(false);
         return false;
       }
       
-      // Save the wallet name we're connecting with
+      // Set current wallet name
       if (walletName) {
         setCurrentWalletName(walletName);
       } else if ((provider as any).isPhantom) {
@@ -438,314 +341,251 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setCurrentWalletName('solflare');
       }
       
-      // First try to disconnect safely
+      // Attempt safe disconnect first
       try {
         if (provider.isConnected) {
-          await safeDisconnect(provider);
-          
-          // Increased delay to ensure the UI updates and extension has time to process
-          await new Promise(resolve => setTimeout(resolve, 500));
+            await safeDisconnect(provider);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Give time for disconnect
         }
       } catch (e) {
         console.warn('Error during pre-connect disconnect:', e);
-        // Continue anyway, but with a brief pause
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
+
       // Now try to connect with the wallet
       try {
-        // This will prompt the user to approve the connection
-        let resp;
-        try {
-          resp = await safeConnect(provider);
-          if (!resp) {
-            setError('Connection attempt returned null response');
-            return false;
-          }
-        } catch (connectError: any) {
-          console.error('Detailed connection error:', connectError);
-          
-          // Try to provide a more helpful error message
-          if (connectError.message && connectError.message.includes('User rejected')) {
-            setError('Connection rejected by user. Please try again.');
-          } else {
-            setError(`Wallet connection failed: ${connectError.message || 'Unknown error'}`);
-          }
+        const resp = await safeConnect(provider);
+        if (!resp) {
+          setError('Connection attempt failed or was cancelled.');
+          setIsLoading(false);
           return false;
         }
-        
-        // Different wallets return different response structures
-        // For Solflare, the publicKey might be directly on the provider after connect
-        let publicKeyValue;
-        
-        if (resp.publicKey) {
-          // Phantom style response
-          publicKeyValue = resp.publicKey;
-        } else if (provider.publicKey) {
-          // Solflare might update the provider directly
-          publicKeyValue = provider.publicKey;
-        }
-        
-        // Make sure we have a public key one way or another
+
+        const publicKeyValue = resp.publicKey || provider.publicKey;
+
         if (!publicKeyValue) {
-          console.error('No public key found in response:', resp);
-          console.error('Provider state after connect:', provider);
-          setError('Connected but no public key was returned');
+          console.error('No public key found after connect attempt.');
+          setError('Connected but no public key was returned.');
+          setIsLoading(false);
           return false;
         }
-        
+
         const key = publicKeyValue.toString();
-        
-        // Wait a moment before updating state
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+        console.log("Wallet connected successfully with key:", key);
+
+        // Update connection state
         setPublicKey(key);
         setIsConnected(true);
-        
-        // Once connected, load wallet data
-        setIsLoading(true);
-        
+
+        // Once connected, load or check user data
         try {
-          // Only fetch data from server, not local storage
-          try {
-            const serverData = await fetchUserRank(key);
-            if (serverData.success && serverData.userData) {
-              console.log('Loaded wallet data from server after login:', serverData.userData);
-              
-              // Use server data exclusively, no localStorage
-              const userData = {
-                username: serverData.userData.username || `User_${key.substring(0, 4)}`,
+          console.log("Fetching user data after successful connect...");
+          const serverData = await fetchUserRank(key);
+          console.log("Server data fetched in connect:", serverData);
+
+          if (serverData.success && serverData.userData && serverData.userData.username) {
+            // User exists and has a username
+            console.log('Existing user found:', serverData.userData.username);
+             const userData = {
+                uid: serverData.userData.uid, // Assume backend returns UID
+                username: serverData.userData.username,
                 points: serverData.userData.points || 0,
                 multiplier: serverData.userData.multiplier || 1.0,
                 lastLogin: Date.now(),
                 daysActive: serverData.userData.daysActive || 0,
                 consecutiveDays: serverData.userData.consecutiveDays || 0,
-                petStats: {
-                  ...(serverData.userData.petState ? {
-                    food: serverData.userData.petState.hunger || 50,
-                    happiness: serverData.userData.petState.happiness || 40,
-                    cleanliness: serverData.userData.petState.cleanliness || 40,
-                    energy: serverData.userData.petState.energy || 30,
-                    health: serverData.userData.petState.health || 30,
-                    isDead: serverData.userData.petState.isDead || false,
-                    points: serverData.userData.points || 0
-                  } : {
-                    food: 50,
-                    happiness: 40,
-                    cleanliness: 40,
-                    energy: 30,
-                    health: 30,
-                    isDead: false,
-                    points: 0
-                  })
+                 petStats: { // Map petState to petStats
+                    food: serverData.userData.petState?.hunger ?? 50,
+                    happiness: serverData.userData.petState?.happiness ?? 40,
+                    cleanliness: serverData.userData.petState?.cleanliness ?? 40,
+                    energy: serverData.userData.petState?.energy ?? 30,
+                    health: serverData.userData.petState?.health ?? 30,
+                    isDead: serverData.userData.petState?.isDead ?? false,
+                    points: serverData.userData.points || 0 // Reuse main points? Check logic
                 }
               };
-              
-              setWalletData(userData);
-              setIsNewUser(false);
-            } else {
-              console.log('No existing wallet data found, initializing with defaults');
-              // Mark as new user so we can show pet name form
-              setIsNewUser(true);
-              const defaultData = {
-                username: `User_${key.substring(0, 4)}`,
-                points: 0,
-                multiplier: 1.0,
-                lastLogin: Date.now(),
-                daysActive: 0,
-                consecutiveDays: 0,
-                petStats: {
-                  food: 50,
-                  happiness: 40,
-                  cleanliness: 40,
-                  energy: 30,
-                  health: 30,
-                  isDead: false,
-                  points: 0
-                }
-              };
-              
-              setWalletData(defaultData);
-              
-              // Save the default data to the server
-              await saveWalletData(key, defaultData);
-            }
-          } catch (serverError) {
-            console.error('Error getting data from server:', serverError);
-            // Set default values if server data loading fails
-            setWalletData({
-              username: `User_${key.substring(0, 4)}`,
-              points: 0,
-              multiplier: 1.0,
-              lastLogin: Date.now(),
-              daysActive: 0,
-              consecutiveDays: 0,
-              petStats: {
-                food: 50,
-                happiness: 40,
-                cleanliness: 40,
-                energy: 30,
-                health: 30,
-                isDead: false,
-                points: 0
-              }
-            });
+            setWalletData(userData);
+            setIsNewUser(false);
+            setShowPetNamePrompt(false);
+          } else {
+            // New user or user without username
+            console.log('New user or user without username detected upon connect.');
+            setWalletData(null); // Clear data
+            setIsNewUser(true);
+            setShowPetNamePrompt(true);
+             // Do not save default data here
           }
         } catch (dataError) {
-          console.error('Error loading wallet data:', dataError);
-          // Set default values if data loading fails
-          setWalletData({
-            username: `User_${key.substring(0, 4)}`,
-            points: 0,
-            multiplier: 1.0,
-            lastLogin: Date.now(),
-            daysActive: 0,
-            consecutiveDays: 0,
-            petStats: {
-              food: 50,
-              happiness: 40,
-              cleanliness: 40,
-              energy: 30,
-              health: 30,
-              isDead: false,
-              points: 0
-            }
-          });
-        } finally {
-          setIsLoading(false);
+          console.error('Error loading wallet data after connect:', dataError);
+          setError('Failed to load user data after connection. Please try refreshing.');
+          // Don't assume new user on fetch error, keep existing state but show error
+          setWalletData(null);
+          setIsNewUser(false); // Uncertain state
+          setShowPetNamePrompt(false);
+          // Keep isConnected true
         }
-        
-        // After successful connection, set showPetNamePrompt to true for every login
-        console.log("Connection successful - showing pet name prompt");
-        setShowPetNamePrompt(true);
-        
-        return true;
-      } catch (connError) {
-        console.error('Connection error:', connError);
-        setError('Failed to connect wallet. Please try again or refresh the page.');
+
+        setIsLoading(false); // Stop loading after data fetch attempt
+        return true; // Connection successful
+
+      } catch (connError: any) {
+        console.error('Wallet connection process failed:', connError);
+         // Try to provide a more helpful error message
+         if (connError.message && connError.message.includes('User rejected')) {
+           setError('Connection rejected by user. Please try again.');
+         } else {
+           setError(`Wallet connection failed: ${connError.message || 'Unknown error'}`);
+         }
+        setIsConnected(false); // Ensure disconnected state on error
+        setPublicKey(null);
+        setWalletData(null);
+        setCurrentWalletName(null);
+        setIsLoading(false);
         return false;
       }
     } catch (error: any) {
       console.error('Wallet connection failed:', error);
       setError(error?.message || 'Failed to connect wallet');
+      setIsLoading(false);
       return false;
     }
   };
   
-  const disconnect = () => {
-    try {
-      const provider = getProvider(currentWalletName || undefined);
-      if (provider) {
-        safeDisconnect(provider);
-        
-        // Reset all state values
-        setIsConnected(false);
-        setPublicKey(null);
-        setWalletData(null);
-        setCurrentWalletName(null);
-        
-        // Clear any stored session data
-        if (typeof window !== 'undefined') {
-          // Remove the auto-connect session flag if it exists
-          sessionStorage.removeItem('phantom_connected');
-          localStorage.removeItem('phantom_last_connected');
-          sessionStorage.removeItem('solflare_connected');
-          localStorage.removeItem('solflare_last_connected');
-        }
+  const disconnect = async () => {
+    console.log("Disconnect triggered.");
+    setError(null); // Clear errors
+    const provider = getProvider(currentWalletName || undefined); // Get provider for current wallet
+    if (provider) {
+      try {
+        await safeDisconnect(provider);
+         console.log("Wallet disconnected via provider.");
+      } catch (e) {
+         console.error("Error during safe disconnect:", e);
+         // Proceed with state reset even if provider disconnect fails
       }
-    } catch (error: any) {
-      setError(error?.message || 'Failed to disconnect wallet');
     }
+    // Reset state regardless of provider success/failure
+    setIsConnected(false);
+    setPublicKey(null);
+    setWalletData(null);
+    setCurrentWalletName(null);
+    setIsNewUser(false);
+    setShowPetNamePrompt(false);
+    setIsLoading(false);
+    console.log("Wallet context state reset.");
   };
   
   const updatePoints = async (points: number) => {
-    if (!publicKey || !walletData) return undefined;
-    
-    const updatedWalletData = {
-      ...walletData,
-      petStats: {
-        ...walletData.petStats,
-        points
-      }
-    };
-    
-    setWalletData(updatedWalletData);
-    
-    // Save updated data directly to server
-    await saveWalletData(publicKey, updatedWalletData);
-    
-    return points;
-  };
-  
-  const burnPoints = async () => {
-    if (!publicKey || !walletData) return undefined;
-    
-    // Calculate remaining points (burn 50%)
-    const currentPoints = walletData.petStats.points;
-    const remainingPoints = Math.floor(currentPoints * 0.5);
-    
-    const updatedWalletData = {
-      ...walletData,
-      petStats: {
-        ...walletData.petStats,
-        points: remainingPoints
-      }
-    };
-    
-    setWalletData(updatedWalletData);
-    
-    // Save updated data
-    const saved = await saveWalletData(publicKey, updatedWalletData);
-    if (!saved) {
-      console.warn('Failed to persist points burn to server, using memory storage');
-    }
-    
-    return remainingPoints;
-  };
-  
-  // Add function to set username for users
+     if (!publicKey || !walletData) return undefined;
+     try {
+       // Assuming saveWalletData updates points and returns the new total/state
+       const updatedData = { ...walletData, points: walletData.points + points };
+       await saveWalletData(publicKey, updatedData); // Adjust payload as needed for backend
+       setWalletData(updatedData);
+       return updatedData.points;
+     } catch (error) {
+       console.error('Error updating points:', error);
+       setError('Failed to update points.');
+       return undefined;
+     }
+   };
+
+   const burnPoints = async () => {
+     if (!publicKey || !walletData) return undefined;
+     try {
+       // Assuming saveWalletData handles burning logic (e.g., sets points to 0)
+       // You might need a specific backend endpoint like /api/burnPoints?publicKey=...
+       const updatedData = { ...walletData, points: 0 }; // Example: Reset points locally
+       await saveWalletData(publicKey, updatedData); // Adjust payload/endpoint if needed
+       setWalletData(updatedData);
+       return 0; // Return new points value
+     } catch (error) {
+       console.error('Error burning points:', error);
+       setError('Failed to burn points.');
+       return undefined;
+     }
+   };
+
   const setUsername = async (username: string): Promise<boolean> => {
-    if (!publicKey || !walletData) return false;
-    
-    console.log('👤 Setting username to:', username);
-    
+    if (!publicKey) {
+      setError("Cannot set username: Not connected.");
+      return false;
+    }
+    // Basic validation (can be enhanced in the UI component)
+    if (!username || username.trim().length < 4 || username.trim().length > 16 || username.startsWith(' ')) {
+       setError("Invalid username. Must be 4-16 characters and not start with space.");
+       return false;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      // Use PUT endpoint specifically for username update
-      const response = await fetch('/api/wallet', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey,
-          action: 'setUsername',
-          username: username
-        }),
-      });
+      console.log(`Attempting to set username '${username}' for key ${publicKey}`);
       
-      if (!response.ok) {
-        console.warn('Failed to save username to server');
+      // Prepare initial data for a new user, including the username
+      // The backend should generate the UID and handle defaults for other fields
+      const initialUserData = {
+          username: username.trim(),
+          // Include other fields the backend expects for initial creation, if any.
+          // Example: points: 0, multiplier: 1.0, etc. - depends on saveWalletData needs.
+          // DO NOT send a UID from the client.
+      };
+
+      // Call the backend to save the data (which should create the user profile)
+      const saveResult = await saveWalletData(publicKey, initialUserData);
+      console.log("Save wallet data result:", saveResult);
+
+      // After saving, fetch the complete user data to get the UID and confirm state
+       console.log("Refetching user data after setting username...");
+      const serverData = await fetchUserRank(publicKey);
+       console.log("Refetched server data:", serverData);
+
+
+      if (serverData.success && serverData.userData && serverData.userData.username === username.trim()) {
+         // Successfully created/updated and refetched
+          const userData = {
+            uid: serverData.userData.uid, // Get the UID from backend
+            username: serverData.userData.username,
+            points: serverData.userData.points || 0,
+            multiplier: serverData.userData.multiplier || 1.0,
+            lastLogin: Date.now(), // Update last login time
+            daysActive: serverData.userData.daysActive || 1, // Start at day 1
+            consecutiveDays: serverData.userData.consecutiveDays || 1,
+            petStats: {
+                food: serverData.userData.petState?.hunger ?? 50,
+                happiness: serverData.userData.petState?.happiness ?? 40,
+                cleanliness: serverData.userData.petState?.cleanliness ?? 40,
+                energy: serverData.userData.petState?.energy ?? 30,
+                health: serverData.userData.petState?.health ?? 30,
+                isDead: serverData.userData.petState?.isDead ?? false,
+                points: serverData.userData.points || 0
+            }
+          };
+        setWalletData(userData);
+        setIsNewUser(false);
+        setShowPetNamePrompt(false);
+        console.log("Username set successfully and user data updated.");
+        setIsLoading(false);
+        return true;
+      } else {
+        // Handle cases where save might have succeeded but fetch failed,
+        // or username doesn't match (edge case)
+        console.error("Failed to verify username update or fetch updated data.");
+        setError("Failed to update profile. Please try again.");
+        // Keep prompt open if verification failed
+        setIsNewUser(true);
+        setShowPetNamePrompt(true);
+        setIsLoading(false);
         return false;
       }
-      
-      // Update local state
-      const updatedWalletData = {
-        ...walletData,
-        username: username
-      };
-      
-      console.log('👤 Updated wallet data with new username:', updatedWalletData.username);
-      setWalletData(updatedWalletData);
-      
-      // No longer a new user after completing setup
-      setIsNewUser(false);
-      
-      // Dismiss the pet name prompt after successful update
-      setShowPetNamePrompt(false);
-      
-      return true;
     } catch (error) {
       console.error('Error setting username:', error);
+      setError('An error occurred while setting username.');
+       // Keep prompt open on error
+       setIsNewUser(true);
+       setShowPetNamePrompt(true);
+      setIsLoading(false);
       return false;
     }
   };
@@ -759,6 +599,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     updatePoints,
     burnPoints,
     error,
+    isLoading,
     isNewUser,
     showPetNamePrompt,
     setUsername,

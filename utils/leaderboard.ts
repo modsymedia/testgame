@@ -52,10 +52,10 @@ export async function fetchLeaderboard(limit = 6, page = 1): Promise<{
 /**
  * Update a user's score in the leaderboard
  * @param walletAddress The user's wallet address
- * @param score The user's score
+ * @param points The user's points
  * @returns Success status
  */
-export async function updateUserScore(walletAddress: string, score: number): Promise<boolean> {
+export async function updateUserPoints(walletAddress: string, points: number): Promise<boolean> {
   // Skip if no wallet address
   if (!walletAddress) {
     console.warn('Cannot update leaderboard without wallet address');
@@ -63,7 +63,7 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
   }
   
   try {
-    console.log(`Updating leaderboard for ${walletAddress.substring(0, 8)}... with score ${score}`);
+    console.log(`Updating leaderboard for ${walletAddress.substring(0, 8)}... with points ${points}`);
     
     // Use the new dedicated API endpoint for leaderboard updates
     const response = await fetch('/api/leaderboard/update', {
@@ -73,7 +73,7 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
       },
       body: JSON.stringify({
         walletAddress,
-        score
+        points
       }),
     });
     
@@ -86,7 +86,7 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
         console.warn(`Leaderboard update warning: ${data.warning}`);
       }
       
-      console.log('Score update successful');
+      console.log('Points update successful');
       
       // Return the new rank if available
       if (data.rank) {
@@ -106,7 +106,7 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
         errorMessage = responseText || 'Failed to read error response';
       }
       
-      console.error(`Score update failed: ${errorMessage}`);
+      console.error(`Points update failed: ${errorMessage}`);
       
       // Always return true for non-critical features to ensure game continues
       // But add a console warning
@@ -114,7 +114,7 @@ export async function updateUserScore(walletAddress: string, score: number): Pro
       return true;
     }
   } catch (error) {
-    console.error('Error updating score:', error);
+    console.error('Error updating points:', error);
     // Don't fail the game just because leaderboard update failed
     return true;
   }
