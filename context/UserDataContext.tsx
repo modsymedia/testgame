@@ -11,8 +11,6 @@ interface UserData {
   claimedPoints: number;
   multiplier: number;
   rank: number | null;
-  UID: string | null;
-  referralCount: number;
   lastLogin: number;
   lastSync: number;
   username: string | null;
@@ -24,8 +22,6 @@ const defaultUserData: UserData = {
   claimedPoints: 0,
   multiplier: 1.0,
   rank: null,
-  UID: null,
-  referralCount: 0,
   lastLogin: Date.now(),
   lastSync: Date.now(),
   username: null
@@ -41,16 +37,6 @@ interface UserDataContextType {
   claimPoints: (amount: number) => Promise<boolean>;
   updateUsername: (username: string) => Promise<boolean>;
   resetUserData: () => void;
-  getReferralData: () => Promise<{
-    UID: string | null;
-    referralCount: number;
-    totalEarned: number;
-  }>;
-  validateUID: (code: string) => Promise<{
-    valid: boolean;
-    referrerWalletAddress?: string;
-    pointsAwarded?: number;
-  }>;
 }
 
 // Create the context
@@ -76,24 +62,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
   // Get instance of PointsManager
   const pointsManagerInstance = PointsManager.instance;
-
-  // --- START Referral Code Handling ---
-  useEffect(() => {
-    // Only run on client
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const refCode = urlParams.get('ref');
-      if (refCode) {
-        // Store the referral code in session storage
-        sessionStorage.setItem('pendingUID', refCode);
-        console.log('Referral code found in URL and stored:', refCode);
-        // Optional: Remove the ref from the URL to clean it up
-        // const nextUrl = window.location.pathname;
-        // window.history.replaceState({}, '', nextUrl);
-      }
-    }
-  }, []); // Run only once on initial mount
-  // --- END Referral Code Handling ---
 
   // Memoize the syncWithServer function to prevent dependency cycle
   const syncWithServer = useCallback(async () => {
@@ -126,7 +94,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             claimedPoints: serverData.claimedPoints || prevData.claimedPoints,
             multiplier: serverData.multiplier || prevData.multiplier,
             rank: serverData.rank || prevData.rank,
-            referralCount: serverData.referralCount || prevData.referralCount,
             lastSync: now
           }));
         } else {
@@ -204,8 +171,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           claimedPoints: walletData.claimedPoints || 0,
           multiplier: walletData.multiplier || 1.0,
           rank: walletData.rank || null,
-          UID: walletData.UID || null,
-          referralCount: walletData.referralCount || 0,
           lastLogin: walletData.lastLogin || Date.now(),
           lastSync: Date.now(),
           username: walletData.username || null
@@ -214,33 +179,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         console.log('No wallet data found, creating new wallet');
         // Create new user data if it doesn't exist
         try {
-          const createResult = await dbService.createWallet(publicKey);
-          
-          // --- START Process Referral Code after creation ---
-          if (createResult) {
-            const storedRefCode = sessionStorage.getItem('pendingUID');
-            if (storedRefCode) {
-              console.log(`[UserDataContext] Processing stored referral code: ${storedRefCode} for new user ${publicKey}`);
-              try {
-                const validationResult = await validateUID(storedRefCode);
-                if (validationResult.valid) {
-                  console.log(`[UserDataContext] Referral code ${storedRefCode} successfully applied for ${publicKey}. Referrer: ${validationResult.referrerWalletAddress}`);
-                  // Optionally, trigger a toast or notification for the new user
-                } else {
-                  console.warn(`[UserDataContext] Stored referral code ${storedRefCode} was invalid for user ${publicKey}.`);
-                }
-                // Clear the code from session storage regardless of validity
-                console.log(`[UserDataContext] Removing referral code ${storedRefCode} from session storage.`);
-                sessionStorage.removeItem('pendingUID');
-              } catch (validationError) {
-                console.error(`[UserDataContext] Error validating referral code ${storedRefCode}:`, validationError);
-                // Still remove the code to prevent retries on error
-                console.log(`[UserDataContext] Removing referral code ${storedRefCode} from session storage after error.`);
-                sessionStorage.removeItem('pendingUID');
-              }
-            }
-          }
-          // --- END Process Referral Code after creation ---
+          await dbService.createWallet(publicKey);
           
           setUserData({
             ...defaultUserData,
@@ -269,14 +208,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Function that uses pointsManager to execute operations correctly
-  const executePointsManagerOperation = async <T extends any[]>(operation: string, ...args: T): Promise<Record<string, any>> => {
+  // Function that uses pointsManager to execute operations correctly - simplified
+  const executePointsManagerOperation = async (operation: string, ...args: any[]): Promise<any> => {
     try {
       // Check if the operation exists on the pointsManager instance
-      const fn = pointsManagerInstance[operation as keyof typeof pointsManagerInstance];
-      if (typeof fn === 'function') {
-        // Call the function with the provided arguments
-        return await (fn as (...args: T) => Promise<Record<string, any>>)(...args);
+      if (typeof pointsManagerInstance[operation as keyof typeof pointsManagerInstance] === 'function') {
+        // Call the function with the provided arguments using any to avoid type conflicts
+        return await (pointsManagerInstance[operation as any])(...args);
       } else {
         console.error(`The operation "${operation}" is not available on pointsManager`);
         return { success: false, error: `Operation not supported: ${operation}` };
@@ -442,62 +380,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Get referral data
-  const getReferralData = async () => {
-    if (!publicKey || !isConnected) {
-      return {
-        UID: null,
-        referralCount: 0,
-        totalEarned: 0
-      };
-    }
-    
-    try {
-      // Use the executePointsManagerOperation helper
-      const result = await executePointsManagerOperation('getUserPointsData', publicKey);
-      return {
-        UID: userData.UID,
-        referralCount: userData.referralCount,
-        totalEarned: result.points || 0
-      };
-    } catch (err) {
-      console.error('Failed to get referral data:', err);
-      setError('Failed to get referral data. Please try again.');
-      return {
-        UID: userData.UID,
-        referralCount: userData.referralCount,
-        totalEarned: 0
-      };
-    }
-  };
-
-  // Validate a referral code
-  const validateUID = async (code: string) => {
-    if (!publicKey || !isConnected) {
-      return { valid: false };
-    }
-    
-    try {
-      // Implement fallback validation using database service directly
-      try {
-        // Call the appropriate database service method if available
-        return await dbService.validateReferralCode?.(code, publicKey) || { valid: false };
-      } catch (dbError) {
-        console.warn('Database validation failed, attempting direct validation:', dbError);
-        
-        // Manual validation approach if needed
-        return { 
-          valid: false,
-          message: 'Referral validation not implemented'
-        };
-      }
-    } catch (err) {
-      console.error('Failed to validate referral code:', err);
-      setError('Failed to validate referral code. Please try again.');
-      return { valid: false };
-    }
-  };
-
   // Reset user data
   const resetUserData = () => {
     setUserData(defaultUserData);
@@ -563,9 +445,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         syncWithServer,
         claimPoints,
         updateUsername,
-        resetUserData,
-        getReferralData,
-        validateUID
+        resetUserData
       }}
     >
       {children}
