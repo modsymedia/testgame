@@ -4,42 +4,67 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config({ path: '.env.development.local' });
 
-async function resetDB() {
+// Create a SQL client
+const sql = neon(process.env.DATABASE_URL || '');
+
+// Function to create the pet_states table
+async function createPetStatesTable() {
+  console.log('Creating pet_states table...');
   try {
-    console.log('Connecting to database...');
-    const sql = neon(process.env.DATABASE_URL);
-    
-    console.log('Getting all table names...');
-    const tables = await sql`
-      SELECT tablename 
-      FROM pg_catalog.pg_tables 
-      WHERE schemaname = 'public'
+    await sql`
+      CREATE TABLE IF NOT EXISTS pet_states (
+        wallet_address TEXT PRIMARY KEY,
+        health INTEGER DEFAULT 100,
+        happiness INTEGER DEFAULT 100,
+        hunger INTEGER DEFAULT 100,
+        cleanliness INTEGER DEFAULT 100,
+        energy INTEGER DEFAULT 100,
+        last_interaction_time TIMESTAMP,
+        last_state_update TIMESTAMP,
+        quality_score INTEGER DEFAULT 0,
+        last_message TEXT,
+        last_reaction TEXT,
+        is_dead BOOLEAN DEFAULT false,
+        FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
+      )
     `;
-    
-    console.log('Tables found:', tables.map(t => t.tablename).join(', '));
-    
-    console.log('Dropping all tables...');
-    
-    // Disable foreign key constraints while dropping tables
-    await sql`SET session_replication_role = 'replica'`;
-    
-    // Drop each table
-    for (const table of tables) {
-      try {
-        console.log(`Dropping table: ${table.tablename}`);
-        await sql`DROP TABLE IF EXISTS ${sql(table.tablename)} CASCADE`;
-      } catch (error) {
-        console.error(`Error dropping table ${table.tablename}:`, error);
-      }
-    }
-    
-    // Re-enable foreign key constraints
-    await sql`SET session_replication_role = 'origin'`;
-    
-    console.log('All tables dropped. Next app will reinitialize the database.');
-  } catch (err) {
-    console.error('Error resetting database:', err);
+    console.log('Pet states table created successfully');
+    return true;
+  } catch (error) {
+    console.error('Error creating pet_states table:', error);
+    return false;
   }
 }
 
-resetDB(); 
+// Main function to run the script
+async function main() {
+  console.log('Starting database schema verification...');
+  
+  try {
+    // List existing tables
+    const tables = await sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    
+    console.log('Existing tables:', tables.map(t => t.table_name));
+    
+    // Check if pet_states table exists
+    const petStatesExists = tables.some(t => t.table_name === 'pet_states');
+    
+    if (petStatesExists) {
+      console.log('pet_states table already exists');
+    } else {
+      console.log('pet_states table does not exist, creating...');
+      await createPetStatesTable();
+    }
+    
+    console.log('Database schema verification completed');
+  } catch (error) {
+    console.error('Error during database verification:', error);
+  }
+}
+
+// Run the main function
+main().catch(console.error); 
