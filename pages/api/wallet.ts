@@ -4,6 +4,18 @@ import { neon } from '@neondatabase/serverless';
 // Create a SQL client with your connection string
 const sql = neon(process.env.DATABASE_URL || '');
 
+// Define interfaces for our data types
+interface PetState {
+  health: number;
+  happiness: number;
+  hunger: number;
+  cleanliness: number;
+  energy: number;
+  last_state_update?: Date | string | null;
+  quality_score?: number;
+  is_dead?: boolean;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -170,14 +182,14 @@ export default async function handler(
         }
         
         // Get pet state if it exists
-        let petState = null;
+        let petState: PetState | null = null;
         try {
           const petStateResult = await sql`
             SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
           `;
           
           if (petStateResult.length > 0) {
-            petState = petStateResult[0];
+            petState = petStateResult[0] as PetState;
           }
         } catch (petError: any) {
           console.error('Error fetching pet state:', petError.message);
