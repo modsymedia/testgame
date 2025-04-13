@@ -415,6 +415,14 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsConnected(true);
 
         // Initialize database tables before loading data
+        try {
+          const { DatabaseService } = await import('../lib/database-service');
+          await DatabaseService.instance.initTables();
+          console.log("Database tables initialized");
+        } catch (dbError) {
+          console.warn("Database table initialization error:", dbError);
+          // Continue anyway as tables might already exist
+        }
         
         // Once connected, load or check user data
         await fetchDataForConnectedWallet(key);

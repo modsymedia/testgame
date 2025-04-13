@@ -1,8 +1,7 @@
-import { sql } from '@vercel/postgres';
-import { db } from '@vercel/postgres';
-import { User, PetState, LeaderboardEntry, GameSession, SyncStatus, SyncOperation } from './models';
 import { EventEmitter } from 'events';
 import crypto from 'crypto';
+import { User, PetState, LeaderboardEntry, GameSession, SyncStatus, SyncOperation } from './models';
+import { getReadConnection, getWriteConnection, executeTransaction } from './db-connection';
 
 // Add configuration for API-based access
 const USE_API_FOR_WRITE_OPERATIONS = true; // Switch to true to use API routes instead of direct DB access
@@ -173,6 +172,8 @@ export class DatabaseService {
   // Initialize database tables
   public async initTables(): Promise<void> {
     try {
+      const sql = getWriteConnection();
+      
       // Create users table
       await sql`
         CREATE TABLE IF NOT EXISTS users (
@@ -405,72 +406,30 @@ export class DatabaseService {
 
   // Get user data with caching and conflict resolution
   public async getUserData(walletAddress: string): Promise<User | null> {
-    const cacheKey = `user:${walletAddress}`;
-
-    // 1. Check cache first
-    if (this.cache.has(cacheKey)) {
-      const cachedData = this.cache.get(cacheKey);
-      // Check if cached data indicates a failed load, if so, retry fetching
-      if (!cachedData?.loadFailed) {
-           // If UID is missing in cache, attempt to backfill (but don't await here to avoid blocking)
-           if (cachedData && !cachedData.uid) {
-               console.log(`Cached data for ${walletAddress} missing UID. Attempting background backfill.`);
-               this.backfillUid(walletAddress).catch(err => {
-                   console.error(`Background UID backfill failed for ${walletAddress}:`, err);
-               });
-           }
-        return cachedData;
-      }
-      console.log("Cached data indicated previous load failure. Refetching...")
-    }
-
     try {
-      // 2. Fetch from database if not in cache or cache indicates failure
+      // Check cache first
+      if (this.cache.has(`user:${walletAddress}`)) {
+        return this.cache.get(`user:${walletAddress}`);
+      }
+      
+      // Query database
+      const sql = getReadConnection();
       const result = await sql`
-        SELECT * FROM users WHERE wallet_address = ${walletAddress}
+        SELECT * FROM users WHERE wallet_address = ${walletAddress} LIMIT 1
       `;
-
-      if (result.rows.length > 0) {
-        const userData = rowToUser(result.rows[0]);
-
-        // ---> Backfill UID logic <--- 
-        if (!userData.uid) {
-          console.warn(`UID missing for user ${walletAddress}. Generating and saving new UID.`);
-          try {
-            // Generate new UID
-            const timestampPart = Date.now().toString(36);
-            const randomPart = crypto.randomBytes(4).toString('hex');
-            const newUid = `${timestampPart}-${randomPart}`;
-            
-            // Update the database with the new UID
-            const updateSuccess = await this.updateUserData(walletAddress, { uid: newUid });
-            
-            if (updateSuccess) {
-              console.log(`Successfully backfilled UID ${newUid} for user ${walletAddress}`);
-              userData.uid = newUid; // Update the object we're about to return/cache
-            } else {
-              console.error(`Failed to save backfilled UID for user ${walletAddress}.`);
-               // Proceed with null uid for now, maybe retry later?
-            }
-          } catch(backfillError) {
-             console.error(`Error during UID backfill for ${walletAddress}:`, backfillError);
-             // Proceed with null uid
-          }
-        }
-        // ---> End Backfill UID logic <--- 
-
-        this.cache.set(cacheKey, userData); // Cache the potentially updated user data
-        return userData;
-      } else {
-        console.log(`No user data found for wallet: ${walletAddress}`);
-        // Cache the fact that the load failed (user not found)
-        this.cache.set(cacheKey, { loadFailed: true, error: 'User not found' });
+      
+      if (result.rows.length === 0) {
         return null;
       }
+      
+      const userData = rowToUser(result.rows[0]);
+      
+      // Store in cache
+      this.cache.set(`user:${walletAddress}`, userData);
+      
+      return userData;
     } catch (error) {
       console.error('Error fetching user data:', error);
-      // Cache the fact that the load failed
-      this.cache.set(cacheKey, { loadFailed: true, error: error instanceof Error ? error.message : 'Unknown fetch error' });
       return null;
     }
   }
@@ -478,106 +437,57 @@ export class DatabaseService {
   // Helper function for background UID backfill (used for cached data)
   private async backfillUid(walletAddress: string): Promise<void> {
       // Re-fetch data directly to ensure we have the latest DB state
-       const result = await sql`SELECT uid FROM users WHERE wallet_address = ${walletAddress}`;
-       if (result.rows.length > 0 && !result.rows[0].uid) {
-            const timestampPart = Date.now().toString(36);
-            const randomPart = crypto.randomBytes(4).toString('hex');
-            const newUid = `${timestampPart}-${randomPart}`;
-            await this.updateUserData(walletAddress, { uid: newUid });
-            console.log(`Background backfill successful for ${walletAddress} with UID: ${newUid}`);
-            
-            // Update cache directly after successful DB update
-            const currentCached = this.cache.get(`user:${walletAddress}`);
-            if (currentCached && !currentCached.loadFailed) {
-                this.cache.set(`user:${walletAddress}`, { ...currentCached, uid: newUid });
-            }
-       }
+      const sqlConn = getReadConnection();
+      const result = await sqlConn`SELECT uid FROM users WHERE wallet_address = ${walletAddress}`;
+      if (result.rows.length > 0 && !result.rows[0].uid) {
+          const timestampPart = Date.now().toString(36);
+          const randomPart = crypto.randomBytes(4).toString('hex');
+          const newUid = `${timestampPart}-${randomPart}`;
+          await this.updateUserData(walletAddress, { uid: newUid });
+          console.log(`Background backfill successful for ${walletAddress} with UID: ${newUid}`);
+          
+          // Update cache directly after successful DB update
+          const currentCached = this.cache.get(`user:${walletAddress}`);
+          if (currentCached && !currentCached.loadFailed) {
+              this.cache.set(`user:${walletAddress}`, { ...currentCached, uid: newUid });
+          }
+      }
   }
 
   // Create a new user
   public async createUser(userData: Partial<User>): Promise<string | null> {
     try {
-      if (!userData.walletAddress) {
-        throw new Error('Wallet address is required');
-      }
-      
-      // Only include fields known to exist in the database
-      const result = await sql`
-        INSERT INTO users (
-          wallet_address, username, games_played, last_played, created_at,
-          points, daily_points, last_points_update, days_active, consecutive_days, token_balance,
-          multiplier, last_interaction_time, cooldowns, recent_point_gain, last_point_gain_time
-        ) VALUES (
-          ${userData.walletAddress},
-          ${userData.username || null},
-          ${userData.gamesPlayed || 0},
-          ${userData.lastPlayed ? userData.lastPlayed.toISOString() : new Date().toISOString()},
-          ${userData.createdAt ? userData.createdAt.toISOString() : new Date().toISOString()},
-          ${userData.points || 0},
-          ${userData.dailyPoints || 0},
-          ${userData.lastPointsUpdate ? userData.lastPointsUpdate.toISOString() : new Date().toISOString()},
-          ${userData.daysActive || 0},
-          ${userData.consecutiveDays || 0},
-          ${userData.tokenBalance || 0},
-          ${userData.multiplier || 1.0},
-          ${userData.lastInteractionTime ? userData.lastInteractionTime.toISOString() : new Date().toISOString()},
-          ${userData.cooldowns ? JSON.stringify(userData.cooldowns) : '{}'},
-          ${userData.recentPointGain || 0},
-          ${userData.lastPointGainTime ? userData.lastPointGainTime.toISOString() : new Date().toISOString()}
-        )
-        RETURNING id
-      `;
-      
-      // Always create initial pet state for new users
-      // First check if pet state already exists
-      const existingPetState = await sql`
-        SELECT wallet_address FROM pet_states WHERE wallet_address = ${userData.walletAddress}
-      `;
-      
-      if (existingPetState.rows.length === 0) {
-        // No existing pet state, create one with default values
-        const petState = userData.petState || {
-          health: 100,
-          happiness: 100,
-          hunger: 100,
-          cleanliness: 100,
-          energy: 100,
-          isDead: false,
-          qualityScore: 0,
-          lastMessage: '',
-          lastReaction: 'none'
-        };
+      return await executeTransaction(async (sql) => {
+        // Generate a unique ID if not provided
+        const uid = userData.uid || generateUniqueId();
         
-        await sql`
-          INSERT INTO pet_states (
-            wallet_address, health, happiness, hunger, cleanliness, energy,
-            last_state_update, quality_score, last_message, last_reaction, is_dead, last_interaction_time
+        // Insert user data
+        const result = await sql`
+          INSERT INTO users (
+            wallet_address,
+            username,
+            created_at,
+            uid
           ) VALUES (
             ${userData.walletAddress},
-            ${petState.health || 100},
-            ${petState.happiness || 100},
-            ${petState.hunger || 100},
-            ${petState.cleanliness || 100},
-            ${petState.energy || 100},
-            ${new Date().toISOString()},
-            ${petState.qualityScore || 0},
-            ${petState.lastMessage || ''},
-            ${petState.lastReaction || 'none'},
-            ${petState.isDead || false},
-            ${new Date().toISOString()}
+            ${userData.username || null},
+            NOW(),
+            ${uid}
           )
+          RETURNING wallet_address
         `;
-        console.log(`Created initial pet state for user: ${userData.walletAddress}`);
-      }
-      
-      // Cache the new user data
-      const cacheKey = `user:${userData.walletAddress}`;
-      this.cache.set(cacheKey, {
-        ...userData,
-        _id: result.rows[0]?.id
+        
+        if (result.rows.length === 0) {
+          throw new Error('Failed to create user');
+        }
+        
+        const walletAddress = result.rows[0].wallet_address;
+        
+        // Add to cache
+        this.cache.set(`user:${walletAddress}`, { ...userData, walletAddress });
+        
+        return uid;
       });
-      
-      return result.rows[0]?.id || null;
     } catch (error) {
       console.error('Error creating user:', error);
       return null;
@@ -741,6 +651,7 @@ export class DatabaseService {
       // Otherwise use direct DB connection (server-side or if flag is disabled)
       // Then try to update the database
       // Build dynamic SQL query without relying on version
+      const sqlConn = getWriteConnection();
       const setClauses: string[] = [];
       const values: any[] = [];
       let paramIndex = 1;
@@ -776,7 +687,7 @@ export class DatabaseService {
           WHERE wallet_address = $${values.length}
         `;
         
-        await db.query(updateSql, values);
+        await sqlConn(updateSql, values);
       }
       
       // Handle pet state separately if present
@@ -807,7 +718,8 @@ export class DatabaseService {
       console.log('Updating pet state for wallet:', walletAddress, petState);
       
       // Check if the pet state already exists
-      const existingPet = await sql`
+      const readSql = getReadConnection();
+      const existingPet = await readSql`
         SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
       `;
       
@@ -831,9 +743,10 @@ export class DatabaseService {
       const energy = typeof petState.energy === 'number' ? Math.max(0, Math.min(100, petState.energy)) : 100;
       const qualityScore = typeof petState.qualityScore === 'number' ? Math.max(0, petState.qualityScore) : 0;
       
+      const writeSql = getWriteConnection();
       if (existingPet.rows && existingPet.rows.length > 0) {
         // Update existing pet state
-        await sql`
+        await writeSql`
           UPDATE pet_states SET
             health = ${health},
             happiness = ${happiness}, 
@@ -851,7 +764,7 @@ export class DatabaseService {
         `;
       } else {
         // Insert new pet state
-        await sql`
+        await writeSql`
           INSERT INTO pet_states (
             wallet_address, health, happiness, hunger, cleanliness, energy,
             last_state_update, quality_score, last_message, last_reaction, is_dead, last_interaction_time
@@ -899,7 +812,8 @@ export class DatabaseService {
       const sessionId = generateUniqueId();
       const now = new Date();
       
-      await sql`
+      const sqlConn = getWriteConnection();
+      await sqlConn`
         INSERT INTO game_sessions (
           wallet_address, session_id, started_at, last_active, game_state, is_active, version
         ) VALUES (
@@ -936,7 +850,8 @@ export class DatabaseService {
   public async updateGameSession(sessionId: string, gameState: any): Promise<boolean> {
     try {
       // Simple update without version checking
-      await sql`
+      const sqlConn = getWriteConnection();
+      await sqlConn`
         UPDATE game_sessions
         SET 
           game_state = ${JSON.stringify(gameState)},
@@ -971,7 +886,8 @@ export class DatabaseService {
     }
     
     try {
-      const result = await sql`
+      const sqlConn = getReadConnection();
+      const result = await sqlConn`
         SELECT * FROM game_sessions WHERE session_id = ${sessionId} AND is_active = true
       `;
       
@@ -1000,7 +916,8 @@ export class DatabaseService {
   // End game session
   public async endGameSession(sessionId: string): Promise<boolean> {
     try {
-      await sql`
+      const sqlConn = getWriteConnection();
+      await sqlConn`
         UPDATE game_sessions
         SET 
           is_active = false,
@@ -1098,24 +1015,24 @@ export class DatabaseService {
   // Add a new method for fetching leaderboard data
   public async getLeaderboard(limit: number = 10): Promise<LeaderboardEntry[]> {
     try {
-      const query = sql`
-        SELECT wallet_address, username, points,
-               ROW_NUMBER() OVER (ORDER BY points DESC) as rank
+      const sqlConn = getReadConnection();
+      const result = await sqlConn`
+        SELECT username, wallet_address, score, points, days_active
         FROM users
-        ORDER BY points DESC
+        ORDER BY score DESC, points DESC
         LIMIT ${limit}
       `;
-
-      const result = await query;
-
-      return result.rows.map((row: any): LeaderboardEntry => ({
+      
+      return result.rows.map((row, index) => ({
+        rank: index + 1,
+        username: row.username || `Player ${index + 1}`,
         walletAddress: row.wallet_address,
-        username: row.username,
-        points: row.points || 0,
-        rank: parseInt(row.rank, 10)
+        score: row.score,
+        points: row.points,
+        daysActive: row.days_active
       }));
     } catch (error) {
-      console.error('Error getting leaderboard:', error);
+      console.error('Error fetching leaderboard:', error);
       return [];
     }
   }
@@ -1134,7 +1051,8 @@ export class DatabaseService {
       }
       
       // If not in cache, query the database
-      const result = await sql`
+      const sqlConn = getReadConnection();
+      const result = await sqlConn`
         SELECT * FROM users WHERE wallet_address = ${publicKey} LIMIT 1
       `;
       
@@ -1163,8 +1081,9 @@ export class DatabaseService {
       const randomPart = crypto.randomBytes(4).toString('hex');
       const uid = `${timestampPart}-${randomPart}`;
       
-      // Use the imported sql object directly, not this.sql
-      const result = await sql`
+      // Use our connection manager instead of direct sql reference
+      const sqlConn = getWriteConnection();
+      const result = await sqlConn`
         INSERT INTO users (wallet_address, created_at, last_login, uid) 
         VALUES (${walletAddress}, NOW(), NOW(), ${uid})
         ON CONFLICT (wallet_address) DO NOTHING
@@ -1244,13 +1163,14 @@ export class DatabaseService {
       }
       
       // Execute the update query
+      const sqlConn = getWriteConnection();
       const query = `
         UPDATE users 
         SET ${setClause}
         WHERE wallet_address = $${keys.length + 1}
       `;
       
-      await db.query(query, [...values, publicKey]);
+      await sqlConn(query, values);
       
       // Mark for synchronization
       this.cache.markDirty(`user:${publicKey}`);
@@ -1285,13 +1205,14 @@ export class DatabaseService {
         : '';
       
       // Execute query
+      const sqlConn = getReadConnection();
       const query = `
         SELECT * FROM users
         ${whereClause}
         LIMIT 100
       `;
       
-      const result = await db.query(query, values);
+      const result = await sqlConn(query, values);
       
       // Convert rows to User objects
       return result.rows.map(row => rowToUser(row));
@@ -1394,7 +1315,8 @@ export class DatabaseService {
       }
 
       // First check if the table exists to avoid errors
-      const tableCheck = await sql`
+      const sqlConn = getReadConnection();
+      const tableCheck = await sqlConn`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public'
@@ -1408,7 +1330,8 @@ export class DatabaseService {
         console.warn("User activities table does not exist yet. Creating table...");
         // Try to create the table
         try {
-          await sql`
+          const writeSql = getWriteConnection();
+          await writeSql`
             CREATE TABLE IF NOT EXISTS user_activities (
               id SERIAL PRIMARY KEY,
               wallet_address TEXT NOT NULL,
@@ -1437,7 +1360,8 @@ export class DatabaseService {
       }
 
       // Execute the query directly with the sql template
-      await sql`
+      const writeSql = getWriteConnection();
+      await writeSql`
         INSERT INTO user_activities (
           wallet_address, 
           activity_id, 
@@ -1518,7 +1442,8 @@ export class DatabaseService {
       }
 
       // First check if the table exists to avoid errors
-      const tableCheck = await sql`
+      const sqlConn = getReadConnection();
+      const tableCheck = await sqlConn`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public'
@@ -1532,7 +1457,8 @@ export class DatabaseService {
         console.warn("User activities table does not exist yet. Creating table...");
         // Try to create the table
         try {
-          await sql`
+          const writeSql = getWriteConnection();
+          await writeSql`
             CREATE TABLE IF NOT EXISTS user_activities (
               id SERIAL PRIMARY KEY,
               wallet_address TEXT NOT NULL,
@@ -1551,7 +1477,8 @@ export class DatabaseService {
       }
 
       // Execute the query directly with the sql template
-      const result = await sql`
+      const resultSql = getReadConnection();
+      const result = await resultSql`
         SELECT 
           activity_id as id, 
           activity_type as type, 
