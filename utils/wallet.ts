@@ -92,26 +92,7 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     isSaving = true;
     console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
     
-    // Try to save to server directly
     try {
-      // First, make a call to ensure tables exist
-      try {
-        const initResponse = await fetch('/api/init-database', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (initResponse.ok) {
-          console.log('Database tables verified');
-        } else {
-          console.warn('Database initialization may have failed, continuing anyway');
-        }
-      } catch (initError) {
-        console.warn('Database initialization error, continuing with save:', initError);
-      }
-      
       const response = await fetch('/api/wallet', {
         method: 'POST',
         headers: {
@@ -122,11 +103,11 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
           score: data.petStats?.points || 0,
           username: data.username,
           petState: {
-            health: data.petStats?.health || 30,
-            happiness: data.petStats?.happiness || 40,
-            hunger: data.petStats?.food || 50,
-            cleanliness: data.petStats?.cleanliness || 40,
-            energy: data.petStats?.energy || 30,
+            health: Math.floor(data.petStats?.health || 30),
+            happiness: Math.floor(data.petStats?.happiness || 40),
+            hunger: Math.floor(data.petStats?.food || 50),
+            cleanliness: Math.floor(data.petStats?.cleanliness || 40),
+            energy: Math.floor(data.petStats?.energy || 30),
             qualityScore: data.petStats?.qualityScore || 0,
             isDead: data.petStats?.isDead || false,
             lastStateUpdate: new Date()
