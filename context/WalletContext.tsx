@@ -152,54 +152,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
           } else if ((provider as any).isSolflare) {
             setCurrentWalletName('solflare');
           }
-
-          try {
-            // Fetch user data from server
-            const serverData = await fetchUserRank(key);
-            console.log("Server data fetched in checkConnection:", serverData);
-
-            if (serverData.success && serverData.userData && serverData.userData.username) {
-              // User exists and has a username
-              console.log('Existing user found with username:', serverData.userData.username);
-              const userData = {
-                uid: serverData.userData.uid, // Assume backend returns UID
-                username: serverData.userData.username,
-                points: serverData.userData.points || 0,
-                multiplier: serverData.userData.multiplier || 1.0,
-                lastLogin: Date.now(),
-                daysActive: serverData.userData.daysActive || 0,
-                consecutiveDays: serverData.userData.consecutiveDays || 0,
-                petStats: { // Map petState to petStats
-                    food: serverData.userData.petState?.hunger ?? 50,
-                    happiness: serverData.userData.petState?.happiness ?? 40,
-                    cleanliness: serverData.userData.petState?.cleanliness ?? 40,
-                    energy: serverData.userData.petState?.energy ?? 30,
-                    health: serverData.userData.petState?.health ?? 30,
-                    isDead: serverData.userData.petState?.isDead ?? false,
-                    points: serverData.userData.points || 0 // Reuse main points? Check logic
-                }
-              };
-              setWalletData(userData);
-              setIsNewUser(false);
-              setShowPetNamePrompt(false);
-            } else {
-              // New user or user without username
-              console.log('New user or user without username detected.');
-              setWalletData(null); // Clear any potentially stale data
-              setIsNewUser(true);
-              setShowPetNamePrompt(true);
-              // Do not save default data here, wait for setUsername
-            }
-          } catch (fetchErr) {
-            console.error('Error fetching user data during checkConnection:', fetchErr);
-            setError('Failed to load user data. Please try again.');
-            // Don't assume new user on fetch error, keep existing state but show error
-            // Reset potentially problematic state
-             setWalletData(null);
-             setIsNewUser(false); // Uncertain state, don't force prompt
-             setShowPetNamePrompt(false);
-             // Keep isConnected true if provider connection succeeded
-          }
         } else {
            console.log("No active provider connection found.");
            // Ensure disconnected state if no provider/key
@@ -232,9 +184,18 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
     if (provider) {
       connectHandler = () => {
-        console.log("Wallet emitted 'connect' event. Re-checking connection state.");
-        // Re-run checkConnection to handle state properly after external connect event
-        checkConnection();
+        console.log("Wallet emitted 'connect' event. Fetching data.");
+        // Directly fetch data using the current provider's public key
+        if (provider.publicKey) {
+          const key = provider.publicKey.toString();
+          // Ensure connection state is also set
+          setIsConnected(true);
+          setPublicKey(key);
+          // Fetch the data
+          fetchDataForConnectedWallet(key);
+        } else {
+          console.warn("'connect' event fired but no publicKey found on provider.");
+        }
       };
       
       disconnectHandler = () => {
@@ -282,6 +243,92 @@ export function WalletProvider({ children }: WalletProviderProps) {
     // Only run on mount
   }, [publicKey]); 
   
+  // Function to fetch user data and update state
+  const fetchDataForConnectedWallet = async (key: string) => {
+    // Prevent fetching if no key
+    if (!key) {
+      console.warn("fetchDataForConnectedWallet called without a key.");
+      return;
+    }
+    
+    // Indicate loading state for data fetch part? Or assume connect already handles it?
+    // setIsLoading(true); // Consider if needed here too
+
+    try {
+      console.log(`Fetching user data for key: ${key}`);
+      const serverData = await fetchUserRank(key);
+      console.log(`Server data fetched for ${key}:`, serverData);
+
+      // Determine if the user is genuinely new or just lacks a custom username
+      const userRecordExists = serverData.success;
+      const hasCustomUsername = userRecordExists && serverData.userData && serverData.userData.username && !serverData.userData.username.startsWith('User_');
+      const isTrulyNewUser = !userRecordExists && serverData.rank === 0 && serverData.userData === null;
+
+      // Set isNewUser based *only* on whether the API confirmed the record doesn't exist
+      setIsNewUser(isTrulyNewUser);
+
+      if (userRecordExists && serverData.userData) {
+        // --- User record exists ---
+        console.log('Existing user record found. Updating local data.');
+        const userData = {
+          uid: serverData.userData.uid,
+          username: serverData.userData.username,
+          points: serverData.userData.points || 0,
+          multiplier: serverData.userData.multiplier || 1.0,
+          lastLogin: Date.now(),
+          daysActive: serverData.userData.daysActive || 0,
+          consecutiveDays: serverData.userData.consecutiveDays || 0,
+          petStats: {
+            food: serverData.userData.petState?.hunger ?? 50,
+            happiness: serverData.userData.petState?.happiness ?? 40,
+            cleanliness: serverData.userData.petState?.cleanliness ?? 40,
+            energy: serverData.userData.petState?.energy ?? 30,
+            health: serverData.userData.petState?.health ?? 30,
+            isDead: serverData.userData.petState?.isDead ?? false,
+            points: serverData.userData.points || 0
+          }
+        };
+        setWalletData(userData); // Update local state
+
+        // Decide whether to show the username prompt
+        if (!hasCustomUsername) {
+          const hasExplicitlyChosen = localStorage.getItem(`hasChosenName_${key}`) === 'true';
+          if (!hasExplicitlyChosen) {
+            console.log('User has auto-generated name and has not chosen one, showing prompt.');
+            setShowPetNamePrompt(true);
+          } else {
+            console.log('User has auto-generated name BUT has explicitly chosen one before, hiding prompt.');
+            setShowPetNamePrompt(false);
+          }
+        } else {
+          console.log('User has custom name, hiding prompt.');
+          setShowPetNamePrompt(false);
+        }
+      } else if (isTrulyNewUser) {
+        // --- User record does not exist (truly new) ---
+        console.log('New user detected (no record found).');
+        setWalletData(null); // Clear data, will be set after username submission
+        setShowPetNamePrompt(true); // Always show for new users
+      } else {
+        // --- Handle unexpected errors or missing data ---
+        console.warn('Failed to fetch user data or data was incomplete, but user record might exist. Clearing local data.');
+        setError('Could not load your profile data. Please try refreshing.');
+        setWalletData(null);
+        setShowPetNamePrompt(false);
+      }
+    } catch (dataError) {
+      // --- Handle network/fetch errors ---
+      console.error(`Error during fetchUserRank call for key ${key}:`, dataError);
+      setError('Failed to communicate with the server. Please check your connection and refresh.');
+      setWalletData(null); // Clear data on fetch error
+      setIsNewUser(false); // Uncertain state
+      setShowPetNamePrompt(false);
+    } finally {
+       // Consider if loading needs to be set false here if it was set true above
+       // setIsLoading(false); 
+    }
+  };
+
   const connect = async (walletName?: string): Promise<boolean> => {
     setError(null);
     setIsLoading(true);
@@ -382,83 +429,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         }
 
         // Once connected, load or check user data
-        try {
-          console.log("Fetching user data after successful connect...");
-          const serverData = await fetchUserRank(key);
-          console.log("Server data fetched in connect:", serverData);
-
-          // Determine if the user is genuinely new or just lacks a custom username
-          // fetchUserRank returns success: false and 404 if user is not found
-          const userRecordExists = serverData.success;
-          const hasCustomUsername = userRecordExists && serverData.userData && serverData.userData.username && !serverData.userData.username.startsWith('User_');
-          // If fetchUserRank failed because the user wasn't found (which now returns success:false), they are truly new.
-          // If it failed for other reasons (e.g., server error), we treat them as uncertain.
-          const isTrulyNewUser = !userRecordExists && serverData.rank === 0 && serverData.userData === null;
-
-          // Set isNewUser based *only* on whether the API confirmed the record doesn't exist
-          setIsNewUser(isTrulyNewUser);
-
-          if (userRecordExists && serverData.userData) {
-            // --- User record exists ---
-            console.log('Existing user record found. Updating local data.');
-            const userData = {
-              uid: serverData.userData.uid, // Get UID from fetched data
-              username: serverData.userData.username, // May be auto-generated or custom
-              points: serverData.userData.points || 0,
-              multiplier: serverData.userData.multiplier || 1.0,
-              lastLogin: Date.now(),
-              daysActive: serverData.userData.daysActive || 0,
-              consecutiveDays: serverData.userData.consecutiveDays || 0,
-              petStats: {
-                food: serverData.userData.petState?.hunger ?? 50,
-                happiness: serverData.userData.petState?.happiness ?? 40,
-                cleanliness: serverData.userData.petState?.cleanliness ?? 40,
-                energy: serverData.userData.petState?.energy ?? 30,
-                health: serverData.userData.petState?.health ?? 30,
-                isDead: serverData.userData.petState?.isDead ?? false,
-                points: serverData.userData.points || 0
-              }
-            };
-            setWalletData(userData); // Update local state
-
-            // Decide whether to show the username prompt for existing users
-            if (!hasCustomUsername) {
-              // Check localStorage flag as well, in case they chose a name but it failed to save/propagate
-              const hasExplicitlyChosen = localStorage.getItem(`hasChosenName_${key}`) === 'true';
-              if (!hasExplicitlyChosen) {
-                  console.log('User has auto-generated name and has not chosen one, showing prompt.');
-                  setShowPetNamePrompt(true);
-              } else {
-                   console.log('User has auto-generated name BUT has explicitly chosen one before, hiding prompt.');
-                   setShowPetNamePrompt(false);
-              }
-            } else {
-              console.log('User has custom name, hiding prompt.');
-              setShowPetNamePrompt(false);
-            }
-          } else if (isTrulyNewUser) {
-            // --- User record does not exist (truly new) ---
-            console.log('New user detected upon connect (no record found).');
-            setWalletData(null); // Clear data, will be set after username submission
-            setShowPetNamePrompt(true); // Always show for new users
-          } else {
-            // --- Handle unexpected errors or missing data ---
-             console.warn('Failed to fetch user data or data was incomplete, but user record might exist. Clearing local data.');
-             setError('Could not load your profile data. Please try refreshing.'); // Inform user
-             setWalletData(null);
-             setShowPetNamePrompt(false); // Don't prompt if data is weird
-          }
-
-        } catch (dataError) {
-          // --- Handle network/fetch errors ---
-          console.error('Error during fetchUserRank call:', dataError);
-          setError('Failed to communicate with the server. Please check your connection and refresh.');
-          // Keep existing state but show error
-          setWalletData(null);
-          setIsNewUser(false); // Uncertain state
-          setShowPetNamePrompt(false);
-          // Keep isConnected true
-        }
+        await fetchDataForConnectedWallet(key);
 
         setIsLoading(false); // Stop loading after data fetch attempt
         return true; // Connection successful

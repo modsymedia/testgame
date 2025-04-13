@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { neon } from '@neondatabase/serverless'; // Removed unused QueryResult
 import crypto from 'crypto';
+import { dbService } from '@/lib/database-service'; // Import dbService
 
 const sql = neon(process.env.DATABASE_URL || '');
 
@@ -137,6 +138,21 @@ export default async function handler(
               )
             `;
           }
+
+          // --- Initialize Custom User Data --- 
+          try {
+              console.log(`Initializing custom user data for new user: ${walletAddress}`);
+              await dbService.saveUserData(walletAddress, { 
+                  unlockedItems: {}, // Initialize with empty unlocked items
+                  // Add any other default custom fields here
+              });
+              console.log(`Custom user data initialized for: ${walletAddress}`);
+          } catch (customDataError: any) {
+              // Log the error but don't fail the whole request
+              console.error(`Error initializing custom user data for ${walletAddress}:`, customDataError.message);
+              // Potentially add a flag to the response or log differently if this is critical
+          }
+          // --- End Initialize Custom User Data ---
 
           return res.status(201).json({ // Return UID on creation
             success: true,

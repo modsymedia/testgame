@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useWallet } from './WalletContext';
 import { dbService } from '@/lib/database-service';
 import { PointsManager } from '@/lib/points-manager';
-import { User } from '@/lib/models';
 
 // Types for user data
 interface UserData {
@@ -138,8 +137,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   // Load initial user data
   useEffect(() => {
     if (isConnected && publicKey) {
-      loadUserData();
-      
       // Set up sync interval
       const interval = setInterval(() => {
         syncWithServer();
@@ -159,70 +156,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [isConnected, publicKey, syncWithServer]);
-
-  // Load user data from server
-  const loadUserData = async () => {
-    if (!publicKey) return;
-    
-    setIsLoading(true);
-    try {
-      console.log('Attempting to load user data for wallet:', publicKey);
-      // Fetch standard user data
-      const walletData = await dbService.getWalletByPublicKey(publicKey);
-      // Fetch custom user data (assuming unlockedItems are stored here)
-      const customData = await dbService.getUserData(`user_data_${publicKey}`);
-      
-      if (walletData) {
-        console.log('Wallet data found:', JSON.stringify(walletData, null, 2));
-        setUserData({
-          points: walletData.points || 0,
-          claimedPoints: walletData.claimedPoints || 0,
-          multiplier: walletData.multiplier || 1.0,
-          rank: walletData.rank || null,
-          lastLogin: walletData.lastLogin || Date.now(),
-          lastSync: Date.now(),
-          username: walletData.username || null,
-          uid: walletData.uid || null,
-          unlockedItems: customData?.unlockedItems || {}
-        });
-      } else {
-        console.log('No wallet data found, creating new wallet');
-        // Create new user data if it doesn't exist
-        try {
-          // Explicitly type newWallet as User | null
-          const newWallet: User | null = await dbService.createWallet(publicKey);
-          
-          setUserData({
-            ...defaultUserData,
-            uid: newWallet?.uid || null,
-            unlockedItems: {}
-          });
-          // Create initial custom data entry
-          await dbService.saveUserData(publicKey, { unlockedItems: {} });
-        } catch (createErr) {
-          console.error('Failed to create new wallet:', createErr);
-          // Still set default data even if creation fails
-          setUserData({
-            ...defaultUserData,
-            unlockedItems: {},
-            lastSync: Date.now()
-          });
-        }
-      }
-      setError(null);
-    } catch (err) {
-      console.error('Failed to load user data:', err);
-      // Set default data even on error
-      setUserData({
-        ...defaultUserData,
-        unlockedItems: {},
-        lastSync: Date.now()
-      });
-      setError('Failed to load user data. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Function that uses pointsManager to execute operations correctly - simplified
   const executePointsManagerOperation = async (operation: string, ...args: any[]): Promise<any> => {
