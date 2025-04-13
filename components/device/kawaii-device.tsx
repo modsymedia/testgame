@@ -133,7 +133,7 @@ export function KawaiiDevice() {
   const { unlockedItems = {} } = userData; // Use unlockedItems from context, default to {}
 
   // Add tilt configuration state
-  const [tiltConfig, setTiltConfig] = useState({
+  const [tiltConfig] = useState({
     tiltEnable: true,
     tiltMaxAngleX: 5,
     tiltMaxAngleY: 5,

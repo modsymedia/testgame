@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PixelatedContainer from '@/components/game/PixelatedContainerBig';
 
 
-const WelcomeOverlay = () => {
+const UsernameModal = () => {
   const [visible, setVisible] = useState(false);
   const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -245,4 +245,4 @@ const WelcomeOverlay = () => {
   );
 };
 
-export default WelcomeOverlay; 
+export default UsernameModal; 

@@ -1,8 +1,7 @@
 import { Header } from '@/components/ui/navigation/Header';
 import Image from 'next/image';
-import WelcomeOverlay from '@/components/ui/welcome-overlay';
+import UsernameModal from '@/components/ui/username_modal';
 import BottomNavigation from '@/components/ui/navigation/BottomNavigation';
-
 export default function ConsoleLayout({
   children,
 }: {
@@ -34,7 +33,7 @@ export default function ConsoleLayout({
       </div>
       
       {/* Welcome Overlay */}
-      <WelcomeOverlay />
+      <UsernameModal />
       
       {/* Bottom Mobile Navigation */}
       <BottomNavigation />

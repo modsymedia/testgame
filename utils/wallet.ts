@@ -1,5 +1,45 @@
 import { PublicKey } from '@solana/web3.js';
 
+// Declare global window extensions for wallet providers
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: {
+        isPhantom?: boolean;
+        publicKey?: PublicKey;
+        isConnected?: boolean;
+        connect: () => Promise<{ publicKey: PublicKey }>;
+        disconnect: () => Promise<void>;
+        on: (event: string, handler: (args: any) => void) => void;
+        removeListener: (event: string, handler: (args: any) => void) => void;
+        signTransaction: (transaction: unknown) => Promise<unknown>;
+        signAllTransactions: (transactions: unknown[]) => Promise<unknown[]>;
+      }
+    };
+    solflare?: {
+      isSolflare?: boolean;
+      publicKey?: PublicKey;
+      isConnected?: boolean;
+      connect: () => Promise<{ publicKey: PublicKey }>;
+      disconnect: () => Promise<void>;
+      on: (event: string, handler: (args: any) => void) => void;
+      removeListener: (event: string, handler: (args: any) => void) => void;
+      signTransaction: (transaction: unknown) => Promise<unknown>;
+      signAllTransactions: (transactions: unknown[]) => Promise<unknown[]>;
+    };
+    solana?: {
+      publicKey?: PublicKey;
+      isConnected?: boolean;
+      connect: () => Promise<{ publicKey: PublicKey }>;
+      disconnect: () => Promise<void>;
+      on: (event: string, handler: (args: any) => void) => void;
+      removeListener: (event: string, handler: (args: any) => void) => void;
+      signTransaction: (transaction: unknown) => Promise<unknown>;
+      signAllTransactions: (transactions: unknown[]) => Promise<unknown[]>;
+    };
+  }
+}
+
 // Types for Phantom wallet
 interface PhantomEvent {
   type: string;
@@ -24,7 +64,8 @@ interface PhantomProvider {
   request: (method: PhantomRequestMethod) => Promise<unknown>;
 }
 
-interface WalletContextState {
+// This interface is used by the WalletContext in other files
+export interface WalletContextState {
   isConnected: boolean;
   wallet: PhantomProvider | null;
   publicKey: string | null;
@@ -53,6 +94,24 @@ export async function saveWalletData(publicKey: string, data: any): Promise<bool
     
     // Try to save to server directly
     try {
+      // First, make a call to ensure tables exist
+      try {
+        const initResponse = await fetch('/api/init-database', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (initResponse.ok) {
+          console.log('Database tables verified');
+        } else {
+          console.warn('Database initialization may have failed, continuing anyway');
+        }
+      } catch (initError) {
+        console.warn('Database initialization error, continuing with save:', initError);
+      }
+      
       const response = await fetch('/api/wallet', {
         method: 'POST',
         headers: {
@@ -349,10 +408,10 @@ export function getProvider(walletName?: string) {
 }
 
 // Detect available wallet providers
-export function getAvailableWallets() {
+export function getAvailableWallets(): Array<{ name: string; label: string; icon: string }> {
   if (typeof window === 'undefined') return [];
   
-  const wallets = [];
+  const wallets: Array<{ name: string; label: string; icon: string }> = [];
   
   // Check for Phantom
   //

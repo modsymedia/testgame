@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { 
   getProvider, 
   saveWalletData, 
-  getAvailableWallets
+  // getAvailableWallets // Removed
 } from '@/utils/wallet';
 import { fetchUserRank } from '@/utils/leaderboard';
 
@@ -21,7 +21,6 @@ interface WalletContextType {
   isNewUser: boolean;
   showPetNamePrompt: boolean;
   setUsername: (username: string) => Promise<boolean>;
-  availableWallets: Array<{name: string, label: string, icon: string}>;
   currentWalletName: string | null;
 }
 
@@ -38,7 +37,6 @@ const defaultContext: WalletContextType = {
   isNewUser: false,
   showPetNamePrompt: false,
   setUsername: async () => false,
-  availableWallets: [],
   currentWalletName: null
 };
 
@@ -60,7 +58,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showPetNamePrompt, setShowPetNamePrompt] = useState(false);
-  const [availableWallets, setAvailableWallets] = useState<Array<{name: string, label: string, icon: string}>>([]);
   const [currentWalletName, setCurrentWalletName] = useState<string | null>(null);
 
   // Check for global trigger to show pet name prompt (for testing)
@@ -132,12 +129,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   useEffect(() => {
-    // Check for available wallets
-    if (typeof window !== 'undefined') {
-      const wallets = getAvailableWallets();
-      setAvailableWallets(wallets);
-    }
-
     // Check if wallet was previously connected
     const checkConnection = async () => {
       setIsLoading(true); // Start loading
@@ -289,7 +280,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
       }
     };
     // Only run on mount
-  }, []); // <-- IMPORTANT: Empty dependency array ensures this runs only once
+  }, [publicKey]); 
   
   const connect = async (walletName?: string): Promise<boolean> => {
     setError(null);
@@ -310,7 +301,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
         return false;
       }
       
-      console.log('Provider found:', provider.isPhantom ? 'Phantom' : provider.isSolflare ? 'Solflare' : 'Unknown');
       
       // Check if the provider is responsive
       let isProviderResponsive = false;
@@ -377,48 +367,93 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setPublicKey(key);
         setIsConnected(true);
 
+        // Initialize database tables before loading data
+        try {
+          console.log("Ensuring database tables exist...");
+          await fetch('/api/init-database', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+        } catch (initError) {
+          console.warn('Database initialization error:', initError);
+          // Continue even if initialization fails
+        }
+
         // Once connected, load or check user data
         try {
           console.log("Fetching user data after successful connect...");
           const serverData = await fetchUserRank(key);
           console.log("Server data fetched in connect:", serverData);
 
-          if (serverData.success && serverData.userData && serverData.userData.username) {
-            // User exists and has a username
-            console.log('Existing user found:', serverData.userData.username);
-             const userData = {
-                uid: serverData.userData.uid, // Assume backend returns UID
-                username: serverData.userData.username,
-                points: serverData.userData.points || 0,
-                multiplier: serverData.userData.multiplier || 1.0,
-                lastLogin: Date.now(),
-                daysActive: serverData.userData.daysActive || 0,
-                consecutiveDays: serverData.userData.consecutiveDays || 0,
-                 petStats: { // Map petState to petStats
-                    food: serverData.userData.petState?.hunger ?? 50,
-                    happiness: serverData.userData.petState?.happiness ?? 40,
-                    cleanliness: serverData.userData.petState?.cleanliness ?? 40,
-                    energy: serverData.userData.petState?.energy ?? 30,
-                    health: serverData.userData.petState?.health ?? 30,
-                    isDead: serverData.userData.petState?.isDead ?? false,
-                    points: serverData.userData.points || 0 // Reuse main points? Check logic
-                }
-              };
-            setWalletData(userData);
-            setIsNewUser(false);
-            setShowPetNamePrompt(false);
+          // Determine if the user is genuinely new or just lacks a custom username
+          // fetchUserRank returns success: false and 404 if user is not found
+          const userRecordExists = serverData.success;
+          const hasCustomUsername = userRecordExists && serverData.userData && serverData.userData.username && !serverData.userData.username.startsWith('User_');
+          // If fetchUserRank failed because the user wasn't found (which now returns success:false), they are truly new.
+          // If it failed for other reasons (e.g., server error), we treat them as uncertain.
+          const isTrulyNewUser = !userRecordExists && serverData.rank === 0 && serverData.userData === null;
+
+          // Set isNewUser based *only* on whether the API confirmed the record doesn't exist
+          setIsNewUser(isTrulyNewUser);
+
+          if (userRecordExists && serverData.userData) {
+            // --- User record exists ---
+            console.log('Existing user record found. Updating local data.');
+            const userData = {
+              uid: serverData.userData.uid, // Get UID from fetched data
+              username: serverData.userData.username, // May be auto-generated or custom
+              points: serverData.userData.points || 0,
+              multiplier: serverData.userData.multiplier || 1.0,
+              lastLogin: Date.now(),
+              daysActive: serverData.userData.daysActive || 0,
+              consecutiveDays: serverData.userData.consecutiveDays || 0,
+              petStats: {
+                food: serverData.userData.petState?.hunger ?? 50,
+                happiness: serverData.userData.petState?.happiness ?? 40,
+                cleanliness: serverData.userData.petState?.cleanliness ?? 40,
+                energy: serverData.userData.petState?.energy ?? 30,
+                health: serverData.userData.petState?.health ?? 30,
+                isDead: serverData.userData.petState?.isDead ?? false,
+                points: serverData.userData.points || 0
+              }
+            };
+            setWalletData(userData); // Update local state
+
+            // Decide whether to show the username prompt for existing users
+            if (!hasCustomUsername) {
+              // Check localStorage flag as well, in case they chose a name but it failed to save/propagate
+              const hasExplicitlyChosen = localStorage.getItem(`hasChosenName_${key}`) === 'true';
+              if (!hasExplicitlyChosen) {
+                  console.log('User has auto-generated name and has not chosen one, showing prompt.');
+                  setShowPetNamePrompt(true);
+              } else {
+                   console.log('User has auto-generated name BUT has explicitly chosen one before, hiding prompt.');
+                   setShowPetNamePrompt(false);
+              }
+            } else {
+              console.log('User has custom name, hiding prompt.');
+              setShowPetNamePrompt(false);
+            }
+          } else if (isTrulyNewUser) {
+            // --- User record does not exist (truly new) ---
+            console.log('New user detected upon connect (no record found).');
+            setWalletData(null); // Clear data, will be set after username submission
+            setShowPetNamePrompt(true); // Always show for new users
           } else {
-            // New user or user without username
-            console.log('New user or user without username detected upon connect.');
-            setWalletData(null); // Clear data
-            setIsNewUser(true);
-            setShowPetNamePrompt(true);
-             // Do not save default data here
+            // --- Handle unexpected errors or missing data ---
+             console.warn('Failed to fetch user data or data was incomplete, but user record might exist. Clearing local data.');
+             setError('Could not load your profile data. Please try refreshing.'); // Inform user
+             setWalletData(null);
+             setShowPetNamePrompt(false); // Don't prompt if data is weird
           }
+
         } catch (dataError) {
-          console.error('Error loading wallet data after connect:', dataError);
-          setError('Failed to load user data after connection. Please try refreshing.');
-          // Don't assume new user on fetch error, keep existing state but show error
+          // --- Handle network/fetch errors ---
+          console.error('Error during fetchUserRank call:', dataError);
+          setError('Failed to communicate with the server. Please check your connection and refresh.');
+          // Keep existing state but show error
           setWalletData(null);
           setIsNewUser(false); // Uncertain state
           setShowPetNamePrompt(false);
@@ -603,7 +638,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
     isNewUser,
     showPetNamePrompt,
     setUsername,
-    availableWallets,
     currentWalletName
   };
   
