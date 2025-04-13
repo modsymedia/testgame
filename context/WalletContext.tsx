@@ -546,80 +546,89 @@ export function WalletProvider({ children }: WalletProviderProps) {
       setError("Cannot set username: Not connected.");
       return false;
     }
-    // Basic validation (can be enhanced in the UI component)
-    if (!username || username.trim().length < 4 || username.trim().length > 16 || username.startsWith(' ')) {
-       setError("Invalid username. Must be 4-16 characters and not start with space.");
+    // Basic validation
+    if (!username || username.trim().length < 4 || username.trim().length > 16 || !/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+       setError("Invalid username. Must be 4-16 characters using only letters, numbers, or underscores.");
        return false;
     }
 
     setIsLoading(true);
     setError(null);
+    const trimmedUsername = username.trim();
 
     try {
-      console.log(`Attempting to set username '${username}' for key ${publicKey}`);
+      console.log(`Attempting to set username '${trimmedUsername}' for key ${publicKey}`);
       
-      // Prepare initial data for a new user, including the username
-      // The backend should generate the UID and handle defaults for other fields
-      const initialUserData = {
-          username: username.trim(),
-          // Include other fields the backend expects for initial creation, if any.
-          // Example: points: 0, multiplier: 1.0, etc. - depends on saveWalletData needs.
-          // DO NOT send a UID from the client.
+      // Prepare data to send to the save endpoint
+      // Send only the username; the backend handles the rest (UID, defaults)
+      const userDataToSave = {
+          username: trimmedUsername,
+          // Explicitly include default pet stats if needed by saveWalletData/API
+          petStats: {
+              food: 50,
+              happiness: 40,
+              cleanliness: 40,
+              energy: 30,
+              health: 30,
+              isDead: false,
+              points: 0 // Start points at 0
+          }
       };
 
-      // Call the backend to save the data (which should create the user profile)
-      const saveResult = await saveWalletData(publicKey, initialUserData);
-      console.log("Save wallet data result:", saveResult);
+      // Call the backend to save the data (creates user if new, updates if existing)
+      const saveSuccess = await saveWalletData(publicKey, userDataToSave);
+      console.log("Save wallet data result:", saveSuccess);
 
-      // After saving, fetch the complete user data to get the UID and confirm state
-       console.log("Refetching user data after setting username...");
-      const serverData = await fetchUserRank(publicKey);
-       console.log("Refetched server data:", serverData);
+      if (saveSuccess) {
+         // --- Optimistic Update --- 
+         // Assume save worked, update local state immediately
+         console.log("Save successful, optimistically updating local state.");
+         
+         // Update local walletData state
+         // Use existing data if available, otherwise create new structure
+         setWalletData((prevData: any) => ({
+           ...prevData, // Keep existing fields like UID if they were fetched before
+           username: trimmedUsername,
+           points: prevData?.points ?? 0, // Keep existing points or default to 0
+           multiplier: prevData?.multiplier ?? 1.0,
+           lastLogin: Date.now(),
+           daysActive: prevData?.daysActive ?? 1,
+           consecutiveDays: prevData?.consecutiveDays ?? 1,
+           // Update petStats based on defaults sent or existing if available
+           petStats: {
+             food: prevData?.petStats?.food ?? 50,
+             happiness: prevData?.petStats?.happiness ?? 40,
+             cleanliness: prevData?.petStats?.cleanliness ?? 40,
+             energy: prevData?.petStats?.energy ?? 30,
+             health: prevData?.petStats?.health ?? 30,
+             isDead: prevData?.petStats?.isDead ?? false,
+             points: prevData?.points ?? 0, // Reflect points in petStats too
+           }
+         }));
 
-
-      if (serverData.success && serverData.userData && serverData.userData.username === username.trim()) {
-         // Successfully created/updated and refetched
-          const userData = {
-            uid: serverData.userData.uid, // Get the UID from backend
-            username: serverData.userData.username,
-            points: serverData.userData.points || 0,
-            multiplier: serverData.userData.multiplier || 1.0,
-            lastLogin: Date.now(), // Update last login time
-            daysActive: serverData.userData.daysActive || 1, // Start at day 1
-            consecutiveDays: serverData.userData.consecutiveDays || 1,
-            petStats: {
-                food: serverData.userData.petState?.hunger ?? 50,
-                happiness: serverData.userData.petState?.happiness ?? 40,
-                cleanliness: serverData.userData.petState?.cleanliness ?? 40,
-                energy: serverData.userData.petState?.energy ?? 30,
-                health: serverData.userData.petState?.health ?? 30,
-                isDead: serverData.userData.petState?.isDead ?? false,
-                points: serverData.userData.points || 0
-            }
-          };
-        setWalletData(userData);
-        setIsNewUser(false);
+        // Mark as not a new user anymore & hide prompt
+        setIsNewUser(false); 
         setShowPetNamePrompt(false);
-        console.log("Username set successfully and user data updated.");
+        // Mark locally that name was chosen
+        localStorage.setItem(`hasChosenName_${publicKey}`, 'true');
+
+        console.log("Username set optimistically.");
         setIsLoading(false);
-        return true;
+        return true; // Signal success to the modal
       } else {
-        // Handle cases where save might have succeeded but fetch failed,
-        // or username doesn't match (edge case)
-        console.error("Failed to verify username update or fetch updated data.");
-        setError("Failed to update profile. Please try again.");
-        // Keep prompt open if verification failed
-        setIsNewUser(true);
-        setShowPetNamePrompt(true);
+        // Save operation failed according to saveWalletData
+        console.error("saveWalletData returned false.");
+        setError("Failed to save username to the server. Please try again.");
+        // Keep prompt open if save failed
+        setShowPetNamePrompt(true); 
         setIsLoading(false);
-        return false;
+        return false; // Signal failure to the modal
       }
     } catch (error) {
-      console.error('Error setting username:', error);
-      setError('An error occurred while setting username.');
+      console.error('Error in setUsername function:', error);
+      setError('An unexpected error occurred while setting username.');
        // Keep prompt open on error
-       setIsNewUser(true);
-       setShowPetNamePrompt(true);
+       setShowPetNamePrompt(true); 
       setIsLoading(false);
       return false;
     }
