@@ -338,11 +338,11 @@ export function KawaiiDevice() {
     try {
       const petState = {
         walletAddress: publicKey,
-        health,
-        happiness,
-        hunger: food,
-        cleanliness,
-        energy,
+        health: Math.floor(health),
+        happiness: Math.floor(happiness),
+        hunger: Math.floor(food),
+        cleanliness: Math.floor(cleanliness),
+        energy: Math.floor(energy),
         isDead,
       };
 
