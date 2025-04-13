@@ -25,9 +25,9 @@ import { useWallet } from "@/context/WalletContext";
 import { useUserData } from "@/context/UserDataContext";
 import { useRouter } from "next/navigation";
 import { PointsEarnedPanel } from "@/components/ui/points-earned-panel";
-import { updateUserPoints } from "@/utils/leaderboard";
 import CustomSlider from "@/components/game/CustomSlider";
 import { dbService } from "@/lib/database-service"; // Re-add dbService import
+import { pointsManager } from "@/lib/points-manager"; // Import pointsManager
 
 // Add this interface for activities right after the imports
 interface UserActivity {
@@ -122,7 +122,7 @@ const StatusHeader = ({
 
 export function KawaiiDevice() {
   const router = useRouter();
-  const { isConnected, publicKey, walletData, updatePoints, burnPoints } =
+  const { isConnected, publicKey, walletData /*, burnPoints */ } =
     useWallet();
   // Get unlockedItems and updateUnlockedItems from context
   const {
@@ -482,68 +482,15 @@ export function KawaiiDevice() {
     };
   }, [points, isConnected, publicKey, updateUserDataPoints]);
 
-  // Update wallet points whenever game points change (with debouncing)
-  useEffect(() => {
-    if (!isConnected || !publicKey) return;
-
-    // Don't update if points haven't changed
-    if (lastUpdatedPointsRef.current === userData.points) return;
-
-    // Clear any existing timer
-    if (pointsUpdateTimerRef.current) {
-      clearTimeout(pointsUpdateTimerRef.current);
-    }
-
-    // Set timer for next update
-    pointsUpdateTimerRef.current = setTimeout(async () => {
-      try {
-        // Update wallet data first (improved with retry and offline support)
-        const updateSuccess = await updatePoints(userData.points);
-
-        if (updateSuccess) {
-          console.log("💰 Wallet points updated successfully");
-        } else {
-          console.warn("⚠️ Points update saved for later sync");
-        }
-
-        // Track the points we've successfully accounted for (even if offline)
-        lastUpdatedPointsRef.current = userData.points;
-
-        // Then update leaderboard - this is less critical
-        if (userData.points > 0 && publicKey) {
-          try {
-            const updated = await updateUserPoints(publicKey, userData.points);
-            if (updated) {
-              console.log("🏆 Leaderboard updated successfully");
-            }
-          } catch (leaderboardError) {
-            // Don't fail the entire operation if leaderboard update fails
-            console.warn("⚠️ Leaderboard update failed:", leaderboardError);
-          }
-        }
-      } catch (error) {
-        console.error("❌ Error updating points:", error);
-
-        // Make sure we try again on the next change
-        lastUpdatedPointsRef.current = prevPointsRef.current;
-      }
-    }, POINTS_UPDATE_DELAY);
-
-    // Clean up timer on unmount
-    return () => {
-      if (pointsUpdateTimerRef.current) {
-        clearTimeout(pointsUpdateTimerRef.current);
-      }
-    };
-  }, [userData.points, isConnected, publicKey, updatePoints]);
-
   // Update leaderboard when pet dies (this can remain immediate since it's a one-time event)
   useEffect(() => {
     if (isDead && isConnected && publicKey && points > 0) {
-      // Save final score to leaderboard
+      // Save final score to leaderboard - REMOVE THIS
+      /*
       updateUserPoints(publicKey, points).catch((err) =>
         console.error("Error updating leaderboard on death:", err)
       );
+      */
     }
   }, [isDead, isConnected, publicKey, points]);
 
@@ -754,132 +701,111 @@ export function KawaiiDevice() {
   // Modify the existing handleInteraction function to use premium multipliers
   const handleInteraction = useCallback(
     async (option: string /*, selectedItem: number*/) => {
-      // ... existing code at the start of the function
-
       let pointsToAdd = 0;
+      let basePoints = 0;
       let itemName = "";
       let itemType = "";
+      let interactionSource: 'interaction' | 'gameplay' | 'daily' | 'achievement' | 'streak' | 'purchase' = 'interaction'; // Default
 
       if (option === "food" && selectedFoodItem !== null) {
         itemType = "food";
+        interactionSource = 'interaction'; // Or specific if needed
         const foodItems = ["fish", "cookie", "catFood", "kibble"];
         itemName = foodItems[selectedFoodItem];
-
-        // Apply premium multiplier to points
+        basePoints = 10; // Define base points for calculation visibility
         const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
-        pointsToAdd = Math.floor(10 * aiPointMultiplier * premiumMultiplier);
-
-        // Trigger the feeding tilt animation
-        simulateFeedingTilt();
-
-        // Handle feeding
+        pointsToAdd = Math.floor(basePoints * aiPointMultiplier * premiumMultiplier);
         await handleFeeding();
-
-        // Save activity
-        const activityId = uuidv4();
-        const activity = {
-          id: activityId,
-          type: "feed",
-          name: `Feed ${itemName}`,
-          points: pointsToAdd,
-          timestamp: Date.now(),
-        };
-        saveActivityToDatabase(activity);
-
-        // Update local activities
-        setUserActivities((prev) => [activity, ...prev].slice(0, 10));
-
+        simulateFeedingTilt();
         setMostRecentTask("feed");
+
       } else if (option === "play" && selectedPlayItem !== null) {
         itemType = "play";
+        interactionSource = 'interaction';
         const playItems = ["laser", "feather", "ball", "puzzle"];
         itemName = playItems[selectedPlayItem];
-
-        // Apply premium multiplier to points
+        basePoints = 15;
         const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
-        pointsToAdd = Math.floor(15 * aiPointMultiplier * premiumMultiplier);
-
-        // Handle playing
+        pointsToAdd = Math.floor(basePoints * aiPointMultiplier * premiumMultiplier);
         await handlePlaying();
-
-        // Save activity
-        const activityId = uuidv4();
-        const activity = {
-          id: activityId,
-          type: "play",
-          name: `Play with ${itemName}`,
-          points: pointsToAdd,
-          timestamp: Date.now(),
-        };
-        saveActivityToDatabase(activity);
-
-        // Update local activities
-        setUserActivities((prev) => [activity, ...prev].slice(0, 10));
-
         setMostRecentTask("play");
+
       } else if (option === "clean" && selectedCleanItem !== null) {
         itemType = "clean";
+        interactionSource = 'interaction';
         const cleanItems = ["brush", "bath", "nails", "dental"];
         itemName = cleanItems[selectedCleanItem];
-
-        // Apply premium multiplier to points
+        basePoints = 12;
         const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
-        pointsToAdd = Math.floor(12 * aiPointMultiplier * premiumMultiplier);
-
-        // Handle cleaning
+        pointsToAdd = Math.floor(basePoints * aiPointMultiplier * premiumMultiplier);
         await handleCleaning();
-
-        // Save activity
-        const activityId = uuidv4();
-        const activity = {
-          id: activityId,
-          type: "clean",
-          name: `Grooming: ${itemName}`,
-          points: pointsToAdd,
-          timestamp: Date.now(),
-        };
-        saveActivityToDatabase(activity);
-
-        // Update local activities
-        setUserActivities((prev) => [activity, ...prev].slice(0, 10));
-
         setMostRecentTask("clean");
+
       } else if (option === "doctor" && selectedDoctorItem !== null) {
         itemType = "doctor";
+        interactionSource = 'interaction'; // Or 'heal' if distinct logic exists
         const doctorItems = ["checkup", "medicine", "vaccine", "surgery"];
         itemName = doctorItems[selectedDoctorItem];
-
-        // Apply premium multiplier to points
+        basePoints = 20;
         const premiumMultiplier = getPremiumMultiplier(itemType, itemName);
-        pointsToAdd = Math.floor(20 * aiPointMultiplier * premiumMultiplier);
-
-        // Handle healing
+        pointsToAdd = Math.floor(basePoints * aiPointMultiplier * premiumMultiplier);
         await handleDoctor();
-
-        // Save activity
-        const activityId = uuidv4();
-        const activity = {
-          id: activityId,
-          type: "heal",
-          name: `Medical: ${itemName}`,
-          points: pointsToAdd,
-          timestamp: Date.now(),
-        };
-        saveActivityToDatabase(activity);
-
-        // Update local activities
-        setUserActivities((prev) => [activity, ...prev].slice(0, 10));
-
         setMostRecentTask("heal");
       }
 
-      // Update points in wallet
+      // --- Centralized Point Awarding via PointsManager ---
       if (pointsToAdd > 0 && publicKey) {
-        updatePoints(pointsToAdd);
-        updateUserDataPoints(userData.points + pointsToAdd);
+        try {
+          console.log(`KawaiiDevice: Awarding ${pointsToAdd} points via PointsManager for ${itemType} - ${itemName}`);
+          // Use pointsManager to award points. Pass base amount before multipliers.
+          // PointsManager will apply its own multipliers (streak, etc.) if configured.
+          // Let's assume pointsToAdd *already includes* AI and Premium multipliers from KawaiiDevice scope
+          // So, we tell PointsManager to award this specific calculated amount.
+          // We might need a specific 'earn' operation if PointsManager applies multipliers itself.
+          // For now, let's assume we pass the final calculated amount.
+          // A potentially better approach: Pass basePoints and let PointsManager calculate everything.
+          // Sticking to current logic: pass final amount.
+          const result = await pointsManager.awardPoints(
+              publicKey,
+              pointsToAdd, // Pass the final calculated points
+              interactionSource, // The source category
+              'earn', // Operation type
+              { interactionType: itemType, itemName: itemName } // Metadata
+          );
 
-        // Update leaderboard
-        updateUserPoints(publicKey, userData.points + pointsToAdd);
+          if (result.success) {
+            console.log(`KawaiiDevice: PointsManager successful. New total maybe: ${result.total}`);
+            // TODO: UI state should update based on events from PointsManager, not direct calls here.
+            // For now, let's keep the UserDataContext update temporarily for UI feedback
+             updateUserDataPoints(result.total);
+          } else {
+            console.warn(`KawaiiDevice: PointsManager failed to award points for ${itemType} - ${itemName}.`);
+            // Handle failure? Show message?
+          }
+
+           // --- Activity Saving (can stay here or move to PointsManager if desired) ---
+           const activityId = uuidv4();
+           const activity: UserActivity = {
+             id: activityId,
+             type: itemType || option, // Use itemType if available
+             name: `${itemType ? (itemType.charAt(0).toUpperCase() + itemType.slice(1)) : 'Unknown'}: ${itemName}`,
+             points: result.success ? result.points : 0, // Log points actually awarded by manager
+             timestamp: Date.now(),
+           };
+           saveActivityToDatabase(activity);
+           setUserActivities((prev) => [activity, ...prev].slice(0, 10));
+           // --- End Activity Saving ---
+
+        } catch (error) {
+           console.error(`KawaiiDevice: Error calling PointsManager for ${itemType} - ${itemName}:`, error);
+           // Handle error state in UI?
+        }
+
+
+        // REMOVE direct context updates:
+        // updatePoints(pointsToAdd);
+        // updateUserDataPoints(userData.points + pointsToAdd);
+        // updateUserPoints(publicKey, userData.points + pointsToAdd); // Already removed
       }
 
       // Always reset the menu to go back to main screen after completing a task
@@ -895,10 +821,10 @@ export function KawaiiDevice() {
       handleCleaning,
       handleDoctor,
       resetMenu,
-      updatePoints,
+      // updatePoints, // Removed dependency
       publicKey,
-      userData.points,
-      updateUserDataPoints,
+      // userData.points, // Total points dependency might change based on how UI updates
+      updateUserDataPoints, // Temporary dependency for UI feedback
       aiPointMultiplier,
       saveActivityToDatabase,
       setUserActivities,
@@ -918,18 +844,75 @@ export function KawaiiDevice() {
 
   // Wrap in useCallback
   const handleReviveConfirm = useCallback(async () => {
-    // Burn 50% of points through the wallet context
-    await burnPoints();
-    // Reset pet stats
-    resetPet();
+    // Burn 50% of points using PointsManager
+    const pointsToDeduct = Math.floor((userData.points || 0) / 2);
+
+    if (publicKey && pointsToDeduct > 0) {
+       try {
+          console.log(`KawaiiDevice: Spending ${pointsToDeduct} points via PointsManager for revive`);
+          const result = await pointsManager.deductPoints(
+             publicKey,
+             pointsToDeduct,
+             'penalty', // Or a more specific source like 'revive'
+             { reason: 'Pet revival' }
+          );
+
+          if (result.success) {
+             console.log(`KawaiiDevice: PointsManager successful deduction for revive. New total maybe: ${result.total}`);
+             // TODO: Update UI via events
+             // Temporary update:
+             updateUserDataPoints(result.total);
+
+             // Reset pet stats only after successful deduction
+             resetPet();
+
+             // Record activity?
+              const activityId = uuidv4();
+              const activity = {
+                id: activityId,
+                type: "revive",
+                name: `Revived Pet`,
+                points: -pointsToDeduct, 
+                timestamp: Date.now(),
+              };
+              saveActivityToDatabase(activity);
+              setUserActivities((prev) => [activity, ...prev].slice(0, 10));
+
+          } else {
+             console.warn(`KawaiiDevice: PointsManager failed to deduct points for revive.`);
+             // Maybe show an error message? Don't resetPet if deduction failed.
+             setShowReviveConfirm(false); // Close confirm if failed
+             return; // Stop execution if deduction failed
+          }
+       } catch (error) {
+          console.error(`KawaiiDevice: Error calling PointsManager for revive deduction:`, error);
+          setShowReviveConfirm(false); // Close confirm on error
+          return; // Stop execution on error
+       }
+    } else {
+      // If no points to deduct or no publicKey, just reset pet?
+      // Or show error? For now, proceed with reset but log it.
+      console.warn("KawaiiDevice: Cannot deduct points for revive (0 points or no public key). Resetting pet stats.");
+      resetPet();
+    }
+
+    // await burnPoints(); // Removed direct call
+    // resetPet(); // Moved inside successful deduction block
+    
     // Hide confirmation dialog
     setShowReviveConfirm(false);
 
-    // Update leaderboard with the new score after revival
-    if (publicKey) {
-      updateUserPoints(publicKey, Math.floor(points / 2));
-    }
-  }, [burnPoints, resetPet, publicKey, points]); // Add dependencies
+    // Leaderboard update was already removed/commented out here
+  }, [
+       // burnPoints, // Removed dependency
+       resetPet, 
+       publicKey, 
+       // points, // Use userData.points instead for calculation
+       userData.points, // Added dependency
+       updateUserDataPoints, // Temporary dependency
+       saveActivityToDatabase, // Added dependency
+       setUserActivities // Added dependency
+    ]); 
 
   // Wrap in useCallback
   const handleReviveCancel = useCallback(() => {
@@ -994,28 +977,54 @@ export function KawaiiDevice() {
             // Process the unlock
             const { type, name, cost /*, index*/ } = itemToUnlock;
             if (userData.points >= cost) {
-              // Deduct points
-              updateUserDataPoints(userData.points - cost);
+              // Deduct points using PointsManager
               if (publicKey) {
-                updatePoints(-cost);
+                try {
+                  console.log(`KawaiiDevice: Spending ${cost} points via PointsManager for unlocking ${name}`);
+                  const result = await pointsManager.deductPoints(
+                    publicKey,
+                    cost,
+                    'purchase', // Point source for unlocks
+                    { itemType: type, itemName: name }
+                  );
+                  
+                  if (result.success) {
+                     console.log(`KawaiiDevice: PointsManager successful deduction. New total maybe: ${result.total}`);
+                     // TODO: UI state should update based on events from PointsManager
+                     // Temporary update for UI feedback:
+                     updateUserDataPoints(result.total);
+
+                     // Unlock the item - use consistent hyphenated format
+                     const itemKey = `${type}-${name}`;
+                     const newUnlockedItems = { ...unlockedItems, [itemKey]: true };
+                     await updateUnlockedItems(newUnlockedItems);
+
+                     // Record activity (Can stay here or move to pointsManager if desired)
+                     const activityId = uuidv4();
+                     const activity = {
+                       id: activityId,
+                       type: "unlock",
+                       name: `Unlocked ${name}`,
+                       points: -cost, // Record the cost
+                       timestamp: Date.now(),
+                     };
+                     saveActivityToDatabase(activity);
+                     setUserActivities((prev) => [activity, ...prev].slice(0, 10));
+                  } else {
+                     console.warn(`KawaiiDevice: PointsManager failed to deduct points for unlocking ${name}.`);
+                     // Handle failure? Show insufficient points message?
+                  }
+                } catch (error) {
+                  console.error(`KawaiiDevice: Error calling PointsManager for unlock deduction:`, error);
+                }
               }
+              // Remove direct context updates:
+              // updateUserDataPoints(userData.points - cost);
+              // if (publicKey) { updatePoints(-cost); }
 
-              // Unlock the item - use consistent hyphenated format
-              const itemKey = `${type}-${name}`;
-              const newUnlockedItems = { ...unlockedItems, [itemKey]: true };
-              await updateUnlockedItems(newUnlockedItems);
-
-              // Record activity
-              const activityId = uuidv4();
-              const activity = {
-                id: activityId,
-                type: "unlock",
-                name: `Unlocked ${name}`,
-                points: -cost,
-                timestamp: Date.now(),
-              };
-              saveActivityToDatabase(activity);
-              setUserActivities((prev) => [activity, ...prev].slice(0, 10));
+            } else {
+               // Handle insufficient points case (optional: show message)
+               console.log("KawaiiDevice: Insufficient points to unlock item.");
             }
           }
 
@@ -1149,7 +1158,6 @@ export function KawaiiDevice() {
       itemToUnlock,
       userData.points,
       updateUserDataPoints,
-      updatePoints,
       publicKey,
       saveActivityToDatabase,
       isItemLocked,
@@ -1157,9 +1165,9 @@ export function KawaiiDevice() {
       handleReviveConfirm,
       handleReviveCancel,
       showReviveConfirm,
-      premiumItems, // Add the memoized premiumItems object
-      unlockedItems, // From UserDataContext
-      updateUnlockedItems, // From UserDataContext
+      premiumItems, 
+      unlockedItems, 
+      updateUnlockedItems, 
     ]
   );
 
@@ -2098,44 +2106,6 @@ export function KawaiiDevice() {
             pointsMultiplier={walletData?.multiplier || 1.0}
             recentActivities={userActivities}
             isLoading={isActivitiesLoading}
-            onPointsEarned={useCallback(
-              async (earnedPoints: number) => {
-                // Added guard condition and logging
-                if (!publicKey || earnedPoints <= 0) {
-                  console.log(
-                    `[onPointsEarned] Skipping point update. PublicKey: ${publicKey}, EarnedPoints: ${earnedPoints}`
-                  );
-                  return;
-                }
-
-                console.log(
-                  `[onPointsEarned] START: Awarding ${earnedPoints} points to ${publicKey}. Current points: ${userData.points}`
-                );
-                try {
-                  // Calculate new total points
-                  const newPoints = userData.points + earnedPoints;
-
-                  // Use updateUserDataPoints to handle both local state and server update
-                  const success = await updateUserDataPoints(newPoints);
-
-                  if (success) {
-                    console.log(
-                      `[onPointsEarned] SUCCESS: Points updated. New total: ${newPoints}`
-                    );
-                  } else {
-                    console.error(
-                      `[onPointsEarned] FAILURE: Failed to update points to ${newPoints}`
-                    );
-                  }
-                } catch (error) {
-                  console.error(
-                    `[onPointsEarned] EXCEPTION during points update for ${publicKey}:`,
-                    error
-                  );
-                }
-              },
-              [publicKey, userData.points, updateUserDataPoints]
-            )} // Added userData.points back for logging comparison
           />
         </div>
       </div>

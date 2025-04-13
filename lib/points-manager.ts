@@ -7,7 +7,16 @@ import { EventEmitter } from 'events';
 export type PointOperation = 'earn' | 'spend' | 'bonus' | 'penalty' | 'refund';
 
 // Point source tracking
-export type PointSource = 'gameplay' | 'daily' | 'achievement' /* | 'referral' */ | 'streak' | 'interaction' | 'purchase';
+export type PointSource = 
+  'gameplay' | 
+  'daily' | 
+  'achievement' | 
+  'streak' | 
+  'interaction' | 
+  'purchase' | // For unlocks
+  'penalty' | // For revivals or other costs
+  'revive' | // More specific revive source
+  'passive'; // For points from PointsEarnedPanel
 
 // Point transaction record
 export interface PointTransaction {

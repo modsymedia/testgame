@@ -3,6 +3,8 @@ import Image from 'next/image';
 import PixelatedContainer from '@/components/game/PixelatedContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import CustomSlider from '@/components/game/CustomSlider';
+import { pointsManager } from '@/lib/points-manager';
+import { useWallet } from '@/context/WalletContext';
 
 interface UserActivity {
   id: string;
@@ -16,7 +18,6 @@ interface PointsEarnedPanelProps {
   currentPoints: number;
   className?: string;
   pointsMultiplier?: number;
-  onPointsEarned?: (points: number) => void;
   recentActivities?: UserActivity[];
   isLoading?: boolean;
 }
@@ -189,10 +190,11 @@ export const PointsEarnedPanel = ({
   currentPoints,
   className,
   pointsMultiplier = 1.0,
-  onPointsEarned,
-  recentActivities = [], // Default to empty array
+  recentActivities = [],
   isLoading = false
 }: PointsEarnedPanelProps) => {
+  const { publicKey } = useWallet();
+
   // Fixed values
   const TIMER_DURATION = 10; // 10 seconds per cycle
   const POINTS_PER_CYCLE = 2; // 2 points per cycle
@@ -246,12 +248,29 @@ export const PointsEarnedPanel = ({
       // Complete cycle
       const pointsToAdd = Math.round(POINTS_PER_CYCLE * pointsMultiplier);
       
-      // Only add points if onPointsEarned is provided
-      if (onPointsEarned) {
-        onPointsEarned(pointsToAdd);
+      // Award points directly via PointsManager
+      if (pointsToAdd > 0 && publicKey) {
+          // Use pointsManager here
+          pointsManager.awardPoints(
+            publicKey, // Use publicKey
+            pointsToAdd,
+            'passive', // Use the new 'passive' source type
+            'earn',
+            { sourceComponent: 'PointsEarnedPanel' }
+          ).then(result => {
+             if (result.success) {
+                console.log(`PointsEarnedPanel: Awarded ${result.points} passive points. New total maybe: ${result.total}`);
+                // Update UI state indirectly via context listening to PointsManager events later
+                setLastPointsAdded(result.points); // Show notification
+             } else {
+                 console.warn("PointsEarnedPanel: Failed to award passive points via PointsManager.");
+             }
+          }).catch(error => {
+              console.error("PointsEarnedPanel: Error calling pointsManager.awardPoints:", error);
+          });
+      } else if (pointsToAdd > 0) {
+         console.warn("PointsEarnedPanel: Cannot award passive points, publicKey is missing.");
       }
-      
-      setLastPointsAdded(pointsToAdd);
       
       // Reset for next cycle
       startTimeRef.current = Date.now();
@@ -259,7 +278,13 @@ export const PointsEarnedPanel = ({
       setTimeRemaining(TIMER_DURATION);
       animationRef.current = requestAnimationFrame(animate);
     }
-  }, [TIMER_DURATION, POINTS_PER_CYCLE, pointsMultiplier, onPointsEarned]);
+  }, [
+       TIMER_DURATION, 
+       POINTS_PER_CYCLE, 
+       pointsMultiplier, 
+       // Remove onPointsEarned from dependencies
+       publicKey // Add publicKey dependency
+    ]);
   
   // Start/cleanup animation
   useEffect(() => {

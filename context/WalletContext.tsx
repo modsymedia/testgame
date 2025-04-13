@@ -415,19 +415,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setIsConnected(true);
 
         // Initialize database tables before loading data
-        try {
-          console.log("Ensuring database tables exist...");
-          await fetch('/api/init-database', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-        } catch (initError) {
-          console.warn('Database initialization error:', initError);
-          // Continue even if initialization fails
-        }
-
+        
         // Once connected, load or check user data
         await fetchDataForConnectedWallet(key);
 
