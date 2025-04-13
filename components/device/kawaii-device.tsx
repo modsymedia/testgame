@@ -357,33 +357,48 @@ export function KawaiiDevice() {
         body: JSON.stringify(petState),
       });
 
+      // First get the response text for better debugging
+      const responseText = await response.text();
+      let responseData;
+      
+      try {
+        // Try to parse as JSON if possible
+        responseData = responseText ? JSON.parse(responseText) : null;
+      } catch{
+        responseData = null;
+      }
+
       if (!response.ok) {
-        // Safely handle the error response
+        // Create a detailed error message
         let errorMessage = `HTTP error ${response.status}`;
-        try {
-          const errorText = await response.text();
-          if (errorText) {
-            try {
-              const errorData = JSON.parse(errorText);
-              errorMessage = errorData.error || errorData.message || errorText;
-            } catch {
-              /* ignore */
-            }
+        if (responseData && responseData.error) {
+          errorMessage = `Database error: ${responseData.error}`;
+          if (responseData.details) {
+            errorMessage += ` - ${responseData.details}`;
           }
-        } catch {
-          /* ignore */
+        } else if (responseText) {
+          errorMessage = responseText;
         }
 
         console.error("Error saving pet state:", errorMessage);
+        console.error("Response status:", response.status);
+        console.error("Response headers:", Object.fromEntries(response.headers.entries()));
+        
         return;
       }
 
-      const result = await response.json();
-      console.log("Pet state saved successfully to database:", result);
+      console.log("Pet state saved successfully to database:", responseData || responseText);
     } catch (error) {
       console.error("Failed to save pet state to database:", error);
+      
+      // Add more detailed error info
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
     }
-  }, [publicKey, health, happiness, food, cleanliness, energy, isDead]); // Add dependencies
+  }, [publicKey, health, happiness, food, cleanliness, energy, isDead]);
 
   // Save pet state whenever relevant stats change
   useEffect(() => {

@@ -79,9 +79,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ${activityId}, 
         ${activity.type}, 
         ${activity.name}, 
-        ${activity.points}, 
-        to_timestamp(${activity.timestamp / 1000})
+        ${activity.points || 0}, 
+        to_timestamp(${activity.timestamp ? activity.timestamp / 1000 : Date.now() / 1000})
       )
+      ON CONFLICT (activity_id) 
+      DO NOTHING
     `;
 
     // Return success
