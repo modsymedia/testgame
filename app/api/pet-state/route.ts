@@ -7,59 +7,101 @@ const sql = neon(process.env.DATABASE_URL || '');
 // GET handler to retrieve pet state
 export async function GET(request: Request) {
   try {
-    // Get wallet address from URL params
     const url = new URL(request.url);
     const walletAddress = url.searchParams.get('walletAddress');
     
     if (!walletAddress) {
-      console.error('Missing wallet address in GET request');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing wallet address' 
+      return NextResponse.json({
+        success: false,
+        error: 'Missing wallet address'
       }, { status: 400 });
     }
     
-    console.log(`Fetching pet state for wallet: ${walletAddress}`);
-    
-    // Fetch pet data from the database
-    const petData = await sql`
-      SELECT * FROM pet_states 
-      WHERE wallet_address = ${walletAddress}
-    `;
-    
-    if (!petData || petData.length === 0) {
-      console.warn(`Pet not found for wallet: ${walletAddress}`);
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Pet not found' 
-      }, { status: 404 });
+    try {
+      // First try to get the pet state from the database
+      const petStateResult = await sql`
+        SELECT * FROM pet_states WHERE wallet_address = ${walletAddress}
+      `;
+      
+      if (petStateResult.length > 0) {
+        const petState = petStateResult[0];
+        
+        return NextResponse.json({
+          success: true,
+          data: {
+            health: petState.health,
+            happiness: petState.happiness,
+            hunger: petState.hunger,
+            cleanliness: petState.cleanliness,
+            energy: petState.energy,
+            isDead: petState.is_dead,
+            lastStateUpdate: petState.last_state_update,
+            qualityScore: petState.quality_score
+          }
+        });
+      } else {
+        // Check if the user exists
+        const userExists = await sql`
+          SELECT id FROM users WHERE wallet_address = ${walletAddress}
+        `;
+        
+        if (userExists.length === 0) {
+          return NextResponse.json({
+            success: false,
+            error: 'User not found'
+          }, { status: 404 });
+        }
+        
+        // Create a default pet state
+        await sql`
+          INSERT INTO pet_states (
+            wallet_address, health, happiness, hunger, cleanliness,
+            energy, last_state_update, quality_score, is_dead
+          ) VALUES (
+            ${walletAddress}, 100, 100, 100, 100,
+            100, ${new Date().toISOString()}, 0, false
+          )
+        `;
+        
+        return NextResponse.json({
+          success: true,
+          data: {
+            health: 100,
+            happiness: 100,
+            hunger: 100,
+            cleanliness: 100,
+            energy: 100,
+            isDead: false,
+            lastStateUpdate: new Date().toISOString(),
+            qualityScore: 0
+          }
+        });
+      }
+    } catch (dbError: any) {
+      console.error('Database error:', dbError);
+      
+      // Return a fallback response with default values
+      return NextResponse.json({
+        success: true,
+        data: {
+          health: 50,
+          happiness: 50,
+          hunger: 50,
+          cleanliness: 50,
+          energy: 50,
+          isDead: false,
+          lastStateUpdate: new Date().toISOString(),
+          qualityScore: 0
+        },
+        warning: 'Using default values due to database error'
+      });
     }
-    
-    // Format data for client
-    const formattedData = {
-      health: petData[0].health || 0,
-      happiness: petData[0].happiness || 0,
-      hunger: petData[0].hunger || 0,
-      cleanliness: petData[0].cleanliness || 0,
-      energy: petData[0].energy || 0,
-      is_dead: petData[0].is_dead || false,
-      last_state_update: petData[0].last_state_update,
-      points: petData[0].points || 0
-    };
-    
-    console.log(`Successfully retrieved pet state for wallet: ${walletAddress}`);
-    
-    return NextResponse.json({ 
-      success: true, 
-      data: formattedData
-    });
   } catch (error: any) {
-    console.error('Error retrieving pet state:', error);
-    return NextResponse.json({ 
-      success: false, 
+    console.error('Error in pet-state API:', error);
+    return NextResponse.json({
+      success: false,
       error: 'Server error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     }, { status: 500 });
   }
 }
@@ -67,92 +109,126 @@ export async function GET(request: Request) {
 // POST handler to update pet state
 export async function POST(request: Request) {
   try {
-    // Parse the request body
-    const data = await request.json();
-    console.log('Received pet state update request:', data);
+    console.log("Received POST request to /api/pet-state");
+    const body = await request.json();
+    console.log("Request body:", JSON.stringify(body));
     
-    // Extract and validate required fields
-    const { walletAddress, health, happiness, hunger, cleanliness, energy, isDead } = data;
+    // Handle both formats: 
+    // 1. Direct properties in the body 
+    // 2. Properties nested under petState
+    const walletAddress = body.walletAddress;
+    
+    // Check if petState is a nested object
+    let health, happiness, hunger, cleanliness, energy, isDead;
+    
+    if (body.petState) {
+      console.log("Found nested petState object");
+      // Extract from nested petState object
+      health = body.petState.health || 50;
+      happiness = body.petState.happiness || 50;
+      hunger = body.petState.hunger || 50;
+      cleanliness = body.petState.cleanliness || 50;
+      energy = body.petState.energy || 50;
+      isDead = body.petState.isDead || false;
+    } else {
+      console.log("Using top-level properties");
+      // Extract from top-level properties
+      health = body.health || 50;
+      happiness = body.happiness || 50;
+      hunger = body.hunger || 50;
+      cleanliness = body.cleanliness || 50;
+      energy = body.energy || 50;
+      isDead = body.isDead || false;
+    }
+    
+    console.log("Extracted values:", {
+      walletAddress,
+      health,
+      happiness,
+      hunger,
+      cleanliness,
+      energy,
+      isDead
+    });
     
     if (!walletAddress) {
-      console.error('Missing wallet address in POST request');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing wallet address' 
+      console.log("Missing wallet address");
+      return NextResponse.json({
+        success: false,
+        error: 'Missing wallet address'
       }, { status: 400 });
     }
     
-    // Validate and sanitize input values
-    const validatedHealth = Math.round(typeof health === 'number' ? Math.max(0, Math.min(100, health)) : 100);
-    const validatedHappiness = Math.round(typeof happiness === 'number' ? Math.max(0, Math.min(100, happiness)) : 100);
-    const validatedHunger = Math.round(typeof hunger === 'number' ? Math.max(0, Math.min(100, hunger)) : 100);
-    const validatedCleanliness = Math.round(typeof cleanliness === 'number' ? Math.max(0, Math.min(100, cleanliness)) : 100);
-    const validatedEnergy = Math.round(typeof energy === 'number' ? Math.max(0, Math.min(100, energy)) : 100);
-    const validatedIsDead = typeof isDead === 'boolean' ? isDead : false;
-    
-    // Check if the pet exists
-    console.log(`Checking if pet exists for wallet: ${walletAddress}`);
-    const existingPet = await sql`
-      SELECT wallet_address FROM pet_states 
-      WHERE wallet_address = ${walletAddress}
-    `;
-    
-    const timestamp = new Date().toISOString();
-    
-    if (!existingPet || existingPet.length === 0) {
-      // Pet doesn't exist, create it with validated values
-      console.log(`Creating new pet state for wallet: ${walletAddress}`);
+    try {
+      // Check if user exists
+      console.log("Checking if user exists:", walletAddress);
+      const userExists = await sql`
+        SELECT id FROM users WHERE wallet_address = ${walletAddress}
+      `;
+      
+      if (userExists.length === 0) {
+        console.log("Creating new user:", walletAddress);
+        // Create user with default values if not exists
+        await sql`
+          INSERT INTO users (
+            wallet_address, username, points, created_at, last_points_update
+          ) VALUES (
+            ${walletAddress}, 
+            ${'User_' + walletAddress.substring(0, 4)}, 
+            0, 
+            ${new Date().toISOString()}, 
+            ${new Date().toISOString()}
+          )
+        `;
+      }
+      
+      // Upsert pet state
+      console.log("Upserting pet state for:", walletAddress);
       await sql`
         INSERT INTO pet_states (
           wallet_address, health, happiness, hunger, cleanliness,
-          energy, is_dead, last_state_update
+          energy, last_state_update, quality_score, is_dead
         ) VALUES (
-          ${walletAddress},
-          ${validatedHealth},
-          ${validatedHappiness},
-          ${validatedHunger},
-          ${validatedCleanliness},
-          ${validatedEnergy},
-          ${validatedIsDead},
-          ${timestamp}
+          ${walletAddress}, 
+          ${health}, 
+          ${happiness}, 
+          ${hunger},
+          ${cleanliness}, 
+          ${energy}, 
+          ${new Date().toISOString()},
+          ${0}, 
+          ${isDead}
         )
+        ON CONFLICT (wallet_address)
+        DO UPDATE SET
+          health = EXCLUDED.health, 
+          happiness = EXCLUDED.happiness, 
+          hunger = EXCLUDED.hunger,
+          cleanliness = EXCLUDED.cleanliness, 
+          energy = EXCLUDED.energy, 
+          last_state_update = EXCLUDED.last_state_update,
+          is_dead = EXCLUDED.is_dead
       `;
       
-      console.log(`Successfully created pet state for wallet: ${walletAddress}`);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'New pet state created',
-        timestamp
-      }, { status: 201 });
-    } else {
-      // Pet exists, update its state with validated values
-      console.log(`Updating pet state for wallet: ${walletAddress}`);
-      await sql`
-        UPDATE pet_states 
-        SET health = ${validatedHealth},
-            happiness = ${validatedHappiness},
-            hunger = ${validatedHunger},
-            cleanliness = ${validatedCleanliness},
-            energy = ${validatedEnergy},
-            is_dead = ${validatedIsDead},
-            last_state_update = ${timestamp}
-        WHERE wallet_address = ${walletAddress}
-      `;
-      
-      console.log(`Successfully updated pet state for wallet: ${walletAddress}`);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Pet state updated successfully',
-        timestamp
+      console.log("Pet state updated successfully");
+      return NextResponse.json({
+        success: true,
+        message: 'Pet state updated successfully'
       });
+    } catch (dbError: any) {
+      console.error('Database error:', dbError);
+      return NextResponse.json({
+        success: false,
+        error: 'Database error',
+        details: dbError.message
+      }, { status: 500 });
     }
   } catch (error: any) {
-    console.error('Error updating pet state:', error);
-    return NextResponse.json({ 
-      success: false, 
+    console.error('Error in pet-state API:', error);
+    return NextResponse.json({
+      success: false,
       error: 'Server error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     }, { status: 500 });
   }
 } 

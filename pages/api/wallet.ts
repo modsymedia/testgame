@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { neon } from '@neondatabase/serverless'; // Removed unused QueryResult
+import { neon } from '@neondatabase/serverless';
 import crypto from 'crypto';
-import { dbService } from '@/lib/database-service'; // Import dbService
+import { dbService } from '@/lib/database-service'; 
 
 const sql = neon(process.env.DATABASE_URL || '');
 
