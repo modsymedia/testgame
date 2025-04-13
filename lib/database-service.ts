@@ -528,27 +528,46 @@ export class DatabaseService {
         RETURNING id
       `;
       
-      // Add pet state if provided
-      if (userData.petState) {
+      // Always create initial pet state for new users
+      // First check if pet state already exists
+      const existingPetState = await sql`
+        SELECT wallet_address FROM pet_states WHERE wallet_address = ${userData.walletAddress}
+      `;
+      
+      if (existingPetState.rows.length === 0) {
+        // No existing pet state, create one with default values
+        const petState = userData.petState || {
+          health: 100,
+          happiness: 100,
+          hunger: 100,
+          cleanliness: 100,
+          energy: 100,
+          isDead: false,
+          qualityScore: 0,
+          lastMessage: '',
+          lastReaction: 'none'
+        };
+        
         await sql`
           INSERT INTO pet_states (
             wallet_address, health, happiness, hunger, cleanliness, energy,
             last_state_update, quality_score, last_message, last_reaction, is_dead, last_interaction_time
           ) VALUES (
             ${userData.walletAddress},
-            ${userData.petState.health || 100},
-            ${userData.petState.happiness || 100},
-            ${userData.petState.hunger || 100},
-            ${userData.petState.cleanliness || 100},
-            ${userData.petState.energy || 100},
-            ${userData.petState.lastStateUpdate ? userData.petState.lastStateUpdate.toISOString() : new Date().toISOString()},
-            ${userData.petState.qualityScore || 0},
-            ${userData.petState.lastMessage || ''},
-            ${userData.petState.lastReaction || 'none'},
-            ${userData.petState.isDead || false},
-            ${userData.petState.lastInteractionTime instanceof Date ? userData.petState.lastInteractionTime.toISOString() : new Date().toISOString()}
+            ${petState.health || 100},
+            ${petState.happiness || 100},
+            ${petState.hunger || 100},
+            ${petState.cleanliness || 100},
+            ${petState.energy || 100},
+            ${new Date().toISOString()},
+            ${petState.qualityScore || 0},
+            ${petState.lastMessage || ''},
+            ${petState.lastReaction || 'none'},
+            ${petState.isDead || false},
+            ${new Date().toISOString()}
           )
         `;
+        console.log(`Created initial pet state for user: ${userData.walletAddress}`);
       }
       
       // Cache the new user data

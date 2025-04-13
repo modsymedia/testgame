@@ -1,22 +1,4 @@
-import { motion } from "framer-motion";
 import Image from "next/image";
-
-// These animations will be applied to the image container
-const pawAnimation = {
-  rest: { rotate: 0 },
-  wave: {
-    rotate: [0, 5, 0, -5, 0],
-    transition: { duration: 2, repeat: Infinity },
-  },
-};
-
-const tailAnimation = {
-  rest: { rotate: 0 },
-  wag: {
-    rotate: [0, 10, 0, -10, 0],
-    transition: { duration: 2, repeat: Infinity, repeatDelay: 1 },
-  },
-};
 
 interface CatEmotionProps {
   selectedMenuItem?: number | null;
@@ -48,6 +30,8 @@ const CatBase: React.FC<CatEmotionProps> = ({
       className={`absolute ${
         mostRecentTask === "clean" || hygieneTaskOnCooldown
           ? "top-[76px]"
+          : playTaskOnCooldown
+          ? "top-[70px]"
           : "top-[96px]"
       } object-contain opacity-50`}
       style={{
@@ -87,10 +71,10 @@ const CatBase: React.FC<CatEmotionProps> = ({
           : mostRecentTask === "clean" ||
             (hygieneTaskOnCooldown && !mostRecentTask)
           ? 97
-          : mostRecentTask === "heal"
+          : mostRecentTask === "heal" || (healTaskOnCooldown && !mostRecentTask)
           ? 113
-          : mostRecentTask === "play"
-          ? 113
+          : mostRecentTask === "play" || (playTaskOnCooldown && !mostRecentTask)
+          ? 120
           : 154
       }
       height={
@@ -101,10 +85,10 @@ const CatBase: React.FC<CatEmotionProps> = ({
           : mostRecentTask === "clean" ||
             (hygieneTaskOnCooldown && !mostRecentTask)
           ? 97
-          : mostRecentTask === "heal"
+          : mostRecentTask === "heal" || (healTaskOnCooldown && !mostRecentTask)
           ? 113
-          : mostRecentTask === "play"
-          ? 113
+          : mostRecentTask === "play" || (playTaskOnCooldown && !mostRecentTask)
+          ? 120
           : 154
       }
       unoptimized={true}
@@ -114,22 +98,6 @@ const CatBase: React.FC<CatEmotionProps> = ({
       }}
     />
 
-    {/* Keep animations by applying them to the image container */}
-    <motion.div
-      className="absolute bottom-0 left-1/2 -translate-x-1/2 transform"
-      initial="rest"
-      animate="wave"
-      variants={pawAnimation}
-      style={{ display: "inline-block", transformOrigin: "bottom center" }}
-    />
-
-    <motion.div
-      className="absolute bottom-0 right-0"
-      initial="rest"
-      animate="wag"
-      variants={tailAnimation}
-      style={{ display: "inline-block", transformOrigin: "bottom left" }}
-    />
   </div>
 );
 

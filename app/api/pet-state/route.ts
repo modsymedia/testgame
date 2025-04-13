@@ -187,7 +187,7 @@ export async function POST(request: Request) {
       await sql`
         INSERT INTO pet_states (
           wallet_address, health, happiness, hunger, cleanliness,
-          energy, last_state_update, quality_score, is_dead
+          energy, last_state_update, quality_score, last_message, last_reaction, is_dead
         ) VALUES (
           ${walletAddress}, 
           ${health}, 
@@ -197,6 +197,8 @@ export async function POST(request: Request) {
           ${energy}, 
           ${new Date().toISOString()},
           ${0}, 
+          ${''},
+          ${'none'},
           ${isDead}
         )
         ON CONFLICT (wallet_address)
