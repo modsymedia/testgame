@@ -73,40 +73,36 @@ export default function AdminPage() {
 
     try {
       setIsLoading(true);
+      console.log("🔍 Fetching pet data for wallet:", publicKey);
 
-      // First try to get pet data from the pet-state API
-      let response = await fetch(`/api/pet-state?walletAddress=${publicKey}`);
+      // Try using the admin pet management API with the 'get' operation
+      const response = await fetch("/api/admin/pet-management", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Admin-Token": "development-token",
+        },
+        body: JSON.stringify({
+          walletAddress: publicKey,
+          operation: "get",
+        }),
+      });
 
-      // If the pet-state API fails, try getting data directly from pet management API
-      if (!response.ok) {
-        response = await fetch("/api/admin/pet-management", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            walletAddress: publicKey,
-            operation: "get",
-          }),
-        });
+      const responseText = await response.text();
+      console.log("Raw API response for pet data:", responseText);
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Failed to parse API response:", parseError);
+        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
       }
 
       if (!response.ok) {
-        // If both APIs fail, use wallet data as fallback
-        setPetData(
-          walletData || {
-            health: 0,
-            happiness: 0,
-            hunger: 0,
-            cleanliness: 0,
-            energy: 0,
-            isDead: false,
-          }
-        );
-        return;
+        console.warn("API error:", result);
+        throw new Error(result.error || `Failed to get pet data: ${response.status}`);
       }
-
-      const result = await response.json();
 
       if (result.success && result.data) {
         // Update local petData state
@@ -118,6 +114,7 @@ export default function AdminPage() {
           cleanliness: petStateData.cleanliness || 0,
           energy: petStateData.energy || 0,
           isDead: petStateData.is_dead || false,
+          lastUpdate: petStateData.last_state_update
         });
 
         console.log("✅ Updated pet data:", petStateData);
@@ -125,21 +122,13 @@ export default function AdminPage() {
         // Also update the UI with a toast notification
         toast.success("Pet data refreshed");
       } else {
-        // Use wallet data as fallback
-        setPetData(
-          walletData || {
-            health: 0,
-            happiness: 0,
-            hunger: 0,
-            cleanliness: 0,
-            energy: 0,
-            isDead: false,
-          }
-        );
+        console.warn("No data in API response:", result);
+        throw new Error("No pet data found in API response");
       }
     } catch (error) {
-      console.error("Error fetching pet data:", error);
+      console.error("❌ Error fetching pet data:", error);
       toast.error("Failed to load pet data");
+      
       // Use wallet data as fallback
       setPetData(
         walletData || {
@@ -278,11 +267,19 @@ export default function AdminPage() {
         throw new Error("No wallet connected");
       }
 
+      // Log the exact wallet address format being sent
+      console.log("Sending wallet address to API:", {
+        walletAddress: publicKey,
+        format: typeof publicKey,
+        length: publicKey.length
+      });
+
       // Use the API endpoint instead of direct database access
       const response = await fetch("/api/admin/pet-management", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Admin-Token": "development-token", // Add a simple token for dev
         },
         body: JSON.stringify({
           walletAddress: publicKey,
@@ -290,16 +287,26 @@ export default function AdminPage() {
         }),
       });
 
+      const responseText = await response.text();
+      console.log("Raw API response:", responseText);
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Failed to parse API response:", parseError);
+        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
+      }
+
       if (!response.ok) {
-        const errorData = await response.json();
         throw new Error(
-          errorData.message || `Server error: ${response.status}`
+          result.error || result.message || `Server error: ${response.status}`
         );
       }
 
-      const result = await response.json();
-
       console.log("☠️ Pet killed successfully for wallet:", publicKey);
+      console.log("API response data:", result);
+
       toast.success(result.message || "Pet killed successfully");
 
       // Update pet data
@@ -359,6 +366,72 @@ export default function AdminPage() {
       console.error("❌ Error resetting pet:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to reset pet"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDrainPet = async () => {
+    setIsLoading(true);
+    try {
+      console.log("🔋 Draining pet stats for wallet:", publicKey);
+
+      if (!publicKey) {
+        throw new Error("No wallet connected");
+      }
+
+      // Log the exact wallet address format being sent
+      console.log("Sending wallet address to API:", {
+        walletAddress: publicKey,
+        format: typeof publicKey,
+        length: publicKey.length
+      });
+
+      // Use the API endpoint
+      const response = await fetch("/api/admin/pet-management", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Admin-Token": "development-token", // Add a simple token for dev
+        },
+        body: JSON.stringify({
+          walletAddress: publicKey,
+          operation: "drain",
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log("Raw API response:", responseText);
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Failed to parse API response:", parseError);
+        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result.error || result.message || `Server error: ${response.status}`
+        );
+      }
+
+      console.log("🔽 Pet stats drained successfully for wallet:", publicKey);
+      console.log("API response data:", result);
+
+      toast.success(result.message || "Pet stats drained successfully");
+
+      // Update pet data
+      await fetchPetData();
+
+      // Reload statistics
+      loadStats();
+    } catch (error) {
+      console.error("❌ Error draining pet stats:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to drain pet stats"
       );
     } finally {
       setIsLoading(false);
@@ -968,7 +1041,7 @@ export default function AdminPage() {
             <Button
               variant="destructive"
               onClick={handleKillPet}
-              disabled={isLoading}
+              disabled={isLoading || petData?.isDead}
               className="w-full"
               size="sm"
             >
@@ -976,6 +1049,24 @@ export default function AdminPage() {
             </Button>
           </div>
 
+          <div>
+            <h3 className="text-sm font-semibold mb-1">Drain Stats</h3>
+            <p className="text-xs text-gray-500 mb-2">
+              This will drain all pet stats to critical levels.
+            </p>
+            <Button
+              variant="destructive"
+              onClick={handleDrainPet}
+              disabled={isLoading}
+              className="w-full"
+              size="sm"
+            >
+              Drain Stats
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <div>
             <h3 className="text-sm font-semibold mb-1">Reset Pet</h3>
             <p className="text-xs text-gray-500 mb-2">

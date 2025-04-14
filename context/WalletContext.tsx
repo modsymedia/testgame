@@ -416,12 +416,16 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
         // Initialize database tables before loading data
         try {
+          console.log("Initializing database tables...");
           const { DatabaseService } = await import('../lib/database-service');
           await DatabaseService.instance.initTables();
-          console.log("Database tables initialized");
+          console.log("Database tables initialized successfully");
         } catch (dbError) {
-          console.warn("Database table initialization error:", dbError);
-          // Continue anyway as tables might already exist
+          console.error("Database table initialization error:", dbError);
+          // Continue anyway as this is non-critical, but log the specific error
+          if (dbError instanceof Error) {
+            console.error("Error details:", dbError.message);
+          }
         }
         
         // Once connected, load or check user data

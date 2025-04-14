@@ -172,86 +172,66 @@ export class DatabaseService {
   // Initialize database tables
   public async initTables(): Promise<void> {
     try {
-      const sql = getWriteConnection();
+      // Use the Neon database initialization
+      const { initializeDb } = await import('./neon');
+      const success = await initializeDb();
       
-      // Create users table
-      await sql`
-        CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          wallet_address TEXT UNIQUE NOT NULL,
-          username TEXT,
-          score INTEGER DEFAULT 0,
-          games_played INTEGER DEFAULT 0,
-          last_played TIMESTAMP,
-          created_at TIMESTAMP,
-          points INTEGER DEFAULT 0,
-          daily_points INTEGER DEFAULT 0,
-          last_points_update TIMESTAMP,
-          days_active INTEGER DEFAULT 0,
-          consecutive_days INTEGER DEFAULT 0,
-          token_balance INTEGER DEFAULT 0,
-          multiplier REAL DEFAULT 1.0,
-          last_interaction_time TIMESTAMP,
-          cooldowns JSONB,
-          recent_point_gain INTEGER DEFAULT 0,
-          last_point_gain_time TIMESTAMP,
-          version INTEGER DEFAULT 1
-        );
-      `;
+      if (success) {
+        console.log('Database tables initialized successfully via Neon');
+      } else {
+        console.error('Failed to initialize database tables via Neon');
+        
+        // Fallback to direct SQL if Neon initialization fails
+        const sql = getWriteConnection();
+        
+        // Create essential tables in case the Neon init failed
+        // Create users table
+        await sql`
+          CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            wallet_address TEXT UNIQUE NOT NULL,
+            username TEXT,
+            score INTEGER DEFAULT 0,
+            games_played INTEGER DEFAULT 0,
+            last_played TIMESTAMP,
+            created_at TIMESTAMP,
+            points INTEGER DEFAULT 0,
+            daily_points INTEGER DEFAULT 0,
+            last_points_update TIMESTAMP,
+            days_active INTEGER DEFAULT 0,
+            consecutive_days INTEGER DEFAULT 0,
+            token_balance INTEGER DEFAULT 0,
+            multiplier REAL DEFAULT 1.0,
+            last_interaction_time TIMESTAMP,
+            cooldowns JSONB,
+            recent_point_gain INTEGER DEFAULT 0,
+            last_point_gain_time TIMESTAMP,
+            version INTEGER DEFAULT 1
+          );
+        `;
 
-      // Create pet_states table
-      await sql`
-        CREATE TABLE IF NOT EXISTS pet_states (
-          wallet_address TEXT PRIMARY KEY,
-          health INTEGER DEFAULT 100,
-          happiness INTEGER DEFAULT 100,
-          hunger INTEGER DEFAULT 100,
-          cleanliness INTEGER DEFAULT 100,
-          energy INTEGER DEFAULT 100,
-          last_state_update TIMESTAMP,
-          quality_score INTEGER DEFAULT 0,
-          last_message TEXT,
-          last_reaction TEXT,
-          is_dead BOOLEAN DEFAULT false,
-          last_interaction_time TIMESTAMP,
-          version INTEGER DEFAULT 1,
-          FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
-        );
-      `;
-      
-      // Create game_sessions table for tracking active game sessions
-      await sql`
-        CREATE TABLE IF NOT EXISTS game_sessions (
-          id SERIAL PRIMARY KEY,
-          wallet_address TEXT NOT NULL,
-          session_id TEXT UNIQUE NOT NULL,
-          started_at TIMESTAMP NOT NULL,
-          last_active TIMESTAMP NOT NULL,
-          game_state JSONB,
-          is_active BOOLEAN DEFAULT true,
-          version INTEGER DEFAULT 1,
-          FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
-        );
-      `;
-      
-      // Create sync_log table for tracking sync operations
-      await sql`
-        CREATE TABLE IF NOT EXISTS sync_log (
-          id SERIAL PRIMARY KEY,
-          wallet_address TEXT NOT NULL,
-          operation TEXT NOT NULL,
-          entity_type TEXT NOT NULL,
-          entity_id TEXT NOT NULL,
-          timestamp TIMESTAMP NOT NULL,
-          client_version INTEGER NOT NULL,
-          server_version INTEGER NOT NULL,
-          conflict BOOLEAN DEFAULT false,
-          resolution TEXT,
-          FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
-        );
-      `;
-      
-      console.log('Database tables initialized successfully');
+        // Create pet_states table
+        await sql`
+          CREATE TABLE IF NOT EXISTS pet_states (
+            wallet_address TEXT PRIMARY KEY,
+            health INTEGER DEFAULT 100,
+            happiness INTEGER DEFAULT 100,
+            hunger INTEGER DEFAULT 100,
+            cleanliness INTEGER DEFAULT 100,
+            energy INTEGER DEFAULT 100,
+            last_state_update TIMESTAMP,
+            quality_score INTEGER DEFAULT 0,
+            last_message TEXT,
+            last_reaction TEXT,
+            is_dead BOOLEAN DEFAULT false,
+            last_interaction_time TIMESTAMP,
+            version INTEGER DEFAULT 1,
+            FOREIGN KEY (wallet_address) REFERENCES users(wallet_address) ON DELETE CASCADE
+          );
+        `;
+        
+        console.log('Database tables created via fallback method');
+      }
     } catch (error) {
       console.error('Error initializing database tables:', error);
       
@@ -260,7 +240,9 @@ export class DatabaseService {
           error.message.includes('already exists')) {
         console.log('Tables already exist, continuing...');
       } else {
-        throw error;
+        console.error('Database initialization failed:', error);
+        // Don't throw the error - log it but let the app continue
+        // This prevents the app from crashing if DB init fails
       }
     }
   }

@@ -1,51 +1,56 @@
 import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 
+// Create a SQL client with your connection string
 const sql = neon(process.env.DATABASE_URL || '');
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // Simple auth check - in production you should implement proper auth
-    const authHeader = request.headers.get('x-api-key');
-    
-    if (!authHeader || authHeader !== process.env.ADMIN_API_KEY) {
-      // For development, allow access without auth
-      console.log('Warning: Allowing admin access without authentication');
-    }
-
-    // Try to fetch actual stats from database
+    // For development, return mock data if database is not accessible
     try {
-      // Count users
-      const userCount = await sql`SELECT COUNT(*) as count FROM users`;
+      // Get total users
+      const totalUsersResult = await sql`SELECT COUNT(*) as count FROM users`;
+      const totalUsers = parseInt(totalUsersResult[0]?.count || '0');
       
-      // Count active and dead pets
-      const petStats = await sql`
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN is_dead = false THEN 1 ELSE 0 END) as active,
-          SUM(CASE WHEN is_dead = true THEN 1 ELSE 0 END) as dead,
-          AVG(health) as avg_health
-        FROM pet_states
+      // Get total points across all users
+      const totalPointsResult = await sql`SELECT SUM(points) as sum FROM users`;
+      const totalPoints = parseInt(totalPointsResult[0]?.sum || '0');
+      
+      // Get number of active pets (not dead)
+      const activePetsResult = await sql`
+        SELECT COUNT(*) as count FROM pet_states 
+        WHERE is_dead = false OR is_dead IS NULL
       `;
+      const activePets = parseInt(activePetsResult[0]?.count || '0');
       
-      // Sum total points
-      const pointsTotal = await sql`SELECT SUM(points) as total FROM users`;
+      // Get number of dead pets
+      const deadPetsResult = await sql`
+        SELECT COUNT(*) as count FROM pet_states 
+        WHERE is_dead = true
+      `;
+      const deadPets = parseInt(deadPetsResult[0]?.count || '0');
       
-      // Return actual data
+      // Get average health of all pets
+      const avgHealthResult = await sql`
+        SELECT AVG(health) as avg FROM pet_states
+        WHERE health > 0
+      `;
+      const averageHealth = Math.round(parseFloat(avgHealthResult[0]?.avg || '0'));
+      
       return NextResponse.json({
         success: true,
         data: {
-          totalUsers: parseInt(userCount[0]?.count || '0'),
-          totalPoints: parseInt(pointsTotal[0]?.total || '0'),
-          activePets: parseInt(petStats[0]?.active || '0'),
-          deadPets: parseInt(petStats[0]?.dead || '0'),
-          averageHealth: parseFloat(petStats[0]?.avg_health || '0'),
+          totalUsers,
+          totalPoints,
+          activePets,
+          deadPets,
+          averageHealth
         }
       });
     } catch (dbError) {
-      console.error('Database error when fetching stats:', dbError);
+      console.warn('Database access failed, returning mock data:', dbError);
       
-      // Return mock data if database queries fail
+      // Fallback to mock data if database is not accessible
       return NextResponse.json({
         success: true,
         data: {
@@ -53,16 +58,17 @@ export async function GET(request: Request) {
           totalPoints: 15750,
           activePets: 38,
           deadPets: 4,
-          averageHealth: 78.5,
+          averageHealth: 85
         }
       });
     }
   } catch (error: any) {
-    console.error('Error in admin stats API:', error);
-    return NextResponse.json({
-      success: false,
+    console.error('Error in stats API:', error);
+    
+    return NextResponse.json({ 
+      success: false, 
       error: 'Server error',
-      message: error.message
+      message: error.message 
     }, { status: 500 });
   }
 } 

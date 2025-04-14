@@ -497,18 +497,6 @@ export function KawaiiDevice() {
     };
   }, [points, isConnected, publicKey, updateUserDataPoints]);
 
-  // Update leaderboard when pet dies (this can remain immediate since it's a one-time event)
-  useEffect(() => {
-    if (isDead && isConnected && publicKey && points > 0) {
-      // Save final score to leaderboard - REMOVE THIS
-      /*
-      updateUserPoints(publicKey, points).catch((err) =>
-        console.error("Error updating leaderboard on death:", err)
-      );
-      */
-    }
-  }, [isDead, isConnected, publicKey, points]);
-
   const [showReviveConfirm, setShowReviveConfirm] = useState(false);
 
   const [animatedPoints, setAnimatedPoints] = useState(userData.points);
@@ -1197,24 +1185,18 @@ export function KawaiiDevice() {
           />
           <div className="flex-grow flex flex-col items-center justify-center">
             <div>{getCatEmotion()}</div>
-            <p className="text-red-500 font-bold mt-4 text-base">
-              Your pet has died!
-            </p>
-            <p className="text-xs mt-1 mb-2">
-              Total tokens remaining:{" "}
-              <span className="font-numbers">
-                {formatPoints(userData.points)}
-              </span>
+            <p className="text-red-500 font-bold absolute top-[50px] left-0 right-0 text-center">
+              Your pet is dead
             </p>
 
             {showReviveConfirm ? (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70">
-                <div className="bg-[#eff8cb] border-2 border-[#606845] p-4 text-center w-[80%]">
-                  <p className="text-sm font-bold text-[#4b6130] mb-2">
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
+                <div className="bg-[#eff8cb] border-2 border-[#606845] p-4 text-center w-[80%] rounded-md" style={{boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"}}>
+                  <p className="text-sm font-bold text-[#4b6130] mb-3">
                     Revive Your Pet?
                   </p>
-                  <p className="text-xs mb-2">
-                    This will cost 50% of your tokens.
+                  <p className="text-xs mb-3">
+                    This will cost <span className="font-bold text-red-500">50%</span> of your tokens.
                   </p>
                   <p className="text-xs mb-2">
                     Current points:{" "}
@@ -1222,22 +1204,22 @@ export function KawaiiDevice() {
                       {formatPoints(userData.points)}
                     </span>
                   </p>
-                  <p className="text-xs mb-2">
+                  <p className="text-xs mb-3">
                     You will keep:{" "}
                     <span className="font-numbers">
-                      {formatPoints(userData.points / 2)}
+                      {formatPoints(Math.floor(userData.points / 2))}
                     </span>
                   </p>
-                  <div className="flex space-x-4 justify-center mt-3">
+                  <div className="flex space-x-4 justify-center mt-4">
                     <button
                       onClick={handleReviveConfirm}
-                      className="bg-green-500 text-white py-1 px-4 text-xs"
+                      className="bg-green-500 text-white py-1 px-4 text-xs rounded hover:bg-green-600 transition-colors"
                     >
                       Confirm
                     </button>
                     <button
                       onClick={handleReviveCancel}
-                      className="bg-red-500 text-white py-1 px-4 text-xs"
+                      className="bg-red-500 text-white py-1 px-4 text-xs rounded hover:bg-red-600 transition-colors"
                     >
                       Cancel
                     </button>
@@ -1245,18 +1227,13 @@ export function KawaiiDevice() {
                 </div>
               </div>
             ) : (
-              <div className="mt-2 flex flex-col items-center">
-                <button
-                  onClick={handleReviveRequest}
-                  className="bg-green-500 text-white py-1 px-6 text-sm"
-                >
-                  Revive
-                </button>
-                <p className="text-xs mt-2 text-[#606845]">
-                  Press button <span className="font-bold">A</span> to revive
-                  your pet
-                </p>
-              </div>
+              <button
+                onClick={handleReviveRequest}
+                // Apply styles similar to PointsEarnedPanel buttons
+                className="bg-[#304700] text-[#EBFFB7] py-1.5 px-6 text-sm mt-4 rounded-md font-pixelify hover:bg-[#709926] transition-colors"
+              >
+                Revive
+              </button>
             )}
           </div>
         </>
