@@ -6,6 +6,8 @@ import { PointsProvider } from '@/context/PointsContext'
 import BackgroundMusic from '@/components/ui/BackgroundMusic'
 import { Toaster } from "@/components/ui/feedback/toaster"
 import ReferralSuccess from "@/components/ui/ReferralSuccess"
+import ReferralHandler from '@/components/referral/ReferralHandler'
+import '@/lib/fixes/setup-mock-db'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -38,6 +40,7 @@ export default function RootLayout({
             </PointsProvider>
           </UserDataProvider>
         </WalletProvider>
+        <ReferralHandler />
       </body>
     </html>
   )

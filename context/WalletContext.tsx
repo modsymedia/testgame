@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { PublicKey } from '@solana/web3.js';
+import { useRouter } from 'next/navigation';
 import { 
   getProvider, 
   saveWalletData, 
@@ -51,6 +53,7 @@ interface WalletProviderProps {
 }
 
 export function WalletProvider({ children }: WalletProviderProps) {
+  const router = useRouter();
   const [isConnected, setIsConnected] = useState(false);
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [walletData, setWalletData] = useState<any>(null);
@@ -129,119 +132,111 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   useEffect(() => {
-    // Check if wallet was previously connected
-    const checkConnection = async () => {
-      setIsLoading(true); // Start loading
-      setError(null); // Clear previous errors
-      setShowPetNamePrompt(false); // Reset prompt initially
-      setIsNewUser(false); // Reset new user flag initially
+    // This effect now primarily handles event listeners and initial state sync,
+    // rather than constantly re-checking the connection status after initial connect.
 
-      try {
-        const provider = getProvider();
-        if (provider && provider.isConnected && provider.publicKey) {
-          const key = provider.publicKey.toString();
-          console.log("Checking connection for key:", key);
-          
-          // Set connection state early
-          setIsConnected(true);
-          setPublicKey(key);
+    const provider = getProvider(currentWalletName || undefined);
 
-          // Set the current wallet name based on provider
-          if ((provider as any).isPhantom) {
-            setCurrentWalletName('phantom');
-          } else if ((provider as any).isSolflare) {
-            setCurrentWalletName('solflare');
-          }
-        } else {
-           console.log("No active provider connection found.");
-           // Ensure disconnected state if no provider/key
-           setIsConnected(false);
-           setPublicKey(null);
-           setWalletData(null);
-           setCurrentWalletName(null);
-        }
-      } catch (error) {
-        console.error('Error checking wallet connection:', error);
-        setError('An error occurred while checking wallet status.');
-         // Reset all state on major error
-         setIsConnected(false);
-         setPublicKey(null);
-         setWalletData(null);
-         setCurrentWalletName(null);
-         setIsNewUser(false);
-         setShowPetNamePrompt(false);
-      } finally {
-        setIsLoading(false); // Stop loading
-      }
+    // Function to handle fetching data when connection is confirmed
+    const handleConnectionEstablished = (key: string) => {
+      console.log("Connection established, fetching data for key:", key);
+      setIsConnected(true);
+      setPublicKey(key);
+      fetchDataForConnectedWallet(key); 
     };
 
-    checkConnection();
-    
-    // Setup event listeners (consider simplifying or moving logic)
-    const provider = getProvider();
-    let connectHandler: (() => void) | null = null;
-    let disconnectHandler: (() => void) | null = null;
+    // Function to handle disconnection event or loss of connection
+    const handleDisconnection = () => {
+      console.log("Wallet disconnected or connection lost.");
+      setError(null);
+      setIsConnected(false);
+      setPublicKey(null);
+      setWalletData(null);
+      setCurrentWalletName(null); // Reset wallet name on disconnect
+      setIsNewUser(false);
+      setShowPetNamePrompt(false);
+      setIsLoading(false); 
+    };
 
-    if (provider) {
-      connectHandler = () => {
-        console.log("Wallet emitted 'connect' event. Fetching data.");
-        // Directly fetch data using the current provider's public key
-        if (provider.publicKey) {
-          const key = provider.publicKey.toString();
-          // Ensure connection state is also set
-          setIsConnected(true);
-          setPublicKey(key);
-          // Fetch the data
-          fetchDataForConnectedWallet(key);
-        } else {
-          console.warn("'connect' event fired but no publicKey found on provider.");
-        }
-      };
-      
-      disconnectHandler = () => {
-        console.log("Wallet emitted 'disconnect' event.");
-        setError(null); // Clear errors on disconnect
-        setIsConnected(false);
-        setPublicKey(null);
-        setWalletData(null);
-        setCurrentWalletName(null);
-        setIsNewUser(false);
-        setShowPetNamePrompt(false);
-        setIsLoading(false);
-      };
-      
-      provider.on('connect', connectHandler);
-      provider.on('disconnect', disconnectHandler);
-
-      // Also listen for account changes
-      provider.on('accountChanged', (newPublicKey: any) => {
-         console.log("Wallet emitted 'accountChanged' event.");
-         if (newPublicKey) {
-            const key = newPublicKey.toString();
-             if (key !== publicKey) {
-                 console.log("Account changed to:", key);
-                 // Treat account change like a new connection check
-                 checkConnection();
-             }
-         } else {
-             // If account changed to null/undefined, treat as disconnect
-             if (disconnectHandler) {
-                 disconnectHandler();
-             }
-         }
-      });
+    // Initial check on mount or when provider might change (though publicKey is main driver)
+    // We trust the state set by the `connect` function more now.
+    if (isConnected && publicKey && provider?.publicKey?.toString() === publicKey) {
+      console.log("useEffect: Already connected with key:", publicKey);
+      // If already connected, ensure data is loaded (fetchData handles checks)
+      fetchDataForConnectedWallet(publicKey);
+    } else if (!isConnected && !publicKey) {
+        // If context state is disconnected, ensure everything is reset
+        // This case might be redundant if handleDisconnection is robust
+        handleDisconnection();
     }
 
+    // Setup event listeners
+    let connectHandler: ((publicKey: PublicKey) => void) | null = null;
+    let disconnectHandler: (() => void) | null = null;
+    let accountChangedHandler: ((newPublicKey: PublicKey | null) => void) | null = null;
+
+    if (provider) {
+      // Listen for 'connect' event (might be triggered by auto-reconnect)
+      connectHandler = (respPublicKey: PublicKey) => {
+        if (respPublicKey) {
+          const key = respPublicKey.toString();
+          console.log("Wallet emitted 'connect' event with key:", key);
+          // Check if this is a new connection or re-connect
+          if (!isConnected || key !== publicKey) {
+            handleConnectionEstablished(key);
+          }
+        } else {
+            console.warn("Wallet emitted 'connect' event without public key.");
+        }
+      };
+
+      // Listen for 'disconnect' event
+      disconnectHandler = () => {
+        console.log("Wallet emitted 'disconnect' event.");
+        handleDisconnection();
+      };
+
+      // Listen for account changes
+      accountChangedHandler = (newPublicKey: PublicKey | null) => {
+        console.log("Wallet emitted 'accountChanged' event.");
+        if (newPublicKey) {
+          const key = newPublicKey.toString();
+          if (key !== publicKey) {
+            console.log("Account changed to:", key);
+            // Treat account change like a new connection
+            handleDisconnection(); // First disconnect the old state
+            // Delay slightly before attempting new connection logic
+            setTimeout(() => {
+                // Attempt to connect with the new account implicitly?
+                // Or trigger a manual reconnect? For now, just reset.
+                // Re-running connect logic here might be complex.
+                // Let's rely on the user re-initiating connection for now.
+                console.log("Account changed, user may need to reconnect manually.");
+            }, 500); 
+          }
+        } else {
+          // Account changed to null/undefined, treat as disconnect
+          console.log("Account changed to null/undefined.");
+          handleDisconnection();
+        }
+      };
+
+      provider.on('connect', connectHandler);
+      provider.on('disconnect', disconnectHandler);
+      provider.on('accountChanged', accountChangedHandler);
+    }
+
+    // Cleanup listeners
     return () => {
       if (provider) {
-         if (connectHandler) provider.removeListener('connect', connectHandler);
-         if (disconnectHandler) provider.removeListener('disconnect', disconnectHandler);
-         // Assuming accountChanged listener removal is similar if needed
-         // provider.removeListener('accountChanged', accountChangeHandler);
+        if (connectHandler) provider.removeListener('connect', connectHandler);
+        if (disconnectHandler) provider.removeListener('disconnect', disconnectHandler);
+        if (accountChangedHandler) provider.removeListener('accountChanged', accountChangedHandler);
       }
     };
-    // Only run on mount
-  }, [publicKey]); 
+    // Rerun when the public key changes (indicating connect/disconnect)
+    // Or when the specific wallet provider might change (less common)
+  }, [publicKey, currentWalletName]); // Depend on publicKey and potentially currentWalletName
   
   // Function to fetch user data and update state
   const fetchDataForConnectedWallet = async (key: string) => {
@@ -309,6 +304,26 @@ export function WalletProvider({ children }: WalletProviderProps) {
         console.log('New user detected (no record found).');
         setWalletData(null); // Clear data, will be set after username submission
         setShowPetNamePrompt(true); // Always show for new users
+        
+        // Check if the user arrived via a referral code
+        const hasReferralCode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('ref');
+        if (hasReferralCode) {
+          console.log('New user with referral code detected. Setting up a timer to redirect to default username flow...');
+          // Set a timer to redirect to the UsernameModal on /console/gotchi if the modal doesn't appear
+          // This ensures users with referral codes don't get stuck
+          setTimeout(() => {
+            // Get the current state values when the timer executes
+            const isStillNew = isNewUser;
+            const isStillConnected = isConnected;
+            console.log('Timer fired for referral code redirection. isStillNew:', isStillNew, 'isStillConnected:', isStillConnected);
+            
+            if (isStillConnected) {
+              console.log('Forcing redirect to /console/gotchi for user with referral code');
+              // Use a more robust approach by delaying the router push slightly
+              setTimeout(() => router.push('/console/gotchi'), 100);
+            }
+          }, 5000); // Increase to 5 seconds to ensure modal has enough time to appear
+        }
       } else {
         // --- Handle unexpected errors or missing data ---
         console.warn('Failed to fetch user data or data was incomplete, but user record might exist. Clearing local data.');
@@ -414,20 +429,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
         setPublicKey(key);
         setIsConnected(true);
 
-        // Initialize database tables before loading data
-        try {
-          console.log("Initializing database tables...");
-          const { DatabaseService } = await import('../lib/database-service');
-          await DatabaseService.instance.initTables();
-          console.log("Database tables initialized successfully");
-        } catch (dbError) {
-          console.error("Database table initialization error:", dbError);
-          // Continue anyway as this is non-critical, but log the specific error
-          if (dbError instanceof Error) {
-            console.error("Error details:", dbError.message);
-          }
-        }
-        
         // Once connected, load or check user data
         await fetchDataForConnectedWallet(key);
 
@@ -585,6 +586,14 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
         console.log("Username set optimistically.");
         setIsLoading(false);
+        
+        // Use setTimeout to ensure the router navigation happens after state updates
+        // This helps prevent navigation issues when state updates haven't been applied yet
+        setTimeout(() => {
+          console.log('WalletContext - Redirecting to /console/gotchi after username set');
+          router.push('/console/gotchi');
+        }, 100);
+        
         return true; // Signal success to the modal
       } else {
         // Save operation failed according to saveWalletData

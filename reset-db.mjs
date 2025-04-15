@@ -7,13 +7,17 @@ dotenv.config({ path: '.env.development.local' });
 // Create a SQL client
 const sql = neon(process.env.DATABASE_URL || '');
 
-// Function to create/update the users table
-async function manageUsersTable() {
-  console.log('Managing users table...');
+// Function to drop and recreate the users table
+async function resetUsersTable() {
+  console.log('Resetting users table...');
   try {
-    // Ensure the table exists (using the schema from database-schema.ts)
+    // Drop the table if it exists (CASCADE to remove dependencies like pet_states foreign key)
+    await sql`DROP TABLE IF EXISTS users CASCADE;`;
+    console.log('Existing users table dropped.');
+
+    // Create the table with the NOT NULL constraint directly
     await sql`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         wallet_address TEXT UNIQUE NOT NULL,
         username TEXT,
@@ -32,33 +36,28 @@ async function manageUsersTable() {
         cooldowns JSONB DEFAULT '{}'::jsonb,
         recent_point_gain INTEGER DEFAULT 0,
         last_point_gain_time TIMESTAMP,
-        uid TEXT UNIQUE -- Initially allow NULL
+        uid TEXT UNIQUE NOT NULL -- Added NOT NULL directly
       )
     `;
-    // Add the NOT NULL constraint separately if the column exists
-    await sql`ALTER TABLE users ALTER COLUMN uid SET NOT NULL;`;
-    console.log('Users table managed successfully');
+    console.log('Users table created successfully');
     return true;
   } catch (error) {
-    // Ignore specific error if column already has NOT NULL
-    if (error.message && error.message.includes('uid" is an identity column')) {
-        console.log('UID column already configured correctly.');
-        return true; 
-    } else if (error.message && error.message.includes('column "uid" of relation "users" contains null values')) {
-        console.warn('Cannot add NOT NULL constraint to UID as existing rows have NULL. Update existing users manually.');
-        return true; // Proceed without adding NOT NULL constraint for now
-    }
-    console.error('Error managing users table:', error);
+    console.error('Error resetting users table:', error);
     return false;
   }
 }
 
-// Function to create the pet_states table
-async function createPetStatesTable() {
-  console.log('Creating pet_states table...');
+// Function to drop and recreate the pet_states table
+async function resetPetStatesTable() {
+  console.log('Resetting pet_states table...');
   try {
+    // Drop the table if it exists
+    await sql`DROP TABLE IF EXISTS pet_states;`;
+    console.log('Existing pet_states table dropped.');
+
+    // Create the table
     await sql`
-      CREATE TABLE IF NOT EXISTS pet_states (
+      CREATE TABLE pet_states (
         wallet_address TEXT PRIMARY KEY,
         health INTEGER DEFAULT 100,
         happiness INTEGER DEFAULT 100,
@@ -77,25 +76,29 @@ async function createPetStatesTable() {
     console.log('Pet states table created successfully');
     return true;
   } catch (error) {
-    console.error('Error creating pet_states table:', error);
+    console.error('Error resetting pet_states table:', error);
     return false;
   }
 }
 
 // Main function to run the script
 async function main() {
-  console.log('Starting database schema management...');
+  console.log('Starting database reset...');
   
   try {
-    // Manage users table (create/add column)
-    await manageUsersTable();
+    // Reset users table (drop and recreate)
+    const usersSuccess = await resetUsersTable();
 
-    // Manage pet_states table (create)
-    await createPetStatesTable();
+    // Only reset pet_states if users table was reset successfully
+    if (usersSuccess) {
+      await resetPetStatesTable();
+    } else {
+      console.log('Skipping pet_states table reset due to users table error.');
+    }
     
-    console.log('Database schema management completed');
+    console.log('Database reset completed.');
   } catch (error) {
-    console.error('Error during database management:', error);
+    console.error('Error during database reset:', error);
   }
 }
 

@@ -137,6 +137,78 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   // Load initial user data
   useEffect(() => {
     if (isConnected && publicKey) {
+      // Set loading state
+      setIsLoading(true);
+      
+      // Initial load of user data
+      const loadInitialUserData = async () => {
+        try {
+          console.log('Loading user data for wallet:', publicKey);
+          const serverData = await dbService.getWalletByPublicKey(publicKey);
+          
+          if (serverData) {
+            console.log('UserDataContext - Server data loaded:', serverData);
+            console.log('UserDataContext - UID present:', Boolean(serverData.uid));
+            
+            // Ensure we have a uid - if not present, use a generated one
+            if (!serverData.uid) {
+              console.log('UserDataContext - No UID found, generating one');
+              // Generate a uid if not present (using a simple approach)
+              const generatedUid = `user_${publicKey.slice(0, 8)}_${Date.now()}`;
+              
+              // Update the user with the generated uid
+              await dbService.updateUserData(publicKey, {
+                ...serverData,
+                uid: generatedUid
+              });
+              
+              // Update local data with the generated uid
+              setUserData(prevData => ({
+                ...prevData,
+                ...serverData,
+                uid: generatedUid,
+                lastSync: Date.now()
+              }));
+            } else {
+              // Normal update with existing uid
+              setUserData(prevData => ({
+                ...prevData,
+                ...serverData,
+                lastSync: Date.now()
+              }));
+            }
+            
+            console.log('UserDataContext - Final userData:', {
+              ...serverData, 
+              lastSync: Date.now()
+            });
+          } else {
+            console.log('UserDataContext - No server data found, using default');
+            // No user data found, set default with wallet uid
+            const defaultWithUid = {
+              ...defaultUserData,
+              uid: `user_${publicKey.slice(0, 8)}_${Date.now()}`
+            };
+            
+            // Create new user record
+            await dbService.createUser({ 
+              walletAddress: publicKey,
+              ...defaultWithUid,
+              username: defaultWithUid.username || undefined 
+            });
+            
+            setUserData(defaultWithUid);
+          }
+        } catch (err) {
+          console.error('Error loading initial user data:', err);
+          setError('Failed to load user data');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      loadInitialUserData();
+      
       // Set up sync interval
       const interval = setInterval(() => {
         syncWithServer();

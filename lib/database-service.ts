@@ -3,8 +3,9 @@ import crypto from 'crypto';
 import { User, PetState, LeaderboardEntry, GameSession, SyncStatus, SyncOperation } from './models';
 import { getReadConnection, getWriteConnection, executeTransaction } from './db-connection';
 
-// Add configuration for API-based access
-const USE_API_FOR_WRITE_OPERATIONS = true; // Switch to true to use API routes instead of direct DB access
+// Set this to true to use API routes for database operations instead of direct database access
+const USE_API_FOR_WRITE_OPERATIONS = true;
+const IS_BROWSER = typeof window !== 'undefined';
 
 // In-memory cache for fast access and offline operations
 class DatabaseCache {
@@ -172,7 +173,21 @@ export class DatabaseService {
   // Initialize database tables
   public async initTables(): Promise<void> {
     try {
-      // Use the Neon database initialization
+      // Use API route when in browser
+      if (IS_BROWSER) {
+        console.log('Initializing database tables via API...');
+        const result = await callApi('init-database');
+        
+        if (result.success) {
+          console.log('Database tables initialized successfully via API');
+          return;
+        } else {
+          console.error('Failed to initialize database tables via API:', result.error);
+          throw new Error(result.error || 'Failed to initialize database tables');
+        }
+      }
+      
+      // Server-side initialization using Neon directly
       const { initializeDb } = await import('./neon');
       const success = await initializeDb();
       
@@ -1629,4 +1644,29 @@ function generateUniqueId(): string {
 }
 
 // Initialize the database service
-export const dbService = DatabaseService.instance; 
+export const dbService = DatabaseService.instance;
+
+// Helper function to call API routes
+const callApi = async (endpoint: string, method: 'GET' | 'POST' = 'GET', data?: any) => {
+  try {
+    const options: RequestInit = {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    if (data && method === 'POST') {
+      options.body = JSON.stringify(data);
+    }
+    
+    const queryString = data && method === 'GET' ? 
+      `?${Object.entries(data).map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')}` : '';
+    
+    const response = await fetch(`/api/${endpoint}${queryString}`, options);
+    return await response.json();
+  } catch (error) {
+    console.error(`API call to ${endpoint} failed:`, error);
+    throw error;
+  }
+}; 
