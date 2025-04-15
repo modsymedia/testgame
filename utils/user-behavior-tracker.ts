@@ -40,8 +40,9 @@ export async function logUserActivity(userId: string, petName: string, activityT
     // Try to get existing data from database
     const existingData = await dbService.getUserData(storageKey);
     
-    if (existingData && existingData.behaviorData) {
-      behaviorData = existingData.behaviorData;
+    // Use type assertion to bypass incorrect type
+    if ((existingData as any)?.behaviorData) {
+      behaviorData = (existingData as any).behaviorData;
     } else {
       // Create new behavior data
       const now = Date.now();
@@ -174,12 +175,12 @@ export async function getBehaviorData(userId: string, petName: string, currentSt
     // Get data from database
     const storedData = await dbService.getUserData(storageKey);
     
-    if (!storedData || !storedData.behaviorData) {
+    // Use type assertion
+    if (!(storedData as any)?.behaviorData) {
       return defaultData;
     }
     
-    const behaviorData: UserBehaviorStore = storedData.behaviorData;
-    const now = Date.now();
+    const behaviorData: UserBehaviorStore = (storedData as any).behaviorData;
     
     // Calculate metrics
     const loginDays = behaviorData.loginDays?.length || 1;
