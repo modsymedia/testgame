@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/feedback/toaster"
 import ReferralSuccess from "@/components/ui/ReferralSuccess"
 import ReferralHandler from '@/components/referral/ReferralHandler'
 import '@/lib/fixes/setup-mock-db'
+import React, { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -40,7 +41,9 @@ export default function RootLayout({
             </PointsProvider>
           </UserDataProvider>
         </WalletProvider>
-        <ReferralHandler />
+        <Suspense fallback={null}>
+          <ReferralHandler />
+        </Suspense>
       </body>
     </html>
   )
