@@ -3,6 +3,11 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+// Import necessary providers
+import { WalletProvider } from '@/context/WalletContext';
+import { UserDataProvider } from '@/context/UserDataContext';
+import { PointsProvider } from '@/context/PointsContext';
+import Providers from '@/components/providers'; // Assuming this wraps theme/other providers
  
 function NotFoundContent() {
   return (
@@ -32,8 +37,17 @@ function NotFoundContent() {
 
 export default function NotFound() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-      <NotFoundContent />
-    </Suspense>
+    // Wrap content with necessary providers
+    <Providers>
+      <WalletProvider>
+        <UserDataProvider>
+          <PointsProvider>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+              <NotFoundContent />
+            </Suspense>
+          </PointsProvider>
+        </UserDataProvider>
+      </WalletProvider>
+    </Providers>
   );
 } 
