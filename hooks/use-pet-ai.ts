@@ -2,22 +2,24 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useWallet } from '@/context/WalletContext';
+import { useUserData } from '@/context/UserDataContext';
 import { 
   getPetBehavior, 
-  getPetMessage, 
-  PetBehaviorResult, 
-  DEFAULT_BEHAVIOR, 
-  PetMessage,
-  PetState,
-  PetBehaviorResponse
+  PetState, 
+  DEFAULT_BEHAVIOR,
+  PetMessage
 } from '@/utils/openai-service';
-import { getBehaviorData, logUserActivity, UserActivity } from '@/utils/user-behavior-tracker';
+import { 
+  logUserActivity, 
+  UserActivityType
+} from '@/utils/user-behavior-tracker';
 
 /**
  * Custom hook to integrate AI-driven pet behavior
  */
 export const usePetAI = (petName: string, walletId: string, initialStats: any) => {
   const { isConnected } = useWallet();
+  const { userData } = useUserData();
   const [isLoading, setIsLoading] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string>(DEFAULT_BEHAVIOR.advice);
   const [aiPersonality, setAiPersonality] = useState<string[]>(DEFAULT_BEHAVIOR.personality);
@@ -40,54 +42,15 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
       loginTimeRef.current = Date.now();
       // Log login activity asynchronously
       const logLogin = async () => {
-        await logUserActivity(walletId, petName, 'login');
-        // Initial AI behavior fetch after logging - call directly from the effect
-        if (isConnected && petName && walletId) {
-          setIsLoading(true);
-          try {
-            // Prepare current pet state
-            const currentPetState: PetState = {
-              health: currentStatsRef.current.health || 100,
-              happiness: currentStatsRef.current.happiness || 100,
-              hunger: currentStatsRef.current.hunger || 100,
-              cleanliness: currentStatsRef.current.cleanliness || 100,
-              energy: currentStatsRef.current.energy || 100
-            };
-            
-            // Use our updated function with fallback support
-            const aiResponse = await getPetBehavior(
-              petName,
-              walletId,
-              currentPetState,
-              "idle"
-            );
-            
-            // Update state with AI data
-            if (aiResponse) {
-              setDecayRates(aiResponse.decayRates);
-              setCooldowns(aiResponse.cooldowns);
-              setAiPersonality(Array.isArray(aiResponse.personality) 
-                ? aiResponse.personality 
-                : [aiResponse.personality.name, aiResponse.personality.description]
-              );
-              setAiAdvice(aiResponse.advice);
-              setAiPointMultiplier(aiResponse.pointMultiplier);
-              
-              // Only set mood description if it exists
-              const moodDesc = (aiResponse as any).moodDescription;
-              if (moodDesc) {
-                setMoodDescription(moodDesc);
-              }
-              
-              if (aiResponse.isOfflineMode) {
-                console.log('Using offline pet AI mode');
-              }
-            }
-          } catch (error) {
-            console.error("Failed to get AI behavior:", error);
-          } finally {
-            setIsLoading(false);
-          }
+        // Get UID from UserDataContext
+        const currentUid = userData?.uid;
+        const petName = userData?.username || 'User'; // Or however pet name is determined
+        
+        if (currentUid) {
+          // Call logUserActivity with UID
+          await logUserActivity(currentUid, 'login', `${petName} logged in`);
+        } else {
+          console.warn('usePetAI: Cannot log login activity, UID not available.');
         }
       };
       logLogin();
@@ -100,7 +63,7 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
       logLogout();
       loginTimeRef.current = null;
     }
-  }, [isConnected, petName, walletId]);
+  }, [isConnected, petName, walletId, userData?.uid]);
 
   // Update AI with current stats
   useEffect(() => {
@@ -173,7 +136,7 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, petName, walletId, initialStats]);
+  }, [isConnected, petName, walletId, initialStats, userData?.uid]);
 
   /**
    * Get a message from the pet's perspective based on the interaction
@@ -233,12 +196,21 @@ export const usePetAI = (petName: string, walletId: string, initialStats: any) =
   }, [petName, walletId]);
 
   /**
-   * Log activity for AI to process
+   * Log user activity for AI context
+   * @param activityType Type of activity (e.g., 'feed', 'play')
+   * @param details Optional details about the activity
    */
-  const logActivity = useCallback(async (activity: UserActivity) => {
-    if (!walletId || !petName) return;
-    await logUserActivity(walletId, petName, activity);
-  }, [walletId, petName]);
+  const logActivity = useCallback(async (activityType: UserActivityType, details: string = '') => {
+    // Get UID from UserDataContext
+    const currentUid = userData?.uid;
+    if (currentUid) {
+      // Call logUserActivity with UID, type, and details
+      // The name parameter in logUserActivity can be used for details
+      await logUserActivity(currentUid, activityType, details || activityType); 
+    } else {
+      console.warn(`usePetAI: Cannot log activity (${activityType}), UID not available.`);
+    }
+  }, [userData?.uid]);
 
   /**
    * Get session duration since login

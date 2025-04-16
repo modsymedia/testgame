@@ -88,7 +88,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       await dbService.processPendingPointsUpdates();
       
       // Then get the latest data from server
-      const serverData = await dbService.getWalletByPublicKey(publicKey);
+      const serverData = await dbService.getUserByWalletAddress(publicKey);
       
       if (serverData) {
         // Only update if server data is newer
@@ -98,7 +98,6 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             points: serverData.points || prevData.points,
             claimedPoints: serverData.claimedPoints || prevData.claimedPoints,
             multiplier: serverData.multiplier || prevData.multiplier,
-            rank: serverData.rank || prevData.rank,
             lastSync: now
           }));
         } else {
@@ -144,7 +143,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       const loadInitialUserData = async () => {
         try {
           console.log('Loading user data for wallet:', publicKey);
-          const serverData = await dbService.getWalletByPublicKey(publicKey);
+          const serverData = await dbService.getUserByWalletAddress(publicKey);
           
           if (serverData) {
             console.log('UserDataContext - Server data loaded:', serverData);
@@ -154,19 +153,21 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
             if (!serverData.uid) {
               console.log('UserDataContext - No UID found, generating one');
               // Generate a uid if not present (using a simple approach)
+              // IMPORTANT: Ensure this UID generation is robust enough for production if needed
               const generatedUid = `user_${publicKey.slice(0, 8)}_${Date.now()}`;
               
-              // Update the user with the generated uid
-              await dbService.updateUserData(publicKey, {
-                ...serverData,
-                uid: generatedUid
-              });
-              
+              // Update the user with the generated uid, using the generated UID itself for lookup
+              // Note: We pass only the uid to update, assuming other serverData is already current
+              await dbService.updateUserData(generatedUid, { uid: generatedUid });
+              // We should ideally refetch or ensure the createUser function handles this scenario
+              // For now, update local state optimistically.
+              console.warn('UserDataContext - Backfilled UID. Consider ensuring createUser handles this.');
+
               // Update local data with the generated uid
               setUserData(prevData => ({
                 ...prevData,
-                ...serverData,
-                uid: generatedUid,
+                ...serverData, // Keep other loaded data
+                uid: generatedUid, // Set the newly generated UID
                 lastSync: Date.now()
               }));
             } else {
@@ -382,21 +383,47 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const updateUsername = async (username: string): Promise<boolean> => {
     if (!publicKey || !isConnected) return false;
     
+    // Get the current UID from state
+    const currentUid = userData.uid;
+    if (!currentUid) {
+        console.error('Cannot update username: UID not found in user data state.');
+        setError('User identifier missing, cannot update username.');
+        return false;
+    }
+
+    // Optimistic update
+    setUserData(prevData => ({
+      ...prevData,
+      username: username
+    }));
+    
     try {
-      // Update username on server
-      await dbService.updateWallet(publicKey, { username: username });
+      // Call the updated service function using UID
+      const success = await dbService.updateUserData(currentUid, { username: username });
       
-      // Update local data
+      if (success) {
+        console.log('Username updated successfully');
+        // Optionally trigger a sync or rely on periodic sync
+        debouncedSync(); 
+        return true;
+      } else {
+        console.error('Failed to update username on server');
+        setError('Failed to save username');
+        // Revert optimistic update
+        setUserData(prevData => ({
+          ...prevData,
+          username: userData.username // Revert to original username from state before optimistic update
+        }));
+        return false;
+      }
+    } catch (err) {
+      console.error('Error updating username:', err);
+      setError('Error saving username');
+      // Revert optimistic update
       setUserData(prevData => ({
         ...prevData,
-        username: username,
-        lastSync: Date.now()
+        username: userData.username // Revert
       }));
-      
-      return true;
-    } catch (err) {
-      console.error('Failed to update username:', err);
-      setError('Failed to update username. Please try again.');
       return false;
     }
   };
@@ -409,18 +436,29 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
   // Add function to update unlocked items
   const updateUnlockedItems = async (newItems: Record<string, boolean>): Promise<void> => {
-    if (!publicKey) return;
+    // Get UID from state
+    const currentUid = userData.uid;
+    if (!currentUid) {
+      console.error('Cannot update unlocked items: UID not found in user data state.');
+      setError('User identifier missing, cannot update items.');
+      return;
+    }
     
     // Optimistically update local state
-    setUserData(prev => ({ ...prev, unlockedItems: newItems }));
+    setUserData(prev => ({ ...prev, unlockedItems: { ...(prev.unlockedItems || {}), ...newItems } }));
     
     try {
-      // Save to database
-      await dbService.saveUserData(publicKey, { unlockedItems: newItems });
+      // Save to database using UID
+      const success = await dbService.updateUserData(currentUid, { unlockedItems: newItems });
+      if (!success) {
+          throw new Error('Server update failed');
+      }
+      console.log('Unlocked items saved successfully for UID:', currentUid);
+      debouncedSync(); // Trigger sync
     } catch (error) {
       console.error("Failed to save unlocked items:", error);
       // Optionally revert local state or show error
-      // For simplicity, we don't revert here but log the error.
+      // Reverting requires storing previous state before optimistic update
       setError('Failed to save item unlock status.');
     }
   };

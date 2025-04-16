@@ -8,6 +8,8 @@ import { WalletSelectModal } from "@/components/game/WalletSelectModal";
 import FloatingRock from "@/components/game/FloatingRock";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { signIn } from "next-auth/react";
+import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -103,6 +105,29 @@ export default function LandingPage() {
               <div className="mb-6 sm:mb-8 w-full flex justify-center">
                 <WalletSelectModal />
               </div>
+
+              {/* Add Login with Twitter Button */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+                className="mb-6 sm:mb-8 w-full flex justify-center"
+              >
+                <Button
+                  onClick={() => signIn("twitter")}
+                  className="bg-[#1DA1F2] hover:bg-[#1a91da] text-white font-bold py-2 px-4 rounded flex items-center gap-2 w-full max-w-[250px] justify-center"
+                   style={{ imageRendering: "pixelated" }}
+                >
+                  <Image
+                    src="/assets/icons/social/x.png" // Assuming you have a Twitter icon here
+                    alt="Twitter Logo"
+                    width={20}
+                    height={20}
+                     style={{ imageRendering: "pixelated" }}
+                  />
+                  Login with Twitter
+                </Button>
+              </motion.div>
               
               {/* Social Links Footer */}
               <div className="flex items-center gap-4">

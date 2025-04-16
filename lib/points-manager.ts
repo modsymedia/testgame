@@ -182,7 +182,7 @@ export class PointsManager {
   // Get user data
   private async getUserData(walletAddress: string): Promise<User | null> {
     try {
-      return await dbService.getUserData(walletAddress);
+      return await dbService.getUserByWalletAddress(walletAddress);
     } catch (error) {
       console.error("Error getting user data for points:", error);
       return null;
@@ -931,43 +931,36 @@ export class PointsManager {
   private async persistTransaction(
     transaction: PointTransaction
   ): Promise<boolean> {
+    if (transaction.isProcessed) return true; // Avoid reprocessing
+
     try {
-      // Get latest user data
-      const userData = await dbService.getUserData(transaction.walletAddress);
-
-      if (!userData) {
-        return false;
+      // Ensure we have UID for user-related transactions
+      let uid: string | null = null;
+      if (transaction.source !== 'passive' && transaction.walletAddress) { // Passive might not have user context yet
+        // Fetch user to get UID if needed
+        const userData = await dbService.getUserByWalletAddress(transaction.walletAddress);
+        uid = userData?.uid ?? null;
       }
 
-      // Create the update object with the correct type
-      const updatedUser: Partial<User> = {
-        points: (userData.points || 0) + transaction.amount,
-        recentPointGain: transaction.amount,
-        lastPointGainTime: new Date(),
-        lastPointsUpdate: new Date(),
-      };
-
-      // Update daily points if source is daily
-      if (transaction.source === "daily") {
-        updatedUser.dailyPoints =
-          (userData.dailyPoints || 0) + transaction.amount;
+      if (!uid && transaction.source !== 'passive') {
+        console.error(`Cannot persist transaction, missing UID for wallet: ${transaction.walletAddress}`);
+        return false; // Cannot proceed without UID for most operations
       }
 
-      // Persist to database
-      const success = await dbService.updateUserData(
-        transaction.walletAddress,
-        updatedUser
-      );
-
-      // If successful, mark transaction as processed
-      if (success) {
-        // Set the property using bracket notation since it's optional
-        transaction.isProcessed = true;
+      // We assume transactions are persisted by updating the User object
+      // The synchronization mechanism will handle saving the User object
+      console.log(`Transaction persistence for ${transaction.walletAddress} (UID: ${uid}) will be handled by user data sync.`);
+      // Mark the relevant user object as dirty if we have the UID
+      if (uid) {
+         dbService.markUserDirty(uid); // Call directly on the instance
       }
 
-      return success;
-    } catch (err) {
-      console.error("Error persisting transaction:", err);
+      // Mark transaction as processed locally (important!)
+      transaction.isProcessed = true; 
+      return true; 
+
+    } catch (error) {
+      console.error('Error persisting transaction:', error);
       return false;
     }
   }

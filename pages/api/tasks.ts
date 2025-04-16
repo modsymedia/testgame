@@ -116,7 +116,7 @@ async function handleGetTasks(req: NextApiRequest, res: NextApiResponse) {
   
   try {
     // Get user data to check completed tasks
-    const user = await dbService.getUserData(walletAddress as string);
+    const user = await dbService.getUserByWalletAddress(walletAddress as string);
     
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -183,8 +183,8 @@ async function handleCompleteTask(req: NextApiRequest, res: NextApiResponse) {
   }
   
   try {
-    // Get user data
-    const user = await dbService.getUserData(walletAddress);
+    // Fetch user data
+    const user = await dbService.getUserByWalletAddress(walletAddress as string);
     
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -258,9 +258,14 @@ async function handleCompleteTask(req: NextApiRequest, res: NextApiResponse) {
     }
     
     // Update task cooldown
-    // Use direct object update instead of calling updateTaskCooldown method
     cooldowns[taskId] = Date.now();
-    await dbService.updateUserData(walletAddress, { cooldowns });
+    // Fetch user data again before updating cooldowns
+    const userToUpdate = await dbService.getUserByWalletAddress(walletAddress);
+    if (userToUpdate && userToUpdate.uid) {
+      await dbService.updateUserData(userToUpdate.uid, { cooldowns });
+    } else {
+      console.error('Could not find user by wallet address:', walletAddress);
+    }
     
     return res.status(200).json({
       success: true,

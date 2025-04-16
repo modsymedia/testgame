@@ -31,29 +31,28 @@ export const PointsDashboard = ({
     if (!publicKey) return;
     
     try {
-      const freshData = await dbService.getUserData(publicKey);
+      const freshData = await dbService.getUserByWalletAddress(publicKey);
       
-      // Check for error state or failed load
-      if (freshData?.loadFailed) {
-        console.error('Data load failed, cannot update points:', freshData.error);
-        return; // Don't update state with invalid data
+      // Check if data was fetched successfully (null means not found or error)
+      if (!freshData) {
+         console.error('Failed to load user data: User not found or error during fetch.');
+        // Reset points on failure or show error state
+        setCurrentPoints(0); 
+        setCurrentClaimedPoints(0);
+        return; 
       }
       
-      if (freshData) {
-        // Make sure points exists and is a number before updating state
-        if (freshData.points !== undefined && typeof freshData.points === 'number') {
-          setCurrentPoints(freshData.points);
-          setCurrentClaimedPoints(freshData.claimedPoints || 0);
-          console.log('Dashboard data refreshed:', freshData.points);
-        } else {
-          console.error('Invalid points data:', freshData.points);
-        }
+      // Process valid User data
+      if (freshData.points !== undefined && typeof freshData.points === 'number') {
+        setCurrentPoints(freshData.points);
+        setCurrentClaimedPoints(freshData.claimedPoints || 0);
+        console.log('Dashboard data refreshed:', freshData.points);
       } else {
-        console.error('Failed to load user data: no data returned');
+        console.error('Invalid points data received:', freshData.points);
       }
+
     } catch (error) {
-      console.error('Failed to refresh wallet data:', error);
-      // Don't update state on error
+      console.error('Failed to refresh wallet data due to unexpected error:', error);
     }
   }, [publicKey]);
   

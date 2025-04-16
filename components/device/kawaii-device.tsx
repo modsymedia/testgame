@@ -278,13 +278,20 @@ export function KawaiiDevice() {
   // Load user activities from database on component mount
   useEffect(() => {
     async function loadUserActivities() {
-      if (!publicKey) return;
+      // Use userData.uid if available, otherwise skip
+      const currentUid = userData?.uid;
+      if (!currentUid) {
+         console.log('KawaiiDevice: No UID found yet, cannot load activities.');
+         setIsActivitiesLoading(false); // Stop loading state if no UID
+         return; 
+      }
 
       try {
         setIsActivitiesLoading(true);
 
-        // Load activities from the database service
-        const activities = await dbService.getUserActivities(publicKey);
+        // Load activities using the UID from UserDataContext
+        console.log(`KawaiiDevice: Loading activities for UID: ${currentUid}`);
+        const activities = await dbService.getUserActivities(currentUid); // Pass UID here
 
         setUserActivities(activities);
       } catch (error) {
@@ -295,7 +302,8 @@ export function KawaiiDevice() {
     }
 
     loadUserActivities();
-  }, [publicKey]);
+    // Depend on userData.uid to reload if it changes (e.g., on initial load)
+  }, [userData?.uid]);
 
   // Redirect to landing if not connected
   useEffect(() => {

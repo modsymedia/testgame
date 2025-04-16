@@ -2,7 +2,7 @@
 
 export interface User {
   _id?: string; // Optional _id field
-  walletAddress: string;
+  walletAddress: string | null; // Changed: Can be null
   username?: string;
   gamesPlayed?: number;
   lastPlayed?: Date;
@@ -30,10 +30,10 @@ export interface User {
   petState?: PetState; // Optional PetState
   // Premium unlocks
   unlockedItems?: {[key: string]: boolean};
-  // Version for sync
-  version?: number; // Optional version field
+  // Version for sync - REMOVED as it doesn't exist in DB
+  // version?: number; 
   lastOnline?: number;
-  uid?: string | null; // Add uid field
+  uid: string; // Changed: uid is now required and non-nullable
 }
 
 export interface PetState {
@@ -104,7 +104,7 @@ export interface UserReward {
 
 // New interfaces for improved data synchronization
 export interface GameSession {
-  walletAddress: string;
+  uid: string; // Changed: Use uid instead of walletAddress
   sessionId: string;
   startedAt: Date;
   lastActive: Date;
@@ -134,4 +134,16 @@ export interface DataChangeEvent {
   entityId: string;
   operation: SyncOperation;
   data: any;
-} 
+}
+
+// Add the UserActivity interface to types
+export interface UserActivity {
+  id: string;
+  type: string;
+  name: string;
+  points: number;
+  timestamp: number;
+}
+
+// Singleton Database Service
+// ... existing code ... 

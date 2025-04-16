@@ -1,12 +1,13 @@
 import { PetBehaviorData } from "./openai-service";
 import { dbService } from "@/lib/database-service";
+import { UserActivity as UserActivityLogData, User } from '@/lib/models'; // Add User import
 
 // Export activity type for consistent use across the app
-export type UserActivity = 'login' | 'logout' | 'feed' | 'play' | 'clean' | 'heal';
+export type UserActivityType = 'login' | 'logout' | 'feed' | 'play' | 'clean' | 'heal'; // Renamed local type
 
 interface ActivityLog {
   timestamp: number;
-  type: UserActivity;
+  type: UserActivityType; // Use renamed local type
   duration?: number; // For login/logout pairs
 }
 
@@ -24,123 +25,51 @@ interface UserBehaviorStore {
     healing: number;
   };
   totalTimeSpent: number; // in minutes
+  sessionEvents: Record<string, any>[];
+  eventCounts: Record<string, number>;
+  lastActive: number;
 }
 
-// Database key for behavior storage
-const BEHAVIOR_KEY_PREFIX = 'pet_behavior_';
+// Constants
+const MAX_EVENTS_PER_SESSION = 100;
+const DEFAULT_RETENTION_DAYS = 30;
 
-// Create or update user behavior data
-export async function logUserActivity(userId: string, petName: string, activityType: UserActivity, duration?: number): Promise<void> {
-  if (typeof window === 'undefined' || !userId) return; // Only run on client with valid userId
+// Data store for user behavior
+const userBehaviorStore: Record<string, UserBehaviorStore> = {};
 
-  const storageKey = `${BEHAVIOR_KEY_PREFIX}${userId}`;
-  let behaviorData: UserBehaviorStore;
-  
+// Function to log user activity (e.g., login, interaction)
+// Changed: Accepts UID instead of walletAddress
+export const logUserActivity = async (uid: string, type: string, name: string, points: number = 0): Promise<void> => {
+  if (!uid) {
+    console.warn('logUserActivity: Missing UID, cannot log activity.');
+    return;
+  }
+
   try {
-    // Try to get existing data from database
-    const existingData = await dbService.getUserData(storageKey);
-    
-    // Use type assertion to bypass incorrect type
-    if ((existingData as any)?.behaviorData) {
-      behaviorData = (existingData as any).behaviorData;
+    // Create a unique ID for the activity log entry
+    const activityId = generateUniqueId(); // Reuse existing helper or implement one
+
+    const activity: UserActivityLogData = { // Use renamed imported type
+      id: activityId,
+      type,
+      name,
+      points,
+      timestamp: Date.now(),
+    };
+
+    // Call the refactored service method
+    const success = await dbService.saveUserActivity(uid, activity);
+
+    if (success) {
+      console.log(`Behavior data for ${type} saved to database for UID: ${uid}`);
     } else {
-      // Create new behavior data
-      const now = Date.now();
-      behaviorData = {
-        userId,
-        petName,
-        firstLogin: now,
-        lastLogin: now,
-        loginDays: [getDateString(now)],
-        sessionLogs: [],
-        activityCounts: {
-          feeding: 0,
-          playing: 0,
-          cleaning: 0,
-          healing: 0
-        },
-        totalTimeSpent: 0
-      };
+      console.warn(`Failed to save behavior data to database for UID: ${uid}`);
+      // Consider offline queuing strategy if critical
     }
   } catch (error) {
-    console.error('Error retrieving behavior data:', error);
-    
-    // Create new behavior data on error
-    const now = Date.now();
-    behaviorData = {
-      userId,
-      petName,
-      firstLogin: now,
-      lastLogin: now,
-      loginDays: [getDateString(now)],
-      sessionLogs: [],
-      activityCounts: {
-        feeding: 0,
-        playing: 0,
-        cleaning: 0,
-        healing: 0
-      },
-      totalTimeSpent: 0
-    };
+    console.error('Failed to save behavior data to database:', error);
   }
-  
-  const now = Date.now();
-  
-  // Update behavior data based on activity type
-  switch (activityType) {
-    case 'login':
-      behaviorData.lastLogin = now;
-      // Add today to login days if not already there
-      const todayString = getDateString(now);
-      if (!behaviorData.loginDays.includes(todayString)) {
-        behaviorData.loginDays.push(todayString);
-      }
-      break;
-      
-    case 'logout':
-      // If duration provided, add to total time spent
-      if (duration) {
-        behaviorData.totalTimeSpent += duration / 60000; // Convert ms to minutes
-      }
-      break;
-      
-    case 'feed':
-      behaviorData.activityCounts.feeding++;
-      break;
-      
-    case 'play':
-      behaviorData.activityCounts.playing++;
-      break;
-      
-    case 'clean':
-      behaviorData.activityCounts.cleaning++;
-      break;
-      
-    case 'heal':
-      behaviorData.activityCounts.healing++;
-      break;
-  }
-  
-  // Add to session logs
-  behaviorData.sessionLogs.push({
-    timestamp: now,
-    type: activityType,
-    duration
-  });
-  
-  // Limit session logs to last 100 entries
-  if (behaviorData.sessionLogs.length > 100) {
-    behaviorData.sessionLogs = behaviorData.sessionLogs.slice(-100);
-  }
-  
-  // Save updated data to database
-  try {
-    await dbService.saveUserData(storageKey, { behaviorData });
-    console.log(`Behavior data for ${activityType} saved to database`);
-  } catch (saveError) {
-    console.error('Failed to save behavior data to database:', saveError);
-  }
-}
+};
 
 /**
  * Gets behavior data for AI processing
@@ -169,18 +98,16 @@ export async function getBehaviorData(userId: string, petName: string, currentSt
     return defaultData;
   }
 
-  const storageKey = `${BEHAVIOR_KEY_PREFIX}${userId}`;
-  
   try {
     // Get data from database
-    const storedData = await dbService.getUserData(storageKey);
-    
-    // Use type assertion
-    if (!(storedData as any)?.behaviorData) {
+    const userData = await dbService.getUserByWalletAddress(userId); // Use getUserByWalletAddress
+    const uid = userData?.uid;
+
+    if (!uid) {
       return defaultData;
     }
     
-    const behaviorData: UserBehaviorStore = (storedData as any).behaviorData;
+    const behaviorData: UserBehaviorStore = (userData as any).behaviorData;
     
     // Calculate metrics
     const loginDays = behaviorData.loginDays?.length || 1;
@@ -235,11 +162,6 @@ export async function getBehaviorData(userId: string, petName: string, currentSt
 }
 
 // Helper functions
-function getDateString(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
 function daysBetween(date1: number, date2: number): number {
   const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
   const diffDays = Math.round(Math.abs((date2 - date1) / oneDay));
@@ -256,4 +178,130 @@ function getTimeOfDay(): string {
 
 function getDayOfWeek(): string {
   return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+}
+
+// Helper to generate unique IDs (if not already present)
+function generateUniqueId(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * @param uid - User ID.
+ */
+async function loadBehaviorData(uid: string): Promise<UserBehaviorStore> {
+  // Correctly define defaultData to match UserBehaviorStore interface
+  const defaultData: UserBehaviorStore = {
+    userId: uid, // Initialize with provided uid
+    petName: '', // Default empty values
+    firstLogin: Date.now(),
+    lastLogin: Date.now(),
+    loginDays: [], 
+    sessionLogs: [],
+    activityCounts: {
+      feeding: 0,
+      playing: 0,
+      cleaning: 0,
+      healing: 0
+    },
+    totalTimeSpent: 0,
+    sessionEvents: [],
+    eventCounts: {},
+    lastActive: Date.now(),
+  };
+
+  try {
+    const userData = await dbService.getUserByUid(uid);
+    const behaviorData = (userData as any)?.behaviorData as UserBehaviorStore | undefined;
+
+    if (!userData || !behaviorData) { 
+      return defaultData;
+    }
+        
+    // Clean up old session events from the loaded data
+    const retentionThreshold = Date.now() - DEFAULT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    behaviorData.sessionEvents = (behaviorData.sessionEvents || []).filter(
+      (event: any) => event.timestamp >= retentionThreshold // Add type 'any' for event temporarily if needed
+    );
+    behaviorData.eventCounts = behaviorData.eventCounts || {};
+    behaviorData.sessionLogs = behaviorData.sessionLogs || []; // Ensure all fields exist
+    behaviorData.activityCounts = behaviorData.activityCounts || { feeding: 0, playing: 0, cleaning: 0, healing: 0 };
+    behaviorData.loginDays = behaviorData.loginDays || [];
+
+    return { ...defaultData, ...behaviorData }; // Merge loaded data with defaults
+
+  } catch (error) {
+    console.error('Error loading user behavior data:', error);
+    return defaultData;
+  }
+}
+
+/**
+ * @param uid - User ID.
+ * @param data - Behavior data to save.
+ */
+async function saveBehaviorData(
+  uid: string,
+  data: UserBehaviorStore
+): Promise<void> {
+  try {
+    // User type is now imported, cast should work
+    await dbService.updateUserData(uid, { behaviorData: data } as Partial<User>); 
+    console.log(`Behavior data for ${uid} saved to database.`);
+  } catch (error) {
+    console.error('Error saving user behavior data:', error);
+  }
+}
+
+/**
+ * Tracks a specific user event.
+ * @param userId - User identifier (wallet address or UID).
+ * @param eventType - Type of event (e.g., 'login', 'click', 'purchase').
+ * @param eventData - Additional data associated with the event.
+ */
+export async function trackEvent(
+  userId: string,
+  eventType: string,
+  eventData: Record<string, any> = {}
+): Promise<void> {
+  try {
+    const userData = await dbService.getUserByWalletAddress(userId);
+    const uid = userData?.uid;
+
+    if (!uid) {
+      console.warn(`User UID not found for identifier: ${userId}, cannot track event.`);
+      return;
+    }
+
+    const userKey = uid; 
+
+    if (!userBehaviorStore[userKey]) {
+      userBehaviorStore[userKey] = await loadBehaviorData(userKey);
+    }
+
+    const store = userBehaviorStore[userKey];
+
+    // Add event to session events
+    store.sessionEvents.push({
+      type: eventType,
+      timestamp: Date.now(),
+      data: eventData,
+    });
+
+    // Trim session events if exceeding max count
+    if (store.sessionEvents.length > MAX_EVENTS_PER_SESSION) {
+      store.sessionEvents.shift(); // Remove oldest event
+    }
+
+    // Update last active timestamp
+    store.lastActive = Date.now();
+
+    // Aggregate event counts
+    store.eventCounts[eventType] = (store.eventCounts[eventType] || 0) + 1;
+
+    // Save data to database (using UID)
+    await saveBehaviorData(userKey, store);
+    
+  } catch (error) {
+    console.error('Error tracking user behavior:', error);
+  }
 } 
