@@ -128,7 +128,7 @@ export function SignInModal() {
                 style={{ filter: "drop-shadow(0px 2px 0.5px rgba(0, 0, 0, 0.3))" }}
               >
                 <div className="flex items-center justify-center w-full h-full bg-[#6ab4ee] border-2 border-[#005b99] group-hover:bg-[#7acaff] group-active:bg-[#5a9ed0] transition-colors">
-                  <Image src="/icons/twitter-white.svg" alt="Twitter" width={24} height={24} className="mr-3"/>
+                  <Image src="/assets/icons/social/x.png" alt="Twitter" width={24} height={24} className="mr-3"/>
                    <span className="text-white font-bold font-pixelify tracking-wide text-sm sm:text-base">
                      {connectingTwitter ? "Connecting..." : "Sign in with Twitter"}
                    </span>
