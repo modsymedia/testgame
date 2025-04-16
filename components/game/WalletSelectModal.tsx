@@ -100,7 +100,7 @@ export function SignInModal() {
         {/* Use DialogContent without default styling, apply custom classes */}
         <DialogContent className="sm:max-w-lg p-0 border-none bg-transparent shadow-none">
           {/* Apply PixelatedContainerBig */}
-          <PixelatedContainer bgcolor="#C9EE6A" className="border-4 border-[#304700] p-6 sm:p-8">
+          <PixelatedContainer bgcolor="#C9EE6A" className="p-6 sm:p-8">
             {/* Custom Header */}
             <div className="mb-6 text-center">
               <h2 className="font-pixelify text-2xl sm:text-3xl font-bold text-[#304700] mb-2 uppercase tracking-wider">
