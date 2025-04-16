@@ -3,7 +3,7 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-
+ 
 function NotFoundContent() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
