@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useWallet } from "@/context/WalletContext";
+import { signIn } from "next-auth/react"; // Added for Twitter sign-in
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  // DialogHeader removed as it's unused
+  // DialogDescription removed as we'll use custom styling
+  // DialogTitle removed as we'll use custom styling
 } from "@/components/ui/feedback/dialog";
 import { Alert, AlertDescription } from "@/components/ui/feedback/alert";
-import Image from "next/image"; // Importing Image from next/image
-import { Button } from "@/components/ui/forms/button"; // Keep for internal buttons
+import Image from "next/image";
+// Button import removed as it's unused
+import PixelatedContainer from "@/components/game/PixelatedContainerBig"; // Import PixelatedContainerBig
 
 // Define static wallet info outside the component
 const walletsToShow = [
@@ -27,31 +29,48 @@ const walletsToShow = [
   },
 ];
 
-export function WalletSelectModal() {
+// Renamed component
+export function SignInModal() {
   const { connect, error } = useWallet();
   const [open, setOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
+  const [connectingTwitter, setConnectingTwitter] = useState(false); // State for Twitter button
 
   const handleConnect = async (walletName: string) => {
     setConnectingWallet(walletName);
     try {
       const connected = await connect(walletName);
-
       if (connected) {
-        // Add a small delay for Solflare to ensure connection stabilizes
         if (walletName === "solflare") {
-          // Give a bit more time for Solflare to initialize
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        setOpen(false);
+        setOpen(false); // Close modal on success
       }
     } finally {
       setConnectingWallet(null);
     }
   };
 
+  // Twitter Sign-In Handler
+  const handleTwitterSignIn = async () => {
+    setConnectingTwitter(true);
+    try {
+      // Redirects the user to Twitter for authentication
+      await signIn("twitter", { callbackUrl: "/console/gotchi" });
+      // If signIn is successful, the page will redirect,
+      // so closing the modal here might not be necessary unless there's an error immediate error.
+      // setOpen(false); // Close modal after initiating sign-in
+    } catch (err) {
+      console.error("Twitter Sign-In failed:", err);
+      // Handle error appropriately, maybe show an alert
+    } finally {
+      setConnectingTwitter(false);
+    }
+  };
+
   return (
     <>
+      {/* Keep the original trigger button */}
       <button
         onClick={() => setOpen(true)}
         className="relative focus:outline-none w-[190px] h-[52px] group transition-all duration-200 active:translate-y-[2px] hover:animate-button-pulse"
@@ -59,110 +78,120 @@ export function WalletSelectModal() {
           filter: "drop-shadow(0px 3.35465px 0.670931px rgba(0, 0, 0, 0.45))",
         }}
       >
-        {/* Main outer button - dark border with lime background */}
         <div className="flex-col flex items-center justify-center relative top-[2.44px] w-[calc(100%-7.24px)] h-[38px] bg-[#C9EE6A] border-4 border-[#304700] group-hover:bg-[#d5fa76] group-active:bg-[#b9de5a] transition-colors">
-        <span
+          <span
             className="text-[#304700] font-bold tracking-wider font-pixelify text-[12px] sm:text-[14px] group-hover:text-[#1f2e00] transition-colors group-active:translate-y-[1px]"
-            style={{
-              textTransform: "uppercase",
-            }}
+            style={{ textTransform: "uppercase" }}
           >
             GET STARTED
           </span>
-          
-          
           <div className="absolute top-0 left-0 w-[36.8%] h-[4px] bg-[#E8FCB4] group-hover:bg-[#f5ffd0] transition-colors"></div>
-          {/* <div className="absolute top-[-4px] left-[-4px]  w-[4px] h-[4px] bg-[#d6e0a4] z-[5]"></div> */}
-          {/* <div className="absolute top-[-4px] left-[-4px]  w-[8px] h-[8px] bg-[#304700]"></div> */}
         </div>
-
-        {/* Inner lighter colored area */}
         <div className="absolute top-[22px] w-[calc(100%-11.63px)] h-[29px] bg-[#E8FCB4] border-2 border-[#304700] z-[-1] group-hover:bg-[#f5ffd0] group-active:top-[23px] transition-all"></div>
-
       </button>
 
+      {/* Global styles remain the same */}
       <style jsx global>{`
-        @keyframes buttonPulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.03); }
-          60% { transform: scale(1.02); }
-          100% { transform: scale(1); }
-        }
-        .animate-button-pulse {
-          animation: buttonPulse 1.2s infinite;
-        }
+        @keyframes buttonPulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 60% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        .animate-button-pulse { animation: buttonPulse 1.2s infinite; }
       `}</style>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle>Connect a wallet</DialogTitle>
-            <DialogDescription>
-              Choose a wallet to connect to this app
-            </DialogDescription>
-          </DialogHeader>
+        {/* Use DialogContent without default styling, apply custom classes */}
+        <DialogContent className="sm:max-w-lg p-0 border-none bg-transparent shadow-none">
+          {/* Apply PixelatedContainerBig */}
+          <PixelatedContainer bgcolor="#C9EE6A" className="border-4 border-[#304700] p-6 sm:p-8">
+            {/* Custom Header */}
+            <div className="mb-6 text-center">
+              <h2 className="font-pixelify text-2xl sm:text-3xl font-bold text-[#304700] mb-2 uppercase tracking-wider">
+                Sign In / Connect
+              </h2>
+              <p className="font-vcr text-sm sm:text-base text-[#4D7700]">
+                Choose your preferred method to join the fun!
+              </p>
+            </div>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+            {/* Error Alert - styled to fit */}
+            {error && (
+              <Alert variant="destructive" className="mb-4 bg-red-100 border-red-400 text-red-700 font-vcr">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <div className="grid gap-4 py-4">
-            {walletsToShow.map((wallet) => (
-              <Button
-                key={wallet.name}
-                onClick={() => handleConnect(wallet.name)}
-                disabled={connectingWallet === wallet.name}
-                variant="outline"
-                className="flex items-center justify-between py-6"
+            {/* Grid for Sign-In Options */}
+            <div className="grid grid-cols-1 gap-4">
+              {/* Twitter Button */}
+              <button
+                onClick={handleTwitterSignIn}
+                disabled={connectingTwitter}
+                className="w-full relative group focus:outline-none h-[50px] transition-all duration-200 active:translate-y-[1px]"
+                style={{ filter: "drop-shadow(0px 2px 0.5px rgba(0, 0, 0, 0.3))" }}
               >
-                <div className="flex items-center">
-                  <Image
-                    src={wallet.icon}
-                    alt={wallet.label}
-                    width={32}
-                    height={32}
-                    className="mr-4" // Using Image component
-                  />
-                  <span>{wallet.label}</span>
+                <div className="flex items-center justify-center w-full h-full bg-[#6ab4ee] border-2 border-[#005b99] group-hover:bg-[#7acaff] group-active:bg-[#5a9ed0] transition-colors">
+                  <Image src="/icons/twitter-white.svg" alt="Twitter" width={24} height={24} className="mr-3"/>
+                   <span className="text-white font-bold font-pixelify tracking-wide text-sm sm:text-base">
+                     {connectingTwitter ? "Connecting..." : "Sign in with Twitter"}
+                   </span>
                 </div>
-                {connectingWallet === wallet.name && (
-                  <span className="animate-spin">⌛</span>
-                )}
-              </Button>
-            ))}
-          </div>
+                {/* Subtle highlight effect */}
+                <div className="absolute top-0 left-0 w-[30%] h-[3px] bg-[#a3d7ff] group-hover:bg-[#c0e5ff] transition-colors"></div>
+              </button>
 
-          {/* Optional: Add a section to suggest installation if needed, separate from connection logic */}
-          <div className="text-center p-4 border-t mt-4">
-            <p className="text-sm text-gray-500 mb-2">
-              Don&apos;t have a wallet? Install one:
-            </p>
-            <div className="grid grid-cols-2 gap-4">
+               {/* Divider */}
+               <div className="flex items-center my-2">
+                 <div className="flex-grow border-t border-[#88ab43]"></div>
+                 <span className="flex-shrink mx-4 text-[#4D7700] font-vcr text-xs">OR</span>
+                 <div className="flex-grow border-t border-[#88ab43]"></div>
+               </div>
+
+              {/* Wallet Buttons */}
               {walletsToShow.map((wallet) => (
-                <a
-                  key={wallet.name + "-install"}
-                  href={wallet.installUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button
-                    variant="outline"
-                    className="w-full flex items-center justify-center gap-2"
-                  >
-                    <Image
-                      src={wallet.icon}
-                      alt={wallet.label}
-                      width={24}
-                      height={24}
-                    />
-                    <span>{wallet.label}</span>
-                  </Button>
-                </a>
+                 <button
+                   key={wallet.name}
+                   onClick={() => handleConnect(wallet.name)}
+                   disabled={connectingWallet === wallet.name}
+                   className="w-full relative group focus:outline-none h-[50px] transition-all duration-200 active:translate-y-[1px]"
+                   style={{ filter: "drop-shadow(0px 2px 0.5px rgba(0, 0, 0, 0.3))" }}
+                 >
+                  <div className="flex items-center justify-center w-full h-full bg-[#E8FCB4] border-2 border-[#304700] group-hover:bg-[#f5ffd0] group-active:bg-[#d6e0a4] transition-colors">
+                     <Image
+                       src={wallet.icon}
+                       alt={wallet.label}
+                       width={24}
+                       height={24}
+                       className="mr-3"
+                     />
+                     <span className="text-[#304700] font-bold font-pixelify tracking-wide text-sm sm:text-base">
+                       {connectingWallet === wallet.name ? "Connecting..." : `Connect ${wallet.label}`}
+                     </span>
+                   </div>
+                   {/* Subtle highlight effect */}
+                   <div className="absolute top-0 left-0 w-[30%] h-[3px] bg-white group-hover:bg-[#f5ffd0] transition-colors"></div>
+                 </button>
               ))}
             </div>
-          </div>
+
+            {/* Optional: Install links - Keep simple */}
+            <div className="text-center mt-6 pt-4 border-t border-[#88ab43]">
+              <p className="text-xs sm:text-sm text-[#4D7700] font-vcr mb-2">
+                Don&apos;t have a Solana wallet?
+              </p>
+              <div className="flex justify-center gap-4">
+                {walletsToShow.map((wallet) => (
+                  <a
+                    key={wallet.name + "-install"}
+                    href={wallet.installUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#304700] hover:text-[#C9EE6A] hover:underline font-vcr flex items-center gap-1"
+                  >
+                    <Image src={wallet.icon} alt={wallet.label} width={16} height={16} />
+                    Install {wallet.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </PixelatedContainer>
         </DialogContent>
       </Dialog>
     </>

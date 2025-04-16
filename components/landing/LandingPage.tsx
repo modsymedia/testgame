@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 import { Alert, AlertDescription } from "@/components/ui/feedback/alert";
-import { WalletSelectModal } from "@/components/game/WalletSelectModal";
+import { SignInModal } from "@/components/game/WalletSelectModal";
 import FloatingRock from "@/components/game/FloatingRock";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -102,9 +102,9 @@ export default function LandingPage() {
                 </Alert>
               )}
               
-              {/* Render WalletSelectModal directly */}
+              {/* Render SignInModal directly */}
               <div className="mb-6 sm:mb-8 w-full flex justify-center">
-                <WalletSelectModal />
+                <SignInModal />
               </div>
 
               {/* Add Login with Twitter Button */}
