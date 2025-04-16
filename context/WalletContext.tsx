@@ -503,6 +503,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
          // Proceed with state reset even if provider disconnect fails
       }
     }
+    
+    // Handle Twitter logout if connected
+    if (isTwitterConnected) {
+      try {
+        await signOut();
+        console.log("Twitter session signed out.");
+      } catch (e) {
+        console.error("Error during Twitter sign out:", e);
+      }
+    }
+    
     // Reset state regardless of provider success/failure
     setIsConnected(false);
     setPublicKey(null);
@@ -511,6 +522,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     setIsNewUser(false);
     setShowPetNamePrompt(false);
     setIsLoading(false);
+    setIsTwitterConnected(false); // Always reset Twitter connection state
     console.log("Wallet context state reset.");
   };
   
