@@ -81,20 +81,22 @@ export function WalletProvider({ children }: WalletProviderProps) {
         // Twitter users might have a different ID format
         const twitterId = session.user?.id || '';
         if (twitterId) {
-          // Create a "pseudo" public key for Twitter users
-          const twitterPublicKey = `twitter-${twitterId}`;
-          setPublicKey(twitterPublicKey);
+          // Use the raw Twitter ID as the primary identifier
+          const rawTwitterId = twitterId;
+          console.log(`Twitter authenticated, using raw ID: ${rawTwitterId}`);
+          setPublicKey(rawTwitterId);
           setIsConnected(true);
           
-          // Fetch user data using this Twitter ID as the key
-          // This handles both new user creation and existing user retrieval
-          fetchDataForConnectedWallet(twitterPublicKey);
+          // Fetch user data using this raw Twitter ID as the key
+          // This should hit the standard user lookup logic now
+          fetchDataForConnectedWallet(rawTwitterId);
         }
       }
     } else {
       setIsTwitterConnected(false);
     }
-  }, [status, session]);
+    // Dependency array includes status and session to react to login changes
+  }, [status, session, isConnected]); // Added isConnected dependency
 
   // Check for global trigger to show pet name prompt (for testing)
   useEffect(() => {
