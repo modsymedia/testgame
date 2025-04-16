@@ -1,11 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet } from './WalletContext';
-import { DatabaseService } from '@/lib/database-service';
+import { dbService } from '@/lib/database-service';
 import { PointsManager } from '@/lib/points-manager';
-import { fetchUserRank } from '@/utils/leaderboard';
-import { debounce } from 'lodash';
 
 // Types for user data
 interface UserData {
@@ -27,7 +25,7 @@ const defaultUserData: UserData = {
   multiplier: 1.0,
   rank: null,
   lastLogin: Date.now(),
-  lastSync: 0,
+  lastSync: Date.now(),
   username: null,
   uid: null,
   unlockedItems: {}
@@ -49,80 +47,162 @@ interface UserDataContextType {
 // Create the context
 const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
 
-// Get instances of services
-const dbService = DatabaseService.instance;
-const pointsManagerInstance = PointsManager.instance;
-
 // Provider component
 export function UserDataProvider({ children }: { children: React.ReactNode }) {
-  const { publicKey, isConnected } = useWallet();
+  const { isConnected, publicKey } = useWallet();
   const [userData, setUserData] = useState<UserData>(defaultUserData);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [syncInterval, setSyncInterval] = useState<NodeJS.Timeout | null>(null);
   
-  // Memoize the syncWithServer function
+  // Add a ref to track last sync time to prevent too frequent syncs
+  const lastSyncTimeRef = useRef<number>(Date.now());
+  const MIN_SYNC_INTERVAL = 10000; // Minimum 10 seconds between syncs
+  
+  // Add a ref to track pending sync status
+  const isSyncingRef = useRef<boolean>(false);
+  
+  // Debounce sync requests
+  const syncDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get instance of PointsManager
+  const pointsManagerInstance = PointsManager.instance;
+
+  // Memoize the syncWithServer function to prevent dependency cycle
   const syncWithServer = useCallback(async () => {
     if (!publicKey || !isConnected) return;
-
-    console.log('Syncing with server...');
-    const success = await dbService.synchronize();
-
-    if (success) {
-      console.log('Sync completed successfully');
-      try {
-        const { userData: serverData, rank } = await fetchUserRank(publicKey);
-        if (serverData) {
-          setUserData(prev => ({ 
-              ...prev, 
-              ...serverData, 
-              rank: rank,
-              lastSync: Date.now() // Update timestamp on successful fetch
+    
+    // Prevent syncing if another sync is in progress or if we synced too recently
+    const now = Date.now();
+    if (isSyncingRef.current || now - lastSyncTimeRef.current < MIN_SYNC_INTERVAL) {
+      return;
+    }
+    
+    // Set syncing status
+    isSyncingRef.current = true;
+    
+    try {
+      console.log('Syncing with server...');
+      
+      // Process any pending updates first
+      await dbService.processPendingPointsUpdates();
+      
+      // Then get the latest data from server
+      const serverData = await dbService.getUserByWalletAddress(publicKey);
+      
+      if (serverData) {
+        // Only update if server data is newer
+        if (userData.points !== serverData.points) {
+          setUserData(prevData => ({
+            ...prevData,
+            points: serverData.points || prevData.points,
+            claimedPoints: serverData.claimedPoints || prevData.claimedPoints,
+            multiplier: serverData.multiplier || prevData.multiplier,
+            lastSync: now
+          }));
+        } else {
+          // Even if no changes, update the lastSync timestamp
+          setUserData(prevData => ({
+            ...prevData,
+            lastSync: now
           }));
         }
-      } catch (fetchErr) {
-        console.error('Error refetching data after sync:', fetchErr);
+        
+        console.log('Sync completed successfully');
       }
-    } else {
-      console.warn('Sync failed');
+      
+      // Update last sync time
+      lastSyncTimeRef.current = now;
+    } catch (err) {
+      console.error('Sync failed:', err);
+      // Don't set error on silent syncs to avoid UI disruptions
+    } finally {
+      // Clear syncing status
+      isSyncingRef.current = false;
     }
-  }, [publicKey, isConnected]);
+  }, [publicKey, isConnected, userData.points]);
   
   // Debounced version of sync function
-  const debouncedSync = useCallback(debounce(syncWithServer, 5000), [syncWithServer]);
+  const debouncedSync = useCallback(() => {
+    if (syncDebounceTimerRef.current) {
+      clearTimeout(syncDebounceTimerRef.current);
+    }
+    
+    syncDebounceTimerRef.current = setTimeout(() => {
+      syncWithServer();
+    }, 500); // 500ms debounce time
+  }, [syncWithServer]);
 
   // Load initial user data
   useEffect(() => {
-    if (publicKey && isConnected) {
+    if (isConnected && publicKey) {
+      // Set loading state
       setIsLoading(true);
       
+      // Initial load of user data
       const loadInitialUserData = async () => {
         try {
-          console.log('Loading initial user data for identifier:', publicKey);
-          // Use fetchUserRank to get initial data including rank
-          const { success, userData: serverData, rank, message } = await fetchUserRank(publicKey);
+          console.log('Loading user data for wallet:', publicKey);
+          const serverData = await dbService.getUserByWalletAddress(publicKey);
           
-          if (success && serverData) {
-            console.log('UserDataContext - Server data loaded via fetchUserRank:', serverData);
-            setUserData(prevData => ({
-              ...prevData,
-              ...serverData,
-              rank: rank, // Make sure rank is included
+          if (serverData) {
+            console.log('UserDataContext - Server data loaded:', serverData);
+            console.log('UserDataContext - UID present:', Boolean(serverData.uid));
+            
+            // Ensure we have a uid - if not present, use a generated one
+            if (!serverData.uid) {
+              console.log('UserDataContext - No UID found, generating one');
+              // Generate a uid if not present (using a simple approach)
+              // IMPORTANT: Ensure this UID generation is robust enough for production if needed
+              const generatedUid = `user_${publicKey.slice(0, 8)}_${Date.now()}`;
+              
+              // Update the user with the generated uid, using the generated UID itself for lookup
+              // Note: We pass only the uid to update, assuming other serverData is already current
+              await dbService.updateUserData(generatedUid, { uid: generatedUid });
+              // We should ideally refetch or ensure the createUser function handles this scenario
+              // For now, update local state optimistically.
+              console.warn('UserDataContext - Backfilled UID. Consider ensuring createUser handles this.');
+
+              // Update local data with the generated uid
+              setUserData(prevData => ({
+                ...prevData,
+                ...serverData, // Keep other loaded data
+                uid: generatedUid, // Set the newly generated UID
+                lastSync: Date.now()
+              }));
+            } else {
+              // Normal update with existing uid
+              setUserData(prevData => ({
+                ...prevData,
+                ...serverData,
+                lastSync: Date.now()
+              }));
+            }
+            
+            console.log('UserDataContext - Final userData:', {
+              ...serverData, 
               lastSync: Date.now()
-            }));
+            });
           } else {
-            console.log('UserDataContext - No server data found via fetchUserRank, creating default local state.', message);
-            const defaultWithPotentialUid = {
+            console.log('UserDataContext - No server data found, using default');
+            // No user data found, set default with wallet uid
+            const defaultWithUid = {
               ...defaultUserData,
-              uid: `temp_${publicKey}` 
+              uid: `user_${publicKey.slice(0, 8)}_${Date.now()}`
             };
-            setUserData(defaultWithPotentialUid);
+            
+            // Create new user record
+            await dbService.createUser({ 
+              walletAddress: publicKey,
+              ...defaultWithUid,
+              username: defaultWithUid.username || undefined 
+            });
+            
+            setUserData(defaultWithUid);
           }
         } catch (err) {
-          console.error('Error loading initial user data via fetchUserRank:', err);
+          console.error('Error loading initial user data:', err);
           setError('Failed to load user data');
-          // Set default state even on error
-          setUserData(defaultUserData);
         } finally {
           setIsLoading(false);
         }
@@ -130,19 +210,17 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       
       loadInitialUserData();
       
-      // Set up interval to *trigger* the debounced sync check
+      // Set up sync interval
       const interval = setInterval(() => {
-        debouncedSync(); 
-      }, 30000); // Check every 30 seconds if a sync is needed
+        syncWithServer();
+      }, 30000); // Sync every 30 seconds
       
       setSyncInterval(interval);
       
       return () => {
         if (interval) clearInterval(interval);
-        debouncedSync.cancel(); // Cancel pending debounced calls on unmount
       };
     } else {
-      // Reset state when disconnected
       setUserData(defaultUserData);
       setIsLoading(false);
       if (syncInterval) {
@@ -150,14 +228,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         setSyncInterval(null);
       }
     }
-  }, [isConnected, publicKey, debouncedSync]);
+  }, [isConnected, publicKey, syncWithServer]);
 
-  // Function that uses pointsManager to execute operations correctly
+  // Function that uses pointsManager to execute operations correctly - simplified
   const executePointsManagerOperation = async (operation: string, ...args: any[]): Promise<any> => {
     try {
-      // Use the correctly instantiated pointsManagerInstance
-      if (typeof pointsManagerInstance[operation as keyof PointsManager] === 'function') {
-        return await (pointsManagerInstance as any)[operation](...args);
+      // Check if the operation exists on the pointsManager instance
+      if (typeof pointsManagerInstance[operation as keyof typeof pointsManagerInstance] === 'function') {
+        // Call the function with the provided arguments using any to avoid type conflicts
+        return await (pointsManagerInstance[operation as any])(...args);
       } else {
         console.error(`The operation "${operation}" is not available on pointsManager`);
         return { success: false, error: `Operation not supported: ${operation}` };
@@ -384,44 +463,54 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Function to handle online/offline status changes
-  const handleOnlineStatusChange = () => {
-    if (navigator.onLine) {
-      console.log('Network status changed: Online');
-      // Try syncing immediately when back online
-      debouncedSync();
-    } else {
-      console.log('Network status changed: Offline');
-    }
-  };
-  
-  // Function to handle page visibility changes
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      // Optional: Consider if sync is needed when tab becomes hidden
-      // debouncedSync();
-    } else if (document.visibilityState === 'visible') {
-      // Optional: Trigger sync when tab becomes visible again if needed
-      // debouncedSync();
-    }
-  };
-
-  // Effect to add/remove network and visibility listeners
+  // Handle online status changes with reduced logging
   useEffect(() => {
+    // Define the event handler
+    const handleOnlineStatusChange = () => {
+      if (navigator.onLine) {
+        // Only log this once when coming online, not repeatedly
+        if (typeof window !== 'undefined' && !window.sessionStorage.getItem('logged_online_sync')) {
+          console.log('🌐 App is online. Syncing pending updates...');
+          window.sessionStorage.setItem('logged_online_sync', 'true');
+        }
+        debouncedSync();
+      } else {
+        console.log('📴 App is offline. Updates will be stored locally.');
+        window.sessionStorage.removeItem('logged_online_sync');
+      }
+    };
+    
+    // Initial check
+    handleOnlineStatusChange();
+    
+    // Add event listeners
     window.addEventListener('online', handleOnlineStatusChange);
     window.addEventListener('offline', handleOnlineStatusChange);
+    
+    // Also check visibility changes (when user tabs back to the app)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        // Only sync if enough time has passed since last sync
+        const now = Date.now();
+        if (now - lastSyncTimeRef.current >= MIN_SYNC_INTERVAL) {
+          debouncedSync();
+        }
+      }
+    };
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
+    
+    // Clean up
     return () => {
       window.removeEventListener('online', handleOnlineStatusChange);
       window.removeEventListener('offline', handleOnlineStatusChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // Clean up interval when provider unmounts
-      if (syncInterval) {
-        clearInterval(syncInterval);
+      
+      if (syncDebounceTimerRef.current) {
+        clearTimeout(syncDebounceTimerRef.current);
       }
     };
-  }, [syncInterval, debouncedSync]); // Add debouncedSync to dependencies
+  }, [debouncedSync]);
 
   return (
     <UserDataContext.Provider

@@ -125,47 +125,47 @@ export async function updateUserPoints(walletAddress: string, points: number): P
  * @param walletAddress The wallet address to check
  * @returns Object containing user data and rank
  */
-export const fetchUserRank = async (identifier: string) => {
+export async function fetchUserRank(walletAddress: string): Promise<{
+  rank: number;
+  userData: any;
+  success: boolean;
+  totalUsers: number;
+}> {
   try {
-    // Always use the standard leaderboard/rank endpoint
-    const response = await fetch(`/api/leaderboard/rank?wallet=${encodeURIComponent(identifier)}`, {
-      cache: 'no-cache', // Ensure fresh data
-       headers: {
-         'Content-Type': 'application/json',
-       },
+    if (!walletAddress) {
+      console.warn('Cannot fetch user rank without wallet address');
+      return { rank: 0, userData: null, success: false, totalUsers: 0 };
+    }
+    
+    // Use relative URL to avoid port/domain issues
+    const response = await fetch(`/api/leaderboard/rank?wallet=${walletAddress}`, {
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
     
     if (!response.ok) {
-      console.warn(`fetchUserRank failed with status: ${response.status} for identifier: ${identifier}`);
-      // Return a standard error object matching the expected structure
-       return {
-         success: false,
-         message: `User not found or error fetching rank (status: ${response.status})`,
-         rank: 0,
-         userData: null,
-         totalUsers: 0,
-       };
+      console.warn(`User rank fetch failed with status: ${response.status}`);
+      return { rank: 0, userData: null, success: false, totalUsers: 0 };
     }
     
+    // Parse the response body
     const data = await response.json();
     
-    // Ensure the response format is consistent
-    return {
-      success: data.success ?? false,
-      message: data.message,
-      rank: data.rank ?? 0,
-      userData: data.userData ?? null,
-      totalUsers: data.totalUsers ?? 0
-    };
-
+    if (data && data.success && data.rank) {
+      return { 
+        rank: data.rank,
+        userData: data.userData || null,
+        success: true,
+        totalUsers: data.totalUsers || 0
+      };
+    }
+    
+    console.warn('No valid user rank data in response');
+    return { rank: 0, userData: null, success: false, totalUsers: 0 };
   } catch (error) {
-    console.error('Error in fetchUserRank:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Network error fetching user rank',
-      rank: 0,
-      userData: null,
-      totalUsers: 0,
-    };
+    console.error('Error fetching user rank:', error);
+    return { rank: 0, userData: null, success: false, totalUsers: 0 };
   }
-}; 
+} 

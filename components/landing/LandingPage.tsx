@@ -27,9 +27,9 @@ export default function LandingPage() {
       isTwitterConnected,
     });
 
-    if ((isConnected || isTwitterConnected) && !hasReferralCode) {
+    if ((isConnected || isTwitterConnected) && !isNewUser && !hasReferralCode) {
       console.log(
-        "LandingPage - Conditions met for redirect (isConnected/isTwitterConnected), starting timer..."
+        "LandingPage - Conditions met for redirect, starting timer..."
       );
       const timer = setTimeout(() => {
         console.log("LandingPage - Redirecting to /console/gotchi");
@@ -40,7 +40,7 @@ export default function LandingPage() {
     } else {
       console.log("LandingPage - Conditions not met for redirect.");
     }
-  }, [isConnected, isTwitterConnected, router]);
+  }, [isConnected, isNewUser, router, isTwitterConnected]);
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center">

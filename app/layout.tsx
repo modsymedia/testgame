@@ -9,6 +9,7 @@ import ReferralSuccess from "@/components/ui/ReferralSuccess"
 import ReferralHandler from '@/components/referral/ReferralHandler'
 import '@/lib/fixes/setup-mock-db'
 import React, { Suspense } from 'react'
+import { Pixelify_Sans, Jost } from 'next/font/google'
 import Providers from '@/components/providers'
 
 export const metadata: Metadata = {

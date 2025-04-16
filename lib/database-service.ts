@@ -798,52 +798,25 @@ export class DatabaseService {
   // Public User Methods (Refactored)
   // =======================================================================
 
-  // Update user data in DB/Cache, identified by UID or wallet address
-  public async updateUserData(identifier: string, updateData: Partial<User>): Promise<boolean> {
-    let uid: string | null = null;
-    let walletAddress: string | null = null;
-
+  // Update user data in DB/Cache, identified by UID
+  public async updateUserData(uid: string, updateData: Partial<User>): Promise<boolean> {
     try {
-      if (!identifier) {
-        console.error('Missing identifier in updateUserData');
+      if (!uid) {
+        console.error('Missing UID in updateUserData');
         return false;
       }
 
-      // Determine if the identifier is a UID or a wallet/twitter ID
-      // A simple check: UIDs are UUIDs, wallets/twitter IDs are longer strings
-      // This might need adjustment based on your actual UID format
-      if (identifier.includes('-') && identifier.length < 40) { // Assume UUID-like UID
-        uid = identifier;
-      } else { // Assume wallet address or Twitter ID
-        walletAddress = identifier;
-      }
-
-      // If we only have wallet/twitter address, find the UID
-      if (!uid && walletAddress) {
-        const userByWallet = await this.getUserByWalletAddress(walletAddress);
+      // Check if the uid looks like a wallet address
+      if (uid.length > 30 && !uid.includes('-')) {
+        console.warn('Wallet address detected instead of UID in updateUserData:', uid);
+        const userByWallet = await this.getUserByWalletAddress(uid);
         if (userByWallet && userByWallet.uid) {
+          console.log(`Converting wallet address to UID: ${uid} -> ${userByWallet.uid}`);
           uid = userByWallet.uid;
-          console.log(`Resolved identifier to UID: ${walletAddress} -> ${uid}`);
         } else {
-          console.error(`User not found for identifier ${identifier} during update. Cannot update.`);
-          // It's crucial to stop if we can't find the user by the provided identifier
+          console.error('Unable to find UID for wallet address:', uid);
           return false;
         }
-      }
-      
-      // If we started with UID, try to get the wallet address (might be needed for cache)
-      if (uid && !walletAddress) {
-          const userByUid = await this.getUserByUid(uid);
-          if (userByUid && userByUid.walletAddress) {
-              walletAddress = userByUid.walletAddress;
-          }
-          // If walletAddress is still null here, it's okay if the user exists by UID
-      }
-
-      // Ensure we have a valid UID at this point
-      if (!uid) {
-          console.error('Could not resolve identifier to a valid UID after checks:', identifier);
-          return false;
       }
 
       // --- Optimistic Cache Update ---
@@ -851,46 +824,37 @@ export class DatabaseService {
       let cachedUser = this.cache.get(cacheKey) as User | undefined;
 
       if (!cachedUser) {
-        // Attempt to fetch user by UID if not in cache
         const fetchedUser = await this.getUserByUid(uid);
-        cachedUser = fetchedUser ?? undefined; 
+        cachedUser = fetchedUser === null ? undefined : fetchedUser;
         if (!cachedUser) {
-          console.error(`User not found for UID ${uid} even after fetch attempt. Cannot update cache.`);
-          // If user genuinely doesn't exist, we can't update
-          return false; 
+          console.error(`User not found for UID ${uid} during update. Cannot update.`);
+          return false;
         }
       }
       
-      // Apply updates to the cached user data
       const updatedUser = { ...cachedUser, ...updateData };
-      this.cache.set(cacheKey, updatedUser); // Update primary cache
+      this.cache.set(cacheKey, updatedUser);
       this.cache.markDirty(cacheKey); 
 
-      // Also update the secondary wallet-based cache if wallet address is known
-      // Use the walletAddress resolved earlier or from the fetched/cached user
-      const effectiveWalletAddress = walletAddress || updatedUser.walletAddress;
-      if (effectiveWalletAddress) {
-          const walletCacheKey = `user-wallet:${effectiveWalletAddress}`;
-          this.cache.set(walletCacheKey, updatedUser);
+      if (updatedUser.walletAddress) {
+          this.cache.set(`user-wallet:${updatedUser.walletAddress}`, updatedUser);
       }
       // --- End Cache Update ---
       
       // --- Persistence ---
-      // Always use the resolved UID for persistence operations
+      // Call the centralized persistence method
       const persistenceSuccess = await this._persistUpdate('user', uid, updateData);
-      if (!persistenceSuccess) {
-          console.warn(`Persistence failed for user UID ${uid}. Data remains dirty in cache.`);
-          // Keep the cache dirty if persistence failed
-      }
+      // Note: We might want to handle persistence failure differently, 
+      // e.g., revert cache update or keep it dirty for next sync attempt.
+      // For now, returning the success status of the persistence attempt.
       return persistenceSuccess;
       // --- End Persistence ---
 
     } catch (error) {
-      console.error(`Error in updateUserData for identifier ${identifier}:`, error);
-      // Ensure cache is marked dirty if an error occurred and UID was resolved
-      if (uid) {
-          this.cache.markDirty(`user:${uid}`); 
-      }
+      console.error(`Error in updateUserData for UID ${uid}:`, error);
+      // Ensure cache is marked dirty if an error occurred before persistence?
+      // Maybe markDirty should happen *after* successful optimistic update but before persistence attempt?
+      this.cache.markDirty(`user:${uid}`); // Ensure it stays dirty on error
       return false; // Return false on error
     }
   }
