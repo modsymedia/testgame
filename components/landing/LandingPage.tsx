@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
   const router = useRouter();
-  const { isConnected, error, isNewUser } = useWallet();
+  const { isConnected, error, isNewUser, isTwitterConnected } = useWallet();
 
   useEffect(() => {
     const hasReferralCode =
@@ -24,9 +24,10 @@ export default function LandingPage() {
       isConnected,
       isNewUser,
       hasReferralCode,
+      isTwitterConnected,
     });
 
-    if (isConnected && !isNewUser && !hasReferralCode) {
+    if ((isConnected || isTwitterConnected) && !isNewUser && !hasReferralCode) {
       console.log(
         "LandingPage - Conditions met for redirect, starting timer..."
       );
@@ -39,7 +40,7 @@ export default function LandingPage() {
     } else {
       console.log("LandingPage - Conditions not met for redirect.");
     }
-  }, [isConnected, isNewUser, router]);
+  }, [isConnected, isNewUser, router, isTwitterConnected]);
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col items-center justify-center">

@@ -9,6 +9,8 @@ import ReferralSuccess from "@/components/ui/ReferralSuccess"
 import ReferralHandler from '@/components/referral/ReferralHandler'
 import '@/lib/fixes/setup-mock-db'
 import React, { Suspense } from 'react'
+import { Pixelify_Sans, Jost } from 'next/font/google'
+import Providers from '@/components/providers'
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -29,18 +31,20 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&family=VT323&display=swap" rel="stylesheet" />
       </head>
       <body className="font-pixelify">
-        <WalletProvider>
-          <UserDataProvider>
-            <PointsProvider>
-              <BackgroundMusic />
-              <main>
-                {children}
-              </main>
-              <Toaster />
-              <ReferralSuccess />
-            </PointsProvider>
-          </UserDataProvider>
-        </WalletProvider>
+        <Providers>
+          <WalletProvider>
+            <UserDataProvider>
+              <PointsProvider>
+                <BackgroundMusic />
+                <main>
+                  {children}
+                </main>
+                <Toaster />
+                <ReferralSuccess />
+              </PointsProvider>
+            </UserDataProvider>
+          </WalletProvider>
+        </Providers>
         <Suspense fallback={null}>
           <ReferralHandler />
         </Suspense>

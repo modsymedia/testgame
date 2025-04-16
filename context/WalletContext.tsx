@@ -9,6 +9,7 @@ import {
   // getAvailableWallets // Removed
 } from '@/utils/wallet';
 import { fetchUserRank } from '@/utils/leaderboard';
+import { useSession, signOut } from 'next-auth/react';
 
 interface WalletContextType {
   isConnected: boolean;
@@ -24,6 +25,8 @@ interface WalletContextType {
   showPetNamePrompt: boolean;
   setUsername: (username: string) => Promise<boolean>;
   currentWalletName: string | null;
+  isTwitterConnected: boolean;
+  twitterDisconnect: () => void;
 }
 
 const defaultContext: WalletContextType = {
@@ -39,7 +42,9 @@ const defaultContext: WalletContextType = {
   isNewUser: false,
   showPetNamePrompt: false,
   setUsername: async () => false,
-  currentWalletName: null
+  currentWalletName: null,
+  isTwitterConnected: false,
+  twitterDisconnect: () => {},
 };
 
 const WalletContext = createContext<WalletContextType>(defaultContext);
@@ -54,6 +59,7 @@ interface WalletProviderProps {
 
 export function WalletProvider({ children }: WalletProviderProps) {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [isConnected, setIsConnected] = useState(false);
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [walletData, setWalletData] = useState<any>(null);
@@ -62,6 +68,32 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showPetNamePrompt, setShowPetNamePrompt] = useState(false);
   const [currentWalletName, setCurrentWalletName] = useState<string | null>(null);
+  const [isTwitterConnected, setIsTwitterConnected] = useState(false);
+
+  // Handle Twitter authentication
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      setIsTwitterConnected(true);
+      
+      // If we have a Twitter session but no wallet connection,
+      // we can treat this as a different type of connection
+      if (!isConnected) {
+        // Twitter users might have a different ID format
+        const twitterId = session.user?.id || '';
+        if (twitterId) {
+          // Create a "pseudo" public key for Twitter users
+          const twitterPublicKey = `twitter-${twitterId}`;
+          setPublicKey(twitterPublicKey);
+          setIsConnected(true);
+          
+          // Fetch user data using this Twitter ID
+          fetchDataForConnectedWallet(twitterPublicKey);
+        }
+      }
+    } else {
+      setIsTwitterConnected(false);
+    }
+  }, [status, session]);
 
   // Check for global trigger to show pet name prompt (for testing)
   useEffect(() => {
@@ -614,6 +646,26 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
   };
   
+  // Add Twitter disconnect function
+  const twitterDisconnect = async () => {
+    try {
+      await signOut();
+      
+      // Only reset context if not connected via wallet
+      if (!currentWalletName) {
+        setIsConnected(false);
+        setPublicKey(null);
+        setWalletData(null);
+        setIsNewUser(false);
+        setShowPetNamePrompt(false);
+      }
+      
+      setIsTwitterConnected(false);
+    } catch (error) {
+      console.error('Error disconnecting from Twitter:', error);
+    }
+  };
+
   const value = {
     isConnected,
     publicKey,
@@ -627,7 +679,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
     isNewUser,
     showPetNamePrompt,
     setUsername,
-    currentWalletName
+    currentWalletName,
+    isTwitterConnected,
+    twitterDisconnect,
   };
   
   return (

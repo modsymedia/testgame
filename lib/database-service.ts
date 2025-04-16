@@ -54,8 +54,8 @@ class DatabaseCache {
 
   public markUserDirty(uid: string): void {
     const cacheKey = `user:${uid}`;
-    // Ensure you have a 'cache' property that refers to your DatabaseCache instance
-    this.cache.markDirty(cacheKey);
+    // Mark the entity as dirty using the class's own markDirty method
+    this.markDirty(cacheKey);
   }
 
   // Add operation to sync queue
