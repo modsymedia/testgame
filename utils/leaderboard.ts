@@ -125,47 +125,32 @@ export async function updateUserPoints(walletAddress: string, points: number): P
  * @param walletAddress The wallet address to check
  * @returns Object containing user data and rank
  */
-export async function fetchUserRank(walletAddress: string): Promise<{
-  rank: number;
-  userData: any;
-  success: boolean;
-  totalUsers: number;
-}> {
+export const fetchUserRank = async (publicKey: string) => {
   try {
-    if (!walletAddress) {
-      console.warn('Cannot fetch user rank without wallet address');
-      return { rank: 0, userData: null, success: false, totalUsers: 0 };
-    }
+    let response;
     
-    // Use relative URL to avoid port/domain issues
-    const response = await fetch(`/api/leaderboard/rank?wallet=${walletAddress}`, {
-      cache: 'no-cache',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Handle Twitter IDs differently from wallet addresses
+    if (publicKey.startsWith('twitter-')) {
+      const twitterId = publicKey; // The full ID including 'twitter-' prefix
+      response = await fetch(`/api/auth/twitter/user?twitterId=${encodeURIComponent(twitterId)}`);
+    } else {
+      // Standard wallet API call
+      response = await fetch(`/api/leaderboard?walletAddress=${encodeURIComponent(publicKey)}`);
+    }
     
     if (!response.ok) {
-      console.warn(`User rank fetch failed with status: ${response.status}`);
-      return { rank: 0, userData: null, success: false, totalUsers: 0 };
+      throw new Error(`Server responded with status: ${response.status}`);
     }
     
-    // Parse the response body
     const data = await response.json();
-    
-    if (data && data.success && data.rank) {
-      return { 
-        rank: data.rank,
-        userData: data.userData || null,
-        success: true,
-        totalUsers: data.totalUsers || 0
-      };
-    }
-    
-    console.warn('No valid user rank data in response');
-    return { rank: 0, userData: null, success: false, totalUsers: 0 };
+    return data;
   } catch (error) {
     console.error('Error fetching user rank:', error);
-    return { rank: 0, userData: null, success: false, totalUsers: 0 };
+    return {
+      rank: 0,
+      userData: null,
+      success: false,
+      totalUsers: 0,
+    };
   }
-} 
+}; 

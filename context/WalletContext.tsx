@@ -86,7 +86,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setPublicKey(twitterPublicKey);
           setIsConnected(true);
           
-          // Fetch user data using this Twitter ID
+          // Fetch user data using this Twitter ID as the key
+          // This handles both new user creation and existing user retrieval
           fetchDataForConnectedWallet(twitterPublicKey);
         }
       }
