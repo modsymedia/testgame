@@ -8,8 +8,16 @@ import { Toaster } from "@/components/ui/feedback/toaster"
 import ReferralSuccess from "@/components/ui/ReferralSuccess"
 import ReferralHandler from '@/components/referral/ReferralHandler'
 import '@/lib/fixes/setup-mock-db'
-import React from 'react'
+import React, { Suspense } from 'react'
 import Providers from '@/components/providers'
+
+// Define font (assuming Pixelify Sans is primary)
+import { Pixelify_Sans } from 'next/font/google'
+const pixelify = Pixelify_Sans({ 
+  subsets: ['latin'],
+  variable: '--font-pixelify',
+  display: 'swap'
+})
 
 export const metadata: Metadata = {
   title: 'Crypto Pet',
@@ -29,7 +37,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&family=VT323&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-pixelify">
+      <body className={pixelify.variable}>
         <Providers>
           <WalletProvider>
             <UserDataProvider>
@@ -41,10 +49,12 @@ export default function RootLayout({
                 <Toaster />
                 <ReferralSuccess />
               </PointsProvider>
-              <ReferralHandler />
             </UserDataProvider>
           </WalletProvider>
         </Providers>
+        <Suspense fallback={null}>
+          <ReferralHandler />
+        </Suspense>
       </body>
     </html>
   )
