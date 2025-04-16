@@ -77,85 +77,40 @@ export interface WalletContextState {
 // Add a fallback storage mechanism for when the database is unavailable
 const inMemoryStorage = new Map<string, any>();
 
-// Add a flag to track if we're in the middle of a save operation
-let isSaving = false;
-
-// Save wallet data to the server
-export async function saveWalletData(publicKey: string, data: any): Promise<boolean> {
-  // If we're already saving, return early to prevent infinite loops
-  if (isSaving) {
-    console.log("Save operation already in progress, skipping...");
-    return false;
-  }
-  
+// Simplified saveWalletData to handle any identifier (wallet or Twitter ID)
+export const saveWalletData = async (identifier: string, data: any) => {
   try {
-    isSaving = true;
-    console.log(`Saving wallet data for: ${publicKey.substring(0, 8)}...`);
-    
-    try {
-      const response = await fetch('/api/wallet', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey,
-          score: data.petStats?.points || 0,
-          username: data.username,
-          petState: {
-            health: Math.floor(data.petStats?.health || 30),
-            happiness: Math.floor(data.petStats?.happiness || 40),
-            hunger: Math.floor(data.petStats?.food || 50),
-            cleanliness: Math.floor(data.petStats?.cleanliness || 40),
-            energy: Math.floor(data.petStats?.energy || 30),
-            qualityScore: data.petStats?.qualityScore || 0,
-            isDead: data.petStats?.isDead || false,
-            lastStateUpdate: new Date()
-          }
-        }),
-      });
-      
-      isSaving = false;
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API error (${response.status}): ${errorText}`);
-        // Track the failure but don't use localStorage
-        inMemoryStorage.set(publicKey, {
-          ...data,
-          lastSaved: new Date().toISOString(),
-          pendingSave: true // Mark as pending to retry later
-        });
-        return false;
-      }
-      
-      const result = await response.json();
-      
-      // If there's a warning about temporary storage, log it
-      if (result.warning) {
-        console.warn(result.warning);
-      }
-      
-      console.log(`Wallet data saved successfully to server: ${result.message}`);
-      return true;
-    } catch (serverError) {
-      console.error('Failed to save wallet data to server:', serverError);
-      // Track the failure but don't fallback to localStorage
-      inMemoryStorage.set(publicKey, {
-        ...data,
-        lastSaved: new Date().toISOString(),
-        pendingSave: true // Mark as pending to retry later
-      });
+    if (!identifier) {
+      console.error('Cannot save wallet data without identifier');
       return false;
     }
+    
+    // Always use the standard /api/wallet endpoint
+    const response = await fetch('/api/wallet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress: identifier, // Use the identifier as the walletAddress
+        ...data // Spread the rest of the user data
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to save wallet data for ${identifier}. Status: ${response.status}. Body: ${errorText}`);
+      return false;
+    }
+    
+    const result = await response.json();
+    // Check if the API explicitly signals success
+    return result.success === true;
   } catch (error) {
-    isSaving = false;
-    console.error('Failed to save wallet data:', error);
+    console.error('Error saving wallet data:', error);
     return false;
-  } finally {
-    isSaving = false;
   }
-}
+};
 
 // Load wallet data from the server only - no localStorage fallbacks
 export async function loadWalletData(publicKey: string): Promise<any> {

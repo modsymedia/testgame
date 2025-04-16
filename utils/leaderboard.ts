@@ -125,31 +125,46 @@ export async function updateUserPoints(walletAddress: string, points: number): P
  * @param walletAddress The wallet address to check
  * @returns Object containing user data and rank
  */
-export const fetchUserRank = async (publicKey: string) => {
+export const fetchUserRank = async (identifier: string) => {
   try {
-    let response;
-    
-    // Handle Twitter IDs differently from wallet addresses
-    if (publicKey.startsWith('twitter-')) {
-      const twitterId = publicKey; // The full ID including 'twitter-' prefix
-      response = await fetch(`/api/auth/twitter/user?twitterId=${encodeURIComponent(twitterId)}`);
-    } else {
-      // Standard wallet API call
-      response = await fetch(`/api/leaderboard?walletAddress=${encodeURIComponent(publicKey)}`);
-    }
+    // Always use the standard leaderboard/rank endpoint
+    const response = await fetch(`/api/leaderboard/rank?wallet=${encodeURIComponent(identifier)}`, {
+      cache: 'no-cache', // Ensure fresh data
+       headers: {
+         'Content-Type': 'application/json',
+       },
+    });
     
     if (!response.ok) {
-      throw new Error(`Server responded with status: ${response.status}`);
+      console.warn(`fetchUserRank failed with status: ${response.status} for identifier: ${identifier}`);
+      // Return a standard error object matching the expected structure
+       return {
+         success: false,
+         message: `User not found or error fetching rank (status: ${response.status})`,
+         rank: 0,
+         userData: null,
+         totalUsers: 0,
+       };
     }
     
     const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching user rank:', error);
+    
+    // Ensure the response format is consistent
     return {
+      success: data.success ?? false,
+      message: data.message,
+      rank: data.rank ?? 0,
+      userData: data.userData ?? null,
+      totalUsers: data.totalUsers ?? 0
+    };
+
+  } catch (error) {
+    console.error('Error in fetchUserRank:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Network error fetching user rank',
       rank: 0,
       userData: null,
-      success: false,
       totalUsers: 0,
     };
   }
