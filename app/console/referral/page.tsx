@@ -18,7 +18,7 @@ interface ReferredUser {
 }
 
 export default function ReferralPage() {
-  const { publicKey, isConnected } = useWallet();
+  const { isConnected } = useWallet();
   const { userData } = useUserData();
   const [referralLink, setReferralLink] = useState<string>('');
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
@@ -28,15 +28,15 @@ export default function ReferralPage() {
 
   // Define fetchReferredUsers as a memoized function to add it to dependencies
   const fetchReferredUsers = useCallback(async () => {
-    if (!publicKey) return;
+    if (!userData?.uid) return;
     
     setIsLoading(true);
     
     try {
-      console.log('Fetching referred users via API route');
+      console.log('Fetching referred users via API route using UID');
       
-      // Use API route instead of direct database access
-      const response = await fetch(`/api/referral?wallet=${publicKey}`);
+      // Use API route with UID parameter instead of wallet
+      const response = await fetch(`/api/referral?uid=${userData.uid}`);
       
       if (!response.ok) {
         console.warn(`API responded with status: ${response.status}`);
@@ -82,40 +82,26 @@ export default function ReferralPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey]);
+  }, [userData?.uid]);
 
   useEffect(() => {
-    // Add debug logs to check values
-    console.log('Referral Page - User Data:', userData);
-    console.log('Referral Page - UID exists:', Boolean(userData.uid));
-    console.log('Referral Page - UID value:', userData.uid);
-    console.log('Referral Page - Is Connected:', isConnected);
-    console.log('Referral Page - Public Key:', publicKey);
+    // Clear previous link
+    setReferralLink('');
     
-    if (isConnected && publicKey) {
-      // Create referral link - try to use UID first, but fall back to public key if needed
+    // Generate link only if connected and userData with UID is available
+    if (isConnected && userData?.uid) {
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      
-      if (userData.uid) {
-        // Use UID as intended
-        const link = `${baseUrl}/?ref=${userData.uid}`;
-        console.log('Referral Page - Generated Link with UID:', link);
-        setReferralLink(link);
-      } else {
-        // Fallback to using a portion of public key
-        const fallbackId = publicKey.slice(0, 8);
-        const link = `${baseUrl}/?ref=${fallbackId}`;
-        console.log('Referral Page - Generated FALLBACK Link with public key part:', link);
-        setReferralLink(link);
-      }
+      const link = `${baseUrl}/?ref=${userData.uid}`;
+      console.log('Referral Page - Generated Link with UID:', link);
+      setReferralLink(link);
       
       // Fetch referred users
       fetchReferredUsers();
     } else {
-      console.log('Referral Page - Conditions not met for link generation:',
-        {isConnected, hasPublicKey: Boolean(publicKey), hasUid: Boolean(userData.uid)});
+      console.log('Referral Page - Conditions not met for link generation/fetching referrals:',
+        {isConnected, hasUid: Boolean(userData?.uid)});
     }
-  }, [isConnected, publicKey, userData, fetchReferredUsers]);
+  }, [isConnected, userData?.uid, fetchReferredUsers]);
 
   const handleCopyLink = () => {
     setCopied(true);

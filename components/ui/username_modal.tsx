@@ -74,7 +74,7 @@ const UsernameModal = () => {
         }
       }
     }
-  }, [isConnected, publicKey, isNewUser, walletData?.username]);
+  }, [isConnected, publicKey, isNewUser, walletData?.username, hasChosenName]);
 
   // Prevent dismiss by click on backdrop
   const handleBackdropClick = (e: React.MouseEvent) => {

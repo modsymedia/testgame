@@ -41,34 +41,34 @@ export function clearStoredUID(): void {
 /**
  * Apply a referral code to a user
  */
-export async function applyUID(walletAddress: string, UID: string): Promise<boolean> {
+export async function applyUID(uid: string, referralCode: string): Promise<boolean> {
   try {
-    const response = await fetch('/api/referral/apply', {
+    const response = await fetch('/api/referral', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        walletAddress,
-        UID
+        userUid: uid,
+        referralCode: referralCode
       }),
     });
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Error applying referral code:', errorData.error);
+      console.error('Error applying referral code (via util):', errorData.error);
       return false;
     }
     
     const data = await response.json();
-    console.log('Referral code applied successfully:', data);
+    console.log('Referral code applied successfully (via util):', data);
     
     // Clear the stored referral code after successful application
     clearStoredUID();
     
     return data.success;
   } catch (error) {
-    console.error('Failed to apply referral code:', error);
+    console.error('Failed to apply referral code (via util):', error);
     return false;
   }
 } 

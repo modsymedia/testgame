@@ -8,8 +8,7 @@ import { Toaster } from "@/components/ui/feedback/toaster"
 import ReferralSuccess from "@/components/ui/ReferralSuccess"
 import ReferralHandler from '@/components/referral/ReferralHandler'
 import '@/lib/fixes/setup-mock-db'
-import React, { Suspense } from 'react'
-import { Pixelify_Sans, Jost } from 'next/font/google'
+import React from 'react'
 import Providers from '@/components/providers'
 
 export const metadata: Metadata = {
@@ -42,12 +41,10 @@ export default function RootLayout({
                 <Toaster />
                 <ReferralSuccess />
               </PointsProvider>
+              <ReferralHandler />
             </UserDataProvider>
           </WalletProvider>
         </Providers>
-        <Suspense fallback={null}>
-          <ReferralHandler />
-        </Suspense>
       </body>
     </html>
   )

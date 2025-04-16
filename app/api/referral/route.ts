@@ -32,22 +32,24 @@ const handleDatabaseError = (error: any) => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userWallet, referralCode } = await request.json();
+    // Expect userUid instead of userWallet
+    const { userUid, referralCode } = await request.json();
     
-    if (!userWallet || !referralCode) {
+    if (!userUid || !referralCode) {
       return NextResponse.json({ 
         success: false, 
-        error: 'User wallet and referral code are required' 
+        // Updated error message
+        error: 'User UID and referral code are required' 
       }, { status: 400 });
     }
     
-    // Check if the user exists
+    // Check if the user exists using UID
     let user: User | null;
     try {
-      user = await dbService.getUserByWalletAddress(userWallet);
-      console.log('Found user:', user ? 'Yes' : 'No');
+      user = await dbService.getUserByUid(userUid);
+      console.log('Found user by UID:', user ? 'Yes' : 'No');
     } catch (error) {
-      console.error('Error getting wallet data:', error);
+      console.error('Error getting user data by UID:', error);
       return handleDatabaseError(error);
     }
     
@@ -58,32 +60,31 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
     
-    // Check if user already has a referrer
-    if ((user as any).referredBy) {
+    // Check if user already has a referrer (using uid in referredBy)
+    if (user.referredBy) { // Check if the field exists
       return NextResponse.json({ 
         success: false, 
         error: 'User is already referred by someone' 
       }, { status: 400 });
     }
     
-    // Find the referrer by UID or public key fragment
+    // Find the referrer strictly by UID (referralCode)
     let referrers: User[];
     try {
       referrers = await dbService.queryUsers({ uid: referralCode });
       console.log(`Found ${referrers?.length || 0} referrers by UID`);
       
-      // If no users found by UID, try searching by matching the start of the public key
+      // REMOVED: Public key fragment fallback search
+      /*
       if (!referrers || referrers.length === 0) {
         console.log('Trying to find referrer by public key fragment:', referralCode);
-        
-        // Get all users and filter by public key fragment
         const allUsers = await dbService.queryUsers({});
         referrers = allUsers.filter(user => 
           user.walletAddress && user.walletAddress.startsWith(referralCode)
         );
-        
         console.log(`Found ${referrers.length} potential referrers by public key fragment`);
       }
+      */
     } catch (error) {
       return handleDatabaseError(error);
     }
@@ -91,95 +92,62 @@ export async function POST(request: NextRequest) {
     if (!referrers || referrers.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Invalid referral code' 
+        // Updated error message
+        error: 'Invalid referral code (UID not found)' 
       }, { status: 404 });
     }
     
     const referrer = referrers[0] as User;
     
-    // Check if user is trying to refer themselves
-    if (referrer.walletAddress === userWallet) {
+    // Check if user is trying to refer themselves using UID
+    if (referrer.uid === user.uid) {
       return NextResponse.json({ 
         success: false, 
         error: 'You cannot refer yourself' 
       }, { status: 400 });
     }
     
-    // Update user with referrer info using custom data object
+    // Update user with referrer's UID
     try {
-      if (!user || !user.uid) {
-          console.error('Cannot update user referral: User object or UID is missing.', user);
-          throw new Error('User data is incomplete for referral update.');
-      }
-      
+      // user.uid is already confirmed to exist here
       await dbService.updateUserData(user.uid, {
-        referredBy: referrer.walletAddress ?? undefined
+        // Store referrer's UID
+        referredBy: referrer.uid
       });
-      console.log(`Successfully updated referredBy for user UID: ${user.uid}`);
+      console.log(`Successfully updated referredBy for user UID ${user.uid} to referrer UID ${referrer.uid}`);
     } catch (error) {
       console.error(`Error updating referredBy for user UID: ${user?.uid}`, error);
       return handleDatabaseError(error);
     }
     
-    // Store referral count on the referrer's user record using a metadata field
-    // --- COMMENTING OUT Referrer Count Update - Requires User type/schema modification ---
-    /*
-    try {
-      if (!referrer || !referrer.uid) {
-         console.error('Cannot update referrer count: Referrer object or UID is missing.', referrer);
-      } else {
-         // Retrieve existing metadata or initialize if it doesn't exist
-         const existingMetadata = (referrer as any).metadata || {}; // Use 'as any' if metadata isn't strictly typed yet
-         const currentReferralInfo = existingMetadata.referralInfo || {};
-         const currentReferralCount = currentReferralInfo.count || 0;
-         
-         const newMetadata = {
-             ...existingMetadata,
-             referralInfo: {
-                 ...currentReferralInfo,
-                 count: currentReferralCount + 1
-             }
-         };
-         
-         await dbService.updateUserData(referrer.uid, { 
-             metadata: newMetadata // Update the metadata field
-         });
-         console.log(`Updated referral metadata (count) for referrer UID: ${referrer.uid}`);
-      }
-    } catch (error) {
-      // Log but continue since this is non-critical
-      console.error(`Error saving referral count metadata for referrer UID: ${referrer?.uid}`, error);
-    }
-    */
-    // --- END COMMENTED OUT SECTION ---
+    // --- Referrer Count Update remains COMMENTED OUT --- 
     
-    // Award points to referrer - use standard points awarding method
+    // Award points to referrer - use standard points awarding method (still requires walletAddress)
     const pointsManager = PointsManager.instance;
-    
-    // Cast the point source parameter to any to bypass type checking
-    let awardResult = { points: 0, success: false }; // Initialize default result
+    let awardResult = { points: 0, success: false };
     try {
-      // Only award points if the referrer has a valid wallet address
+      // Only award points if the referrer has a wallet address (as PointsManager expects it)
       if (referrer.walletAddress) {
           awardResult = await pointsManager.awardPoints(
-            referrer.walletAddress, // Now guaranteed to be string
-            100, // Award 100 points for referral
-            'interaction' as any, // Cast to bypass type checking
+            referrer.walletAddress, // Pass wallet address to PointsManager
+            100, 
+            'interaction' as any, 
             'earn',
-            { referredUser: userWallet } // userWallet is guaranteed non-null here
+            // Pass referred user's UID in metadata
+            { referredUserUid: user.uid } 
           );
       } else {
           console.warn(`Referrer UID ${referrer.uid} has no wallet address. Skipping point award.`);
       }
     } catch (error) {
       console.error('Error awarding points:', error);
-      // Keep default awardResult (0 points, success false) on error
     }
     
     return NextResponse.json({
       success: true,
       message: 'Referral applied successfully',
-      referrerWallet: referrer.walletAddress,
+      // Return referrer UID instead of wallet
+      referrerUid: referrer.uid, 
       pointsAwarded: awardResult?.points || 0
     });
     
@@ -190,26 +158,28 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const userWallet = request.nextUrl.searchParams.get('wallet');
+    // Expect uid instead of wallet
+    const userUid = request.nextUrl.searchParams.get('uid');
     
-    if (!userWallet) {
+    if (!userUid) {
       return NextResponse.json({ 
         success: false, 
-        error: 'User wallet is required' 
+        // Updated error message
+        error: 'User UID is required' 
       }, { status: 400 });
     }
     
-    // userWallet is guaranteed to be a string here
+    // userUid is guaranteed to be a string here
     
-    // Get users referred by this wallet
+    // Get users referred by this user's UID
     let referredUsers: User[];
     try {
-      // Explicitly convert null to undefined for the query criteria value
-      const criteria = { referredBy: userWallet } as { referredBy?: string | undefined };
+      // Query using referredBy with the user's UID
+      const criteria = { referredBy: userUid } as { referredBy?: string | undefined };
       referredUsers = await dbService.queryUsers(criteria);
       
-      // Assert userWallet as string for the linter, even though it's guaranteed by the check above
-      console.log(`Found ${referredUsers.length} referred users for wallet ${(userWallet as string).substring(0, 8)}...`); 
+      // Log using UID
+      console.log(`Found ${referredUsers.length} referred users for UID ${userUid}`); 
       
     } catch (error) {
       return handleDatabaseError(error);
@@ -218,14 +188,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       referrals: referredUsers.map(user => {
-        // Use the imported User type here too, handle potential missing fields
+        // Map data as before, using UID as the primary identifier
         return {
           username: user.username || user.walletAddress?.substring(0, 6) + '...' || 'Unknown',
-          walletAddress: user.walletAddress || 'Unknown',
-          joinedAt: (user as any).createdAt || Date.now(), // Assuming createdAt exists, might need casting
-          // Where should pointsEarned come from? Maybe from the points awarded?
-          // The original code used extendedUser.referralPoints, which isn't standard
-          pointsEarned: 0 // Placeholder - Needs clarification on how to track points earned per referral
+          walletAddress: user.walletAddress || 'Unknown', // Still useful to display
+          joinedAt: (user as any).createdAt || Date.now(), 
+          // pointsEarned still needs clarification
+          pointsEarned: 0, 
+          // Optionally include referred user's UID
+          uid: user.uid
         };
       })
     });

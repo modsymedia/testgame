@@ -4,9 +4,8 @@ import { signIn } from "next-auth/react"; // Added for Twitter sign-in
 import {
   Dialog,
   DialogContent,
-  // DialogHeader removed as it's unused
-  // DialogDescription removed as we'll use custom styling
-  // DialogTitle removed as we'll use custom styling
+  DialogDescription,
+  DialogTitle,
 } from "@/components/ui/feedback/dialog";
 import { Alert, AlertDescription } from "@/components/ui/feedback/alert";
 import Image from "next/image";
@@ -103,12 +102,16 @@ export function SignInModal() {
           <PixelatedContainer bgcolor="#C9EE6A" className="p-6 sm:p-8">
             {/* Custom Header */}
             <div className="mb-6 text-center">
-              <h2 className="font-pixelify text-2xl sm:text-3xl font-bold text-[#304700] mb-2 uppercase tracking-wider">
-                Sign In / Connect
-              </h2>
-              <p className="font-vcr text-sm sm:text-base text-[#4D7700]">
-                Choose your preferred method to join the fun!
-              </p>
+              <DialogTitle asChild> 
+                <h2 className="font-pixelify text-2xl sm:text-3xl font-bold text-[#304700] mb-2 uppercase tracking-wider">
+                  Sign In / Connect
+                </h2>
+              </DialogTitle>
+              <DialogDescription asChild> 
+                <p className="font-vcr text-sm sm:text-base text-[#4D7700]">
+                  Choose your preferred method to join the fun!
+                </p>
+              </DialogDescription>
             </div>
 
             {/* Error Alert - styled to fit */}

@@ -7,13 +7,18 @@ import { useWallet } from '@/context/WalletContext';
 const BackgroundMusic = () => {
   const { isConnected } = useWallet();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isUserPaused, setIsUserPaused] = useState<boolean>(() => {
-    // Get initial state from localStorage, default to false (not paused)
+  // Initialize with a consistent default value for server and client
+  const [isUserPaused, setIsUserPaused] = useState<boolean>(true);
+
+  // Load localStorage value only after mount
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('musicPaused') === 'true';
+      const storedPaused = localStorage.getItem('musicPaused');
+      if (storedPaused !== null) {
+        setIsUserPaused(storedPaused === 'true');
+      }
     }
-    return false;
-  });
+  }, []);
 
   useEffect(() => {
     const initializeAudio = () => {
@@ -94,7 +99,6 @@ const BackgroundMusic = () => {
         alt={isUserPaused ? "Play" : "Pause"}
         width={16}
         height={16} 
-        unoptimized 
       />
     </button>
   );

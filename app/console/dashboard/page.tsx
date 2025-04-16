@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useWallet } from '@/context/WalletContext';
+import { useUserData } from '@/context/UserDataContext';
 import { useRouter } from 'next/navigation';
 import { PointsDashboard } from '@/components/ui/points-dashboard';
 import { dbService } from '@/lib/database-service';
@@ -9,6 +10,7 @@ import { dbService } from '@/lib/database-service';
 export default function DashboardPage() {
   const router = useRouter();
   const { isConnected, publicKey } = useWallet();
+  const { userData } = useUserData();
   const tokenPrice = 0.05; // Example token price in USD
   
   // Local state for dashboard data
@@ -25,13 +27,15 @@ export default function DashboardPage() {
     }
   }, [isConnected, router]);
   
-  // Fetch fresh data when component mounts and when publicKey changes
+  // Fetch fresh data when component mounts and when uid changes
   useEffect(() => {
-    if (!publicKey) return;
+    const userUid = userData?.uid;
+    if (!userUid) return;
     
     const fetchFreshData = async () => {
       try {
-        const freshData = await dbService.getUserData(publicKey);
+        console.log(`Fetching fresh dashboard data for UID: ${userUid}`);
+        const freshData = await dbService.getUserByUid(userUid);
         if (freshData) {
           setDashboardData({
             points: freshData.points || 0,
@@ -52,7 +56,7 @@ export default function DashboardPage() {
     const refreshInterval = setInterval(fetchFreshData, 15000);
     
     return () => clearInterval(refreshInterval);
-  }, [publicKey]);
+  }, [userData?.uid]);
 
   return (
     <div className="sm:pt-20 min-h-min p-6 flex items-center justify-center ">

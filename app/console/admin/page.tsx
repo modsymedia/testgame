@@ -62,88 +62,88 @@ export default function AdminPage() {
 
   // Fetch pet data when pet management tab is opened
   useEffect(() => {
-    if (activeTab === "petManagement" && publicKey) {
-      fetchPetData();
-    }
-  }, [activeTab, publicKey]);
-
-  // Function to fetch pet data for the current wallet
-  const fetchPetData = async () => {
-    if (!publicKey) return;
-
-    try {
-      setIsLoading(true);
-      console.log("🔍 Fetching pet data for wallet:", publicKey);
-
-      // Try using the admin pet management API with the 'get' operation
-      const response = await fetch("/api/admin/pet-management", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Admin-Token": "development-token",
-        },
-        body: JSON.stringify({
-          walletAddress: publicKey,
-          operation: "get",
-        }),
-      });
-
-      const responseText = await response.text();
-      console.log("Raw API response for pet data:", responseText);
-      
-      let result;
+    // Define the fetching logic directly inside useEffect
+    const fetchData = async () => {
+      if (!publicKey) return;
       try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Failed to parse API response:", parseError);
-        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
-      }
+        setIsLoading(true);
+        console.log("🔍 Fetching pet data for wallet:", publicKey);
 
-      if (!response.ok) {
-        console.warn("API error:", result);
-        throw new Error(result.error || `Failed to get pet data: ${response.status}`);
-      }
-
-      if (result.success && result.data) {
-        // Update local petData state
-        const petStateData = result.data;
-        setPetData({
-          health: petStateData.health || 0,
-          happiness: petStateData.happiness || 0,
-          hunger: petStateData.hunger || 0,
-          cleanliness: petStateData.cleanliness || 0,
-          energy: petStateData.energy || 0,
-          isDead: petStateData.is_dead || false,
-          lastUpdate: petStateData.last_state_update
+        // Try using the admin pet management API with the 'get' operation
+        const response = await fetch("/api/admin/pet-management", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Admin-Token": "development-token", // Use a secure token in production
+          },
+          body: JSON.stringify({
+            walletAddress: publicKey,
+            operation: "get",
+          }),
         });
 
-        console.log("✅ Updated pet data:", petStateData);
-
-        // Also update the UI with a toast notification
-        toast.success("Pet data refreshed");
-      } else {
-        console.warn("No data in API response:", result);
-        throw new Error("No pet data found in API response");
-      }
-    } catch (error) {
-      console.error("❌ Error fetching pet data:", error);
-      toast.error("Failed to load pet data");
-      
-      // Use wallet data as fallback
-      setPetData(
-        walletData || {
-          health: 0,
-          happiness: 0,
-          hunger: 0,
-          cleanliness: 0,
-          energy: 0,
-          isDead: false,
+        const responseText = await response.text();
+        console.log("Raw API response for pet data:", responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("Failed to parse API response:", parseError);
+          throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
         }
-      );
-    } finally {
-      setIsLoading(false);
+
+        if (!response.ok) {
+          console.warn("API error:", result);
+          throw new Error(result.error || `Failed to get pet data: ${response.status}`);
+        }
+
+        if (result.success && result.data) {
+          // Update local petData state
+          const petStateData = result.data;
+          setPetData({
+            health: petStateData.health || 0,
+            happiness: petStateData.happiness || 0,
+            hunger: petStateData.hunger || 0,
+            cleanliness: petStateData.cleanliness || 0,
+            energy: petStateData.energy || 0,
+            isDead: petStateData.is_dead || false,
+            lastUpdate: petStateData.last_state_update
+          });
+
+          console.log("✅ Updated pet data:", petStateData);
+
+          // Also update the UI with a toast notification
+          toast.success("Pet data refreshed");
+        } else {
+          console.warn("No data in API response:", result);
+          throw new Error("No pet data found in API response");
+        }
+      } catch (error) {
+        console.error("❌ Error fetching pet data:", error);
+        toast.error("Failed to load pet data");
+        
+        // Use wallet data as fallback
+        setPetData(
+          walletData || {
+            health: 0,
+            happiness: 0,
+            hunger: 0,
+            cleanliness: 0,
+            energy: 0,
+            isDead: false,
+          }
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (activeTab === "petManagement" && publicKey) {
+      fetchData(); // Call the inner function
     }
-  };
+    // Dependencies now include everything used inside the effect
+  }, [activeTab, publicKey, setIsLoading, setPetData, walletData]);
 
   // Load statistics when component mounts
   useEffect(() => {
@@ -613,6 +613,78 @@ export default function AdminPage() {
       });
     }
   }, [walletData]);
+
+  // Restore the original function definition for fetchPetData
+  const fetchPetData = async () => {
+    if (!publicKey) return;
+
+    try {
+      setIsLoading(true);
+      console.log("🔍 Fetching pet data for wallet:", publicKey);
+
+      const response = await fetch("/api/admin/pet-management", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Admin-Token": "development-token", 
+        },
+        body: JSON.stringify({
+          walletAddress: publicKey,
+          operation: "get",
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log("Raw API response for pet data:", responseText);
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Failed to parse API response:", parseError);
+        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
+      }
+
+      if (!response.ok) {
+        console.warn("API error:", result);
+        throw new Error(result.error || `Failed to get pet data: ${response.status}`);
+      }
+
+      if (result.success && result.data) {
+        const petStateData = result.data;
+        setPetData({
+          health: petStateData.health || 0,
+          happiness: petStateData.happiness || 0,
+          hunger: petStateData.hunger || 0,
+          cleanliness: petStateData.cleanliness || 0,
+          energy: petStateData.energy || 0,
+          isDead: petStateData.is_dead || false,
+          lastUpdate: petStateData.last_state_update
+        });
+        console.log("✅ Updated pet data:", petStateData);
+        toast.success("Pet data refreshed");
+      } else {
+        console.warn("No data in API response:", result);
+        throw new Error("No pet data found in API response");
+      }
+    } catch (error) {
+      console.error("❌ Error fetching pet data:", error);
+      toast.error("Failed to load pet data");
+      setPetData(
+        walletData || {
+          health: 0,
+          happiness: 0,
+          hunger: 0,
+          cleanliness: 0,
+          energy: 0,
+          isDead: false,
+        }
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  // End of restored fetchPetData function
 
   // Render the appropriate tab content
   const renderTabContent = () => {
