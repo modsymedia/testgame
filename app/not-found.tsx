@@ -7,7 +7,8 @@ import Image from 'next/image';
 import { WalletProvider } from '@/context/WalletContext';
 import { UserDataProvider } from '@/context/UserDataContext';
 import { PointsProvider } from '@/context/PointsContext';
-import Providers from '@/components/providers'; // Assuming this wraps theme/other providers
+// Remove Providers import
+// import Providers from '@/components/providers'; 
  
 function NotFoundContent() {
   return (
@@ -37,8 +38,8 @@ function NotFoundContent() {
 
 export default function NotFound() {
   return (
-    // Wrap content with necessary providers
-    <Providers>
+    // Remove the outermost Providers wrapper
+    // <Providers>
       <WalletProvider>
         <UserDataProvider>
           <PointsProvider>
@@ -48,6 +49,6 @@ export default function NotFound() {
           </PointsProvider>
         </UserDataProvider>
       </WalletProvider>
-    </Providers>
+    // </Providers>
   );
 } 
