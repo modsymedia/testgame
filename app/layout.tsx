@@ -48,13 +48,13 @@ export default function RootLayout({
                 </main>
                 <Toaster />
                 <ReferralSuccess />
+                <Suspense fallback={null}>
+                  <ReferralHandler />
+                </Suspense>
               </PointsProvider>
             </UserDataProvider>
           </WalletProvider>
         </Providers>
-        <Suspense fallback={null}>
-          <ReferralHandler />
-        </Suspense>
       </body>
     </html>
   )
